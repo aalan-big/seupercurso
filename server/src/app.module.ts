@@ -9,6 +9,10 @@ import { EventoModule } from './evento/evento.module';
 import { InscricaoModule } from './inscricao/inscricao.module';
 import { PagamentoModule } from './pagamento/pagamento.module';
 import { OrganizadorModule } from './organizador/organizador.module';
+import { AdminAuthModule } from './admin-auth/admin-auth.module';
+import { AdminModule } from './admin/admin.module';
+import { StaffAuthModule } from './staff-auth/staff-auth.module';
+import { StaffModule } from './staff/staff.module';
 import { envValidationSchema } from './config/env.validation';
 
 @Module({
@@ -24,6 +28,10 @@ import { envValidationSchema } from './config/env.validation';
     InscricaoModule,
     PagamentoModule,
     OrganizadorModule,
+    AdminAuthModule,
+    AdminModule,
+    StaffAuthModule,
+    StaffModule,
   ],
   controllers: [AppController],
   providers: [AppService],

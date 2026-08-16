@@ -354,7 +354,7 @@ async function onSubmitEndereco() {
             />
           </div>
 
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label class="mb-1 block text-sm font-semibold text-slate-700">CPF</label>
               <input
@@ -448,7 +448,7 @@ async function onSubmitEndereco() {
         </form>
 
         <form v-else class="mt-6 flex flex-col gap-4" @submit.prevent="onSubmitEndereco">
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label class="mb-1 block text-sm font-semibold text-slate-700">CEP</label>
               <input
@@ -504,7 +504,7 @@ async function onSubmitEndereco() {
             />
           </div>
 
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label class="mb-1 block text-sm font-semibold text-slate-700">Cidade</label>
               <input

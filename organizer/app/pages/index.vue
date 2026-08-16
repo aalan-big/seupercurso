@@ -14,7 +14,7 @@ onMounted(async () => {
 
   try {
     await fetchMe()
-    await navigateTo(organizador.value?.status === 'APROVADO' ? '/eventos' : '/aguardando-aprovacao')
+    await navigateTo(organizador.value?.status === 'APROVADO' ? '/dashboard' : '/aguardando-aprovacao')
     return
   } catch {
     await navigateTo('/onboarding')

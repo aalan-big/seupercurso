@@ -348,7 +348,7 @@ async function salvarEndereco() {
               class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
             />
           </div>
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label class="mb-1 block text-sm font-semibold text-slate-700">CPF</label>
               <input
@@ -478,7 +478,7 @@ async function salvarEndereco() {
           <p v-if="erroEndereco" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {{ erroEndereco }}
           </p>
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label class="mb-1 block text-sm font-semibold text-slate-700">CEP</label>
               <input
@@ -527,7 +527,7 @@ async function salvarEndereco() {
               class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
             />
           </div>
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label class="mb-1 block text-sm font-semibold text-slate-700">Cidade</label>
               <input

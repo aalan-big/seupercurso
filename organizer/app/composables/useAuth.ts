@@ -49,5 +49,12 @@ export function useAuth() {
     user.value = null
   }
 
-  return { token, user, register, login, fetchMe, logout }
+  async function alterarSenha(senhaAtual: string, novaSenha: string) {
+    return await api('/auth/senha', {
+      method: 'PATCH',
+      body: { senhaAtual, novaSenha }
+    })
+  }
+
+  return { token, user, register, login, fetchMe, logout, alterarSenha }
 }

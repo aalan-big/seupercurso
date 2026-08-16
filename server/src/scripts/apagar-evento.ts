@@ -23,7 +23,6 @@ async function main() {
     await tx.modalidade.deleteMany({ where: { eventoId: EVENTO_ID } });
     await tx.lote.deleteMany({ where: { eventoId: EVENTO_ID } });
     await tx.patrocinador.deleteMany({ where: { eventoId: EVENTO_ID } });
-    await tx.staff.deleteMany({ where: { eventoId: EVENTO_ID } });
     await tx.evento.delete({ where: { id: EVENTO_ID } });
   });
 

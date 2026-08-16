@@ -64,6 +64,24 @@ export interface CreateClientePjInput {
   celularComercial: string
 }
 
+export interface UpdateClientePfInput {
+  nomeCompleto?: string
+  cpf?: string
+  dataNascimento?: string
+  genero?: 'MASCULINO' | 'FEMININO' | 'OUTRO'
+  celular?: string
+  nacionalidade?: string
+}
+
+export interface UpdateClientePjInput {
+  razaoSocial?: string
+  nomeFantasia?: string
+  cnpj?: string
+  nomeResponsavel?: string
+  documentoResponsavel?: string
+  celularComercial?: string
+}
+
 export interface CreateEnderecoInput {
   tipo?: string
   cep: string
@@ -111,5 +129,53 @@ export function useCliente() {
     })
   }
 
-  return { cliente, createPessoaFisica, createPessoaJuridica, createEndereco, fetchMe }
+  async function updatePessoaFisica(input: UpdateClientePfInput) {
+    const res = await api<ClientePf>('/clientes/me/pessoa-fisica', {
+      method: 'PATCH',
+      body: input
+    })
+    if (cliente.value) cliente.value = { ...cliente.value, pf: res }
+    return res
+  }
+
+  async function updatePessoaJuridica(input: UpdateClientePjInput) {
+    const res = await api<ClientePj>('/clientes/me/pessoa-juridica', {
+      method: 'PATCH',
+      body: input
+    })
+    if (cliente.value) cliente.value = { ...cliente.value, pj: res }
+    return res
+  }
+
+  async function updateEndereco(input: CreateEnderecoInput) {
+    const res = await api<Endereco>('/clientes/me/endereco', {
+      method: 'PATCH',
+      body: input
+    })
+    if (cliente.value) cliente.value = { ...cliente.value, enderecos: [res] }
+    return res
+  }
+
+  async function uploadFoto(arquivo: File) {
+    const formData = new FormData()
+    formData.append('foto', arquivo)
+    const res = await api<Cliente>('/clientes/me/foto', {
+      method: 'PATCH',
+      body: formData
+    })
+    if (cliente.value) cliente.value = { ...cliente.value, fotoPerfil: res.fotoPerfil }
+    return res
+  }
+
+  return {
+    cliente,
+    createPessoaFisica,
+    createPessoaJuridica,
+    createEndereco,
+    updatePessoaFisica,
+    updatePessoaJuridica,
+    updateEndereco,
+    uploadFoto,
+    fetchMe
+  }
 }

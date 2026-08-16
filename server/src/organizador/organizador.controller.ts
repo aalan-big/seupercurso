@@ -36,6 +36,10 @@ import { CreateLoteDto } from './dto/create-lote.dto';
 import { UpdateLoteDto } from './dto/update-lote.dto';
 import { DefinirPrecoDto } from './dto/definir-preco.dto';
 import { CreateCupomDto } from './dto/create-cupom.dto';
+import { UpdateDadosBancariosDto } from './dto/update-dados-bancarios.dto';
+import { CreateStaffDto } from './dto/create-staff.dto';
+import { UpdateStaffDto } from './dto/update-staff.dto';
+import { RedefinirSenhaStaffDto } from './dto/redefinir-senha-staff.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('organizadores/me')
@@ -51,6 +55,94 @@ export class OrganizadorController {
   @Get()
   getMe(@CurrentUser() user: AuthenticatedUser) {
     return this.organizadorService.getMe(user.userId);
+  }
+
+  @Patch('dados-bancarios')
+  atualizarDadosBancarios(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpdateDadosBancariosDto,
+  ) {
+    return this.organizadorService.atualizarDadosBancarios(user.userId, dto);
+  }
+
+  @Get('dashboard')
+  obterDashboard(@CurrentUser() user: AuthenticatedUser) {
+    return this.organizadorService.obterDashboard(user.userId);
+  }
+
+  @Get('financeiro')
+  obterFinanceiro(@CurrentUser() user: AuthenticatedUser) {
+    return this.organizadorService.obterFinanceiro(user.userId);
+  }
+
+  @Get('staff')
+  listarStaff(@CurrentUser() user: AuthenticatedUser) {
+    return this.organizadorService.listarStaff(user.userId);
+  }
+
+  @HttpCode(HttpStatus.CREATED)
+  @Post('staff')
+  criarStaff(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateStaffDto) {
+    return this.organizadorService.criarStaff(user.userId, dto);
+  }
+
+  @Patch('staff/:id')
+  atualizarStaff(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateStaffDto,
+  ) {
+    return this.organizadorService.atualizarStaff(user.userId, id, dto);
+  }
+
+  @Patch('staff/:id/senha')
+  redefinirSenhaStaff(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body('novaSenha') novaSenha: string,
+  ) {
+    return this.organizadorService.redefinirSenhaStaff(user.userId, id, novaSenha);
+  }
+
+  @Delete('staff/:id')
+  removerStaff(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.organizadorService.removerStaff(user.userId, id);
+  }
+
+  @Patch('documento-identidade')
+  @UseInterceptors(
+    FileInterceptor('documento', {
+      storage: diskStorage({
+        destination: './uploads/documentos',
+        filename: (_req, file, callback) => {
+          const sufixo = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+          callback(null, `${sufixo}${extname(file.originalname)}`);
+        },
+      }),
+      limits: { fileSize: 10 * 1024 * 1024 },
+      fileFilter: (_req, file, callback) => {
+        if (!file.mimetype.startsWith('image/') && file.mimetype !== 'application/pdf') {
+          callback(
+            new BadRequestException('Envie uma imagem ou um PDF.'),
+            false,
+          );
+          return;
+        }
+        callback(null, true);
+      },
+    }),
+  )
+  uploadDocumentoIdentidade(
+    @CurrentUser() user: AuthenticatedUser,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException('Nenhum arquivo enviado.');
+    }
+    return this.organizadorService.atualizarDocumentoIdentidade(
+      user.userId,
+      `/uploads/documentos/${file.filename}`,
+    );
   }
 
   @Get('eventos')

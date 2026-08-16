@@ -3,10 +3,10 @@ definePageMeta({ layout: 'auth' })
 
 const { token } = useAuth()
 const { createPessoaFisica, createPessoaJuridica, createEndereco } = useCliente()
-const { organizador, fetchMe: fetchOrganizadorMe, solicitarCadastro } = useOrganizador()
+const { organizador, fetchMe: fetchOrganizadorMe, solicitarCadastro, uploadDocumentoIdentidade } = useOrganizador()
 
 const verificando = ref(true)
-const step = ref<1 | 2>(1)
+const step = ref<1 | 2 | 3>(1)
 const tipoPessoa = ref<'PF' | 'PJ'>('PJ')
 
 const pfForm = reactive({
@@ -86,7 +86,20 @@ onMounted(async () => {
 
   try {
     await fetchOrganizadorMe()
-    await navigateTo(organizador.value?.status === 'APROVADO' ? '/eventos' : '/aguardando-aprovacao')
+
+    if (organizador.value?.status === 'APROVADO') {
+      await navigateTo('/dashboard')
+      return
+    }
+
+    if (!organizador.value?.documentoIdentidadeUrl) {
+      // solicitação já existe mas o documento ainda não foi enviado — retoma na etapa 3
+      step.value = 3
+      verificando.value = false
+      return
+    }
+
+    await navigateTo('/aguardando-aprovacao')
     return
   } catch {
     // ainda não solicitou cadastro de organizador — segue pra tela de onboarding
@@ -180,6 +193,32 @@ async function onSubmitEndereco() {
   try {
     await createEndereco({ ...enderecoForm })
     await solicitarCadastro()
+    step.value = 3
+  } catch (e) {
+    erro.value = extrairErro(e)
+  } finally {
+    carregando.value = false
+  }
+}
+
+const documentoArquivo = ref<File | null>(null)
+
+function onSelecionarDocumento(e: Event) {
+  const input = e.target as HTMLInputElement
+  documentoArquivo.value = input.files?.[0] ?? null
+}
+
+async function onSubmitDocumento() {
+  erro.value = ''
+
+  if (!documentoArquivo.value) {
+    erro.value = 'Envie uma foto ou PDF do seu documento de identidade (RG ou CNH).'
+    return
+  }
+
+  carregando.value = true
+  try {
+    await uploadDocumentoIdentidade(documentoArquivo.value)
     await navigateTo('/aguardando-aprovacao')
   } catch (e) {
     erro.value = extrairErro(e)
@@ -217,16 +256,31 @@ async function onSubmitEndereco() {
         </span>
         Endereço
       </div>
+      <div class="h-0.5 flex-1" :class="step >= 3 ? 'bg-primary' : 'bg-slate-200'"></div>
+      <div
+        class="flex items-center gap-2 text-xs font-bold uppercase tracking-wide"
+        :class="step >= 3 ? 'text-primary' : 'text-slate-400'"
+      >
+        <span
+          class="flex h-6 w-6 items-center justify-center rounded-full"
+          :class="step >= 3 ? 'bg-primary text-white' : 'bg-slate-200 text-slate-500'"
+        >
+          3
+        </span>
+        Documento
+      </div>
     </div>
 
     <h1 class="text-2xl font-extrabold uppercase tracking-tight text-primary">
-      {{ step === 1 ? 'Solicitar cadastro de organizador' : 'Endereço' }}
+      {{ step === 1 ? 'Solicitar cadastro de organizador' : step === 2 ? 'Endereço' : 'Documento de identidade' }}
     </h1>
     <p class="mt-1 text-sm text-slate-500">
       {{
         step === 1
           ? 'Precisamos confirmar quem é você antes de liberar a criação de eventos — sua conta vai lidar com pagamentos de inscrições.'
-          : 'Usamos pra emitir nota fiscal e formalizar seus eventos.'
+          : step === 2
+            ? 'Usamos pra emitir nota fiscal e formalizar seus eventos.'
+            : 'Envie uma foto ou PDF do seu RG ou CNH — nossa equipe confere antes de liberar sua conta, por segurança de quem vai se inscrever nos seus eventos.'
       }}
     </p>
 
@@ -397,7 +451,7 @@ async function onSubmitEndereco() {
       </button>
     </form>
 
-    <form v-else class="mt-6 flex flex-col gap-4" @submit.prevent="onSubmitEndereco">
+    <form v-else-if="step === 2" class="mt-6 flex flex-col gap-4" @submit.prevent="onSubmitEndereco">
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label class="mb-1 block text-sm font-semibold text-slate-700">CEP</label>
@@ -475,6 +529,28 @@ async function onSubmitEndereco() {
             <option v-for="uf in estadosBr" :key="uf.sigla" :value="uf.sigla">{{ uf.sigla }} - {{ uf.nome }}</option>
           </select>
         </div>
+      </div>
+
+      <button
+        type="submit"
+        :disabled="carregando"
+        class="mt-2 rounded-xl bg-warning px-4 py-3 text-sm font-bold uppercase tracking-wide text-primary transition hover:brightness-95 disabled:opacity-50"
+      >
+        {{ carregando ? 'Enviando...' : 'Continuar' }}
+      </button>
+    </form>
+
+    <form v-else class="mt-6 flex flex-col gap-4" @submit.prevent="onSubmitDocumento">
+      <div>
+        <label class="mb-1 block text-sm font-semibold text-slate-700">RG ou CNH (foto ou PDF)</label>
+        <input
+          type="file"
+          accept="image/*,application/pdf"
+          required
+          class="block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200"
+          @change="onSelecionarDocumento"
+        />
+        <p v-if="documentoArquivo" class="mt-2 text-xs text-slate-500">Selecionado: {{ documentoArquivo.name }}</p>
       </div>
 
       <button

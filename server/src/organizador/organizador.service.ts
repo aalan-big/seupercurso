@@ -7,13 +7,17 @@ import {
 } from '@nestjs/common';
 import { unlink } from 'fs/promises';
 import { join } from 'path';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '../generated/prisma/client';
 import {
+  StatusEvento,
   StatusInscricao,
   StatusOrganizador,
+  StatusPagamento,
   StatusResultado,
 } from '../generated/prisma/enums';
+import { montarSerieDiaria } from '../common/montar-serie-diaria';
 import { CreateEventoDto } from './dto/create-evento.dto';
 import { UpdateEventoDto } from './dto/update-evento.dto';
 import { CreateModalidadeDto } from './dto/create-modalidade.dto';
@@ -24,8 +28,12 @@ import { CreateLoteDto } from './dto/create-lote.dto';
 import { UpdateLoteDto } from './dto/update-lote.dto';
 import { DefinirPrecoDto } from './dto/definir-preco.dto';
 import { CreateCupomDto } from './dto/create-cupom.dto';
+import { UpdateDadosBancariosDto } from './dto/update-dados-bancarios.dto';
+import { CreateStaffDto } from './dto/create-staff.dto';
+import { UpdateStaffDto } from './dto/update-staff.dto';
 
 const COMISSAO_PADRAO = 10;
+const STAFF_SALT_ROUNDS = 12;
 
 interface FiltrosInscritos {
   eventoId?: string;
@@ -85,6 +93,167 @@ export class OrganizadorService {
       where: { organizadorId: organizador.id },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async obterDashboard(usuarioId: string) {
+    const organizador = await this.getOrganizadorOuFalhar(usuarioId);
+
+    const DIAS_SERIE = 14;
+    const desde = new Date();
+    desde.setUTCHours(0, 0, 0, 0);
+    desde.setUTCDate(desde.getUTCDate() - (DIAS_SERIE - 1));
+
+    const [
+      totalEventos,
+      eventosPublicados,
+      eventosAguardandoAprovacao,
+      inscricoesConfirmadas,
+      kitsPendentes,
+      proximosEventos,
+      eventosPorStatusRaw,
+      inscricoesRecentes,
+    ] = await Promise.all([
+      this.prisma.evento.count({ where: { organizadorId: organizador.id } }),
+      this.prisma.evento.count({
+        where: { organizadorId: organizador.id, status: StatusEvento.PUBLICADO },
+      }),
+      this.prisma.evento.count({
+        where: {
+          organizadorId: organizador.id,
+          status: StatusEvento.AGUARDANDO_APROVACAO,
+        },
+      }),
+      this.prisma.inscricao.count({
+        where: {
+          status: StatusInscricao.CONFIRMADA,
+          categoria: { modalidade: { evento: { organizadorId: organizador.id } } },
+        },
+      }),
+      this.prisma.inscricao.count({
+        where: {
+          status: StatusInscricao.CONFIRMADA,
+          kitEntregueEm: null,
+          categoria: { modalidade: { evento: { organizadorId: organizador.id } } },
+        },
+      }),
+      this.prisma.evento.findMany({
+        where: {
+          organizadorId: organizador.id,
+          status: StatusEvento.PUBLICADO,
+          dataInicio: { gte: new Date() },
+        },
+        orderBy: { dataInicio: 'asc' },
+        take: 5,
+        select: { id: true, nome: true, dataInicio: true, cidade: true, estado: true },
+      }),
+      this.prisma.evento.groupBy({
+        by: ['status'],
+        where: { organizadorId: organizador.id },
+        _count: { _all: true },
+      }),
+      this.prisma.inscricao.findMany({
+        where: {
+          status: StatusInscricao.CONFIRMADA,
+          dataInscricao: { gte: desde },
+          categoria: { modalidade: { evento: { organizadorId: organizador.id } } },
+        },
+        select: { dataInscricao: true },
+      }),
+    ]);
+
+    const eventosPorStatus = Object.fromEntries(
+      eventosPorStatusRaw.map((linha) => [linha.status, linha._count._all]),
+    );
+
+    const inscricoesPorDia = montarSerieDiaria(
+      inscricoesRecentes.map((i) => i.dataInscricao),
+      DIAS_SERIE,
+    );
+
+    return {
+      contadores: {
+        totalEventos,
+        eventosPublicados,
+        eventosAguardandoAprovacao,
+        inscricoesConfirmadas,
+        kitsPendentes,
+      },
+      eventosPorStatus,
+      inscricoesPorDia,
+      proximosEventos,
+    };
+  }
+
+  async obterFinanceiro(usuarioId: string) {
+    const organizador = await this.getOrganizadorOuFalhar(usuarioId);
+
+    const pagamentos = await this.prisma.pagamento.findMany({
+      where: {
+        status: StatusPagamento.APROVADO,
+        inscricao: {
+          categoria: { modalidade: { evento: { organizadorId: organizador.id } } },
+        },
+      },
+      select: {
+        valor: true,
+        inscricao: {
+          select: {
+            categoria: {
+              select: {
+                modalidade: {
+                  select: { evento: { select: { id: true, nome: true } } },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const percentual = Number(organizador.comissaoPercentual);
+
+    interface ResumoEvento {
+      eventoId: string;
+      nome: string;
+      quantidadePagamentos: number;
+      totalArrecadado: number;
+      comissaoPlataforma: number;
+    }
+
+    const porEvento = new Map<string, ResumoEvento>();
+    let totalArrecadado = 0;
+    let comissaoPlataforma = 0;
+
+    for (const pagamento of pagamentos) {
+      const valor = Number(pagamento.valor);
+      const comissao = valor * (percentual / 100);
+      totalArrecadado += valor;
+      comissaoPlataforma += comissao;
+
+      const evento = pagamento.inscricao.categoria.modalidade.evento;
+      const atual = porEvento.get(evento.id) ?? {
+        eventoId: evento.id,
+        nome: evento.nome,
+        quantidadePagamentos: 0,
+        totalArrecadado: 0,
+        comissaoPlataforma: 0,
+      };
+      atual.quantidadePagamentos += 1;
+      atual.totalArrecadado += valor;
+      atual.comissaoPlataforma += comissao;
+      porEvento.set(evento.id, atual);
+    }
+
+    return {
+      comissaoPercentual: percentual,
+      totalArrecadado,
+      comissaoPlataforma,
+      totalRepasse: totalArrecadado - comissaoPlataforma,
+      porEvento: Array.from(porEvento.values()).map((e) => ({
+        ...e,
+        repasse: e.totalArrecadado - e.comissaoPlataforma,
+      })),
+    };
   }
 
   async criarEvento(usuarioId: string, dto: CreateEventoDto) {
@@ -180,6 +349,17 @@ export class OrganizadorService {
       eventoId,
     );
 
+    if (
+      dto.status &&
+      dto.status !== evento.status &&
+      (dto.status === StatusEvento.PUBLICADO ||
+        dto.status === StatusEvento.FINALIZADO)
+    ) {
+      throw new ForbiddenException(
+        'Só a equipe da plataforma pode publicar ou finalizar um evento. Envie pra revisão (status "Aguardando aprovação") e aguarde.',
+      );
+    }
+
     this.validarPeriodo(
       dto.dataInicio ?? evento.dataInicio.toISOString(),
       dto.dataFim ?? evento.dataFim.toISOString(),
@@ -189,6 +369,9 @@ export class OrganizadorService {
       where: { id: eventoId },
       data: {
         ...dto,
+        ...(dto.status === StatusEvento.AGUARDANDO_APROVACAO
+          ? { motivoRejeicao: null }
+          : {}),
         ...(dto.dataInicio ? { dataInicio: new Date(dto.dataInicio) } : {}),
         ...(dto.dataFim ? { dataFim: new Date(dto.dataFim) } : {}),
         ...(dto.retiradaKitInicio
@@ -355,7 +538,31 @@ export class OrganizadorService {
 
   async buscarParaCheckin(usuarioId: string, eventoId: string, busca?: string) {
     const organizador = await this.getOrganizadorOuFalhar(usuarioId);
-    await this.getEventoDoOrganizadorOuFalhar(organizador.id, eventoId);
+    return this.buscarParaCheckinCore(organizador.id, eventoId, busca);
+  }
+
+  async buscarParaCheckinComoStaff(
+    organizadorId: string,
+    eventoId: string,
+    busca?: string,
+  ) {
+    return this.buscarParaCheckinCore(organizadorId, eventoId, busca);
+  }
+
+  async listarEventosComoStaff(organizadorId: string) {
+    return this.prisma.evento.findMany({
+      where: { organizadorId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, nome: true },
+    });
+  }
+
+  private async buscarParaCheckinCore(
+    organizadorId: string,
+    eventoId: string,
+    busca?: string,
+  ) {
+    await this.getEventoDoOrganizadorOuFalhar(organizadorId, eventoId);
 
     if (!busca || busca.trim().length < 2) {
       return [];
@@ -394,8 +601,38 @@ export class OrganizadorService {
 
   async confirmarEntregaKit(usuarioId: string, eventoId: string, inscricaoId: string) {
     const organizador = await this.getOrganizadorAprovadoOuFalhar(usuarioId);
-    await this.getEventoDoOrganizadorOuFalhar(organizador.id, eventoId);
+    return this.confirmarEntregaKitCore(organizador.id, eventoId, inscricaoId);
+  }
 
+  async confirmarEntregaKitComoStaff(
+    organizadorId: string,
+    eventoId: string,
+    inscricaoId: string,
+  ) {
+    await this.getOrganizadorPorIdAprovadoOuFalhar(organizadorId);
+    return this.confirmarEntregaKitCore(organizadorId, eventoId, inscricaoId);
+  }
+
+  async desfazerEntregaKit(usuarioId: string, eventoId: string, inscricaoId: string) {
+    const organizador = await this.getOrganizadorAprovadoOuFalhar(usuarioId);
+    return this.desfazerEntregaKitCore(organizador.id, eventoId, inscricaoId);
+  }
+
+  async desfazerEntregaKitComoStaff(
+    organizadorId: string,
+    eventoId: string,
+    inscricaoId: string,
+  ) {
+    await this.getOrganizadorPorIdAprovadoOuFalhar(organizadorId);
+    return this.desfazerEntregaKitCore(organizadorId, eventoId, inscricaoId);
+  }
+
+  private async confirmarEntregaKitCore(
+    organizadorId: string,
+    eventoId: string,
+    inscricaoId: string,
+  ) {
+    await this.getEventoDoOrganizadorOuFalhar(organizadorId, eventoId);
     const inscricao = await this.getInscricaoDoEventoOuFalhar(eventoId, inscricaoId);
 
     if (inscricao.status !== StatusInscricao.CONFIRMADA) {
@@ -410,9 +647,12 @@ export class OrganizadorService {
     });
   }
 
-  async desfazerEntregaKit(usuarioId: string, eventoId: string, inscricaoId: string) {
-    const organizador = await this.getOrganizadorAprovadoOuFalhar(usuarioId);
-    await this.getEventoDoOrganizadorOuFalhar(organizador.id, eventoId);
+  private async desfazerEntregaKitCore(
+    organizadorId: string,
+    eventoId: string,
+    inscricaoId: string,
+  ) {
+    await this.getEventoDoOrganizadorOuFalhar(organizadorId, eventoId);
     await this.getInscricaoDoEventoOuFalhar(eventoId, inscricaoId);
 
     return this.prisma.inscricao.update({
@@ -844,6 +1084,38 @@ export class OrganizadorService {
     }
   }
 
+  async atualizarDocumentoIdentidade(
+    usuarioId: string,
+    caminhoRelativo: string,
+  ) {
+    const organizador = await this.getOrganizadorOuFalhar(usuarioId);
+
+    if (organizador.documentoIdentidadeUrl) {
+      unlink(
+        join(process.cwd(), organizador.documentoIdentidadeUrl),
+      ).catch(() => undefined);
+    }
+
+    return this.prisma.organizador.update({
+      where: { id: organizador.id },
+      data: {
+        documentoIdentidadeUrl: caminhoRelativo,
+        ...(organizador.status === StatusOrganizador.REJEITADO
+          ? { status: StatusOrganizador.PENDENTE, motivoRevisao: null }
+          : {}),
+      },
+    });
+  }
+
+  async atualizarDadosBancarios(usuarioId: string, dto: UpdateDadosBancariosDto) {
+    const organizador = await this.getOrganizadorOuFalhar(usuarioId);
+
+    return this.prisma.organizador.update({
+      where: { id: organizador.id },
+      data: dto,
+    });
+  }
+
   private async getOrganizadorOuFalhar(usuarioId: string) {
     const cliente = await this.prisma.cliente.findUnique({
       where: { usuarioId },
@@ -869,5 +1141,105 @@ export class OrganizadorService {
     }
 
     return organizador;
+  }
+
+  private async getOrganizadorPorIdAprovadoOuFalhar(organizadorId: string) {
+    const organizador = await this.prisma.organizador.findUnique({
+      where: { id: organizadorId },
+    });
+
+    if (!organizador) {
+      throw new NotFoundException('Organizador não encontrado.');
+    }
+    if (organizador.status !== StatusOrganizador.APROVADO) {
+      throw new ForbiddenException(
+        'O cadastro do organizador não está mais aprovado.',
+      );
+    }
+
+    return organizador;
+  }
+
+  async listarStaff(usuarioId: string) {
+    const organizador = await this.getOrganizadorOuFalhar(usuarioId);
+
+    return this.prisma.staff.findMany({
+      where: { organizadorId: organizador.id },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        nome: true,
+        email: true,
+        funcao: true,
+        ativo: true,
+        createdAt: true,
+      },
+    });
+  }
+
+  async criarStaff(usuarioId: string, dto: CreateStaffDto) {
+    const organizador = await this.getOrganizadorAprovadoOuFalhar(usuarioId);
+
+    const passwordHash = await bcrypt.hash(dto.senha, STAFF_SALT_ROUNDS);
+
+    try {
+      const staff = await this.prisma.staff.create({
+        data: {
+          organizadorId: organizador.id,
+          nome: dto.nome,
+          email: dto.email,
+          funcao: dto.funcao,
+          passwordHash,
+        },
+      });
+      const { passwordHash: _omitido, ...staffPublico } = staff;
+      return staffPublico;
+    } catch (error) {
+      throw this.tratarErroDeUnicidade(
+        error,
+        'Já existe um membro de equipe com esse e-mail.',
+      );
+    }
+  }
+
+  async atualizarStaff(usuarioId: string, staffId: string, dto: UpdateStaffDto) {
+    const organizador = await this.getOrganizadorOuFalhar(usuarioId);
+    await this.getStaffDoOrganizadorOuFalhar(organizador.id, staffId);
+
+    const staff = await this.prisma.staff.update({
+      where: { id: staffId },
+      data: dto,
+    });
+    const { passwordHash: _omitido, ...staffPublico } = staff;
+    return staffPublico;
+  }
+
+  async redefinirSenhaStaff(usuarioId: string, staffId: string, novaSenha: string) {
+    const organizador = await this.getOrganizadorOuFalhar(usuarioId);
+    await this.getStaffDoOrganizadorOuFalhar(organizador.id, staffId);
+
+    const passwordHash = await bcrypt.hash(novaSenha, STAFF_SALT_ROUNDS);
+    await this.prisma.staff.update({
+      where: { id: staffId },
+      data: { passwordHash },
+    });
+
+    return { sucesso: true };
+  }
+
+  async removerStaff(usuarioId: string, staffId: string) {
+    const organizador = await this.getOrganizadorOuFalhar(usuarioId);
+    await this.getStaffDoOrganizadorOuFalhar(organizador.id, staffId);
+
+    await this.prisma.staff.delete({ where: { id: staffId } });
+    return { sucesso: true };
+  }
+
+  private async getStaffDoOrganizadorOuFalhar(organizadorId: string, staffId: string) {
+    const staff = await this.prisma.staff.findUnique({ where: { id: staffId } });
+    if (!staff || staff.organizadorId !== organizadorId) {
+      throw new NotFoundException('Membro de equipe não encontrado.');
+    }
+    return staff;
   }
 }

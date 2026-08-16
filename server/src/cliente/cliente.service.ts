@@ -11,6 +11,7 @@ import { CreateClientePfDto } from './dto/create-cliente-pf.dto';
 import { CreateClientePjDto } from './dto/create-cliente-pj.dto';
 import { CreateEnderecoDto } from './dto/create-endereco.dto';
 import { UpdateClientePfDto } from './dto/update-cliente-pf.dto';
+import { UpdateClientePjDto } from './dto/update-cliente-pj.dto';
 
 @Injectable()
 export class ClienteService {
@@ -109,6 +110,29 @@ export class ClienteService {
       throw this.tratarErroDeUnicidade(
         error,
         'Já existe um cadastro com esse CPF.',
+      );
+    }
+  }
+
+  async updatePessoaJuridica(usuarioId: string, dto: UpdateClientePjDto) {
+    const cliente = await this.prisma.cliente.findUnique({
+      where: { usuarioId },
+      include: { pj: true },
+    });
+
+    if (!cliente?.pj) {
+      throw new NotFoundException('Perfil de empresa ainda não cadastrado.');
+    }
+
+    try {
+      return await this.prisma.clientePj.update({
+        where: { clienteId: cliente.id },
+        data: dto,
+      });
+    } catch (error) {
+      throw this.tratarErroDeUnicidade(
+        error,
+        'Já existe um cadastro com esse CNPJ.',
       );
     }
   }

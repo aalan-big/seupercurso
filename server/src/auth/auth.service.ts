@@ -9,6 +9,7 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { ChangeSenhaDto } from './dto/change-senha.dto';
 
 const SALT_ROUNDS = 12;
 
@@ -71,6 +72,32 @@ export class AuthService {
       usuarioAtualizado.email,
     );
     return { accessToken, usuario: usuarioAtualizado };
+  }
+
+  async alterarSenha(usuarioId: string, dto: ChangeSenhaDto) {
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id: usuarioId },
+    });
+    if (!usuario) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    const senhaValida = await bcrypt.compare(
+      dto.senhaAtual,
+      usuario.passwordHash,
+    );
+    if (!senhaValida) {
+      throw new UnauthorizedException('Senha atual incorreta.');
+    }
+
+    const passwordHash = await bcrypt.hash(dto.novaSenha, SALT_ROUNDS);
+
+    await this.prisma.usuario.update({
+      where: { id: usuarioId },
+      data: { passwordHash },
+    });
+
+    return { sucesso: true };
   }
 
   async getPerfil(usuarioId: string) {

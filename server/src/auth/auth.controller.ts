@@ -4,12 +4,14 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { ChangeSenhaDto } from './dto/change-senha.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import {
   CurrentUser,
@@ -35,5 +37,14 @@ export class AuthController {
   @Get('me')
   me(@CurrentUser() user: AuthenticatedUser) {
     return this.authService.getPerfil(user.userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('senha')
+  alterarSenha(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ChangeSenhaDto,
+  ) {
+    return this.authService.alterarSenha(user.userId, dto);
   }
 }

@@ -39,12 +39,21 @@ const estadosBr = [
   { sigla: 'TO', nome: 'Tocantins' }
 ]
 
-const statusOpcoes = [
-  { valor: 'RASCUNHO', label: 'Rascunho' },
-  { valor: 'PUBLICADO', label: 'Aberto (publicado)' },
-  { valor: 'INSCRICOES_ENCERRADAS', label: 'Inscrições encerradas' },
-  { valor: 'CANCELADO', label: 'Cancelado' }
-]
+const statusOpcoes = computed(() => {
+  const opcoes = [{ valor: 'RASCUNHO', label: 'Rascunho' }]
+
+  if (props.evento?.status === 'PUBLICADO') {
+    opcoes.push({ valor: 'PUBLICADO', label: 'Publicado' })
+  } else {
+    opcoes.push({ valor: 'AGUARDANDO_APROVACAO', label: 'Enviar pra revisão' })
+  }
+
+  opcoes.push(
+    { valor: 'INSCRICOES_ENCERRADAS', label: 'Inscrições encerradas' },
+    { valor: 'CANCELADO', label: 'Cancelado' }
+  )
+  return opcoes
+})
 
 const form = reactive({
   nome: props.evento?.nome ?? '',
@@ -113,6 +122,10 @@ function onSubmit() {
   <form class="flex flex-col gap-4" novalidate @submit.prevent="onSubmit">
     <p v-if="erroValidacao" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
       {{ erroValidacao }}
+    </p>
+
+    <p v-if="props.evento?.motivoRejeicao" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+      <span class="font-semibold">Revisão pendente de ajuste:</span> {{ props.evento.motivoRejeicao }}
     </p>
 
     <div>

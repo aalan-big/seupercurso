@@ -9,7 +9,7 @@ const carregando = ref(false)
 
 onMounted(() => {
   if (token.value) {
-    navigateTo('/eventos')
+    navigateTo('/dashboard')
   }
 })
 

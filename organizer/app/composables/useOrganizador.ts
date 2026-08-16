@@ -8,6 +8,8 @@ export interface Organizador {
   banco: string | null
   agencia: string | null
   conta: string | null
+  documentoIdentidadeUrl: string | null
+  motivoRevisao: string | null
   createdAt: string
   updatedAt: string
 }
@@ -28,5 +30,36 @@ export function useOrganizador() {
     return res
   }
 
-  return { organizador, solicitarCadastro, fetchMe }
+  async function uploadDocumentoIdentidade(arquivo: File) {
+    const formData = new FormData()
+    formData.append('documento', arquivo)
+    const res = await api<Organizador>('/organizadores/me/documento-identidade', {
+      method: 'PATCH',
+      body: formData
+    })
+    organizador.value = res
+    return res
+  }
+
+  async function atualizarDadosBancarios(input: {
+    chavePix?: string
+    banco?: string
+    agencia?: string
+    conta?: string
+  }) {
+    const res = await api<Organizador>('/organizadores/me/dados-bancarios', {
+      method: 'PATCH',
+      body: input
+    })
+    organizador.value = res
+    return res
+  }
+
+  return {
+    organizador,
+    solicitarCadastro,
+    fetchMe,
+    uploadDocumentoIdentidade,
+    atualizarDadosBancarios
+  }
 }

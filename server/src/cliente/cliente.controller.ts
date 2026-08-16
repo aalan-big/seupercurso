@@ -24,6 +24,7 @@ import { CreateClientePfDto } from './dto/create-cliente-pf.dto';
 import { CreateClientePjDto } from './dto/create-cliente-pj.dto';
 import { CreateEnderecoDto } from './dto/create-endereco.dto';
 import { UpdateClientePfDto } from './dto/update-cliente-pf.dto';
+import { UpdateClientePjDto } from './dto/update-cliente-pj.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('clientes/me')
@@ -68,6 +69,14 @@ export class ClienteController {
     @Body() dto: UpdateClientePfDto,
   ) {
     return this.clienteService.updatePessoaFisica(user.userId, dto);
+  }
+
+  @Patch('pessoa-juridica')
+  updatePessoaJuridica(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpdateClientePjDto,
+  ) {
+    return this.clienteService.updatePessoaJuridica(user.userId, dto);
   }
 
   @Patch('endereco')

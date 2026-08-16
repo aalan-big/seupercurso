@@ -57,7 +57,8 @@ export interface EventoOrganizador {
   cidade: string
   estado: string
   capacidade: number | null
-  status: 'RASCUNHO' | 'PUBLICADO' | 'INSCRICOES_ENCERRADAS' | 'CANCELADO' | 'FINALIZADO'
+  status: 'RASCUNHO' | 'AGUARDANDO_APROVACAO' | 'PUBLICADO' | 'INSCRICOES_ENCERRADAS' | 'CANCELADO' | 'FINALIZADO'
+  motivoRejeicao: string | null
   createdAt: string
   updatedAt: string
   modalidades?: ModalidadeOrganizador[]

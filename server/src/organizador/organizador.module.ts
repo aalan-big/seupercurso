@@ -5,5 +5,6 @@ import { OrganizadorService } from './organizador.service';
 @Module({
   controllers: [OrganizadorController],
   providers: [OrganizadorService],
+  exports: [OrganizadorService],
 })
 export class OrganizadorModule {}

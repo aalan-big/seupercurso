@@ -6,7 +6,7 @@ const route = useRoute()
 
 const destino = computed(() => {
   const redirect = route.query.redirect
-  return typeof redirect === 'string' && redirect.startsWith('/') ? redirect : '/eventos'
+  return typeof redirect === 'string' && redirect.startsWith('/') ? redirect : '/dashboard'
 })
 
 const form = reactive({ email: '', password: '' })

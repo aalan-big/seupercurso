@@ -41,6 +41,9 @@ const linkClasse = 'flex items-center gap-2 rounded-lg px-3 py-2 text-slate-600 
     </div>
 
     <nav class="flex-1 space-y-1 px-3 py-4 text-sm font-semibold">
+      <NuxtLink to="/dashboard" :class="linkClasse" active-class="bg-accent/10 text-primary" @click="emit('fechar')">
+        <span>📊</span> Dashboard
+      </NuxtLink>
       <NuxtLink to="/eventos" :class="linkClasse" active-class="bg-accent/10 text-primary" @click="emit('fechar')">
         <span>📅</span> Meus eventos
       </NuxtLink>
@@ -55,6 +58,9 @@ const linkClasse = 'flex items-center gap-2 rounded-lg px-3 py-2 text-slate-600 
       </NuxtLink>
       <NuxtLink to="/checkin" :class="linkClasse" active-class="bg-accent/10 text-primary" @click="emit('fechar')">
         <span>🎽</span> Check-in
+      </NuxtLink>
+      <NuxtLink to="/financeiro" :class="linkClasse" active-class="bg-accent/10 text-primary" @click="emit('fechar')">
+        <span>💰</span> Financeiro
       </NuxtLink>
     </nav>
 

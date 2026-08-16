@@ -7,6 +7,7 @@ const organizerBase = config.public.organizerBase as string
 
 const menuAberto = ref(false)
 const menuRef = ref<HTMLElement | null>(null)
+const menuMobileAberto = ref(false)
 
 const fotoUrl = computed(() => urlFoto(cliente.value?.fotoPerfil, config.public.apiBase as string))
 
@@ -77,7 +78,16 @@ async function onLogout() {
         <NuxtLink to="/contato" class="hover:text-secondary">Contato</NuxtLink>
       </nav>
 
-      <div v-if="token" ref="menuRef" class="relative">
+      <button
+        type="button"
+        class="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 sm:hidden"
+        aria-label="Menu"
+        @click="menuMobileAberto = !menuMobileAberto"
+      >
+        {{ menuMobileAberto ? '✕' : '☰' }}
+      </button>
+
+      <div v-if="token" ref="menuRef" class="relative hidden sm:block">
         <button
           class="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-100"
           @click="menuAberto = !menuAberto"
@@ -129,6 +139,28 @@ async function onLogout() {
         >
           Criar evento
         </a>
+      </div>
+    </div>
+
+    <div v-if="menuMobileAberto" class="border-t border-slate-200 bg-white px-4 py-3 sm:hidden">
+      <nav class="flex flex-col gap-1 text-sm font-semibold uppercase tracking-wide text-slate-600">
+        <NuxtLink to="/" class="rounded-lg px-2 py-2 hover:bg-slate-100" @click="menuMobileAberto = false">Eventos</NuxtLink>
+        <NuxtLink to="/#eventos" class="rounded-lg px-2 py-2 hover:bg-slate-100" @click="menuMobileAberto = false">Inscrições</NuxtLink>
+        <NuxtLink to="/sobre" class="rounded-lg px-2 py-2 hover:bg-slate-100" @click="menuMobileAberto = false">Sobre</NuxtLink>
+        <NuxtLink to="/blog" class="rounded-lg px-2 py-2 hover:bg-slate-100" @click="menuMobileAberto = false">Blog</NuxtLink>
+        <NuxtLink to="/contato" class="rounded-lg px-2 py-2 hover:bg-slate-100" @click="menuMobileAberto = false">Contato</NuxtLink>
+      </nav>
+
+      <div class="my-2 border-t border-slate-100"></div>
+
+      <div v-if="token" class="flex flex-col gap-1 text-sm font-medium text-slate-700">
+        <NuxtLink to="/perfil" class="rounded-lg px-2 py-2 hover:bg-slate-100" @click="menuMobileAberto = false">Meu perfil</NuxtLink>
+        <NuxtLink to="/minhas-inscricoes" class="rounded-lg px-2 py-2 hover:bg-slate-100" @click="menuMobileAberto = false">Minhas inscrições</NuxtLink>
+        <button type="button" class="rounded-lg px-2 py-2 text-left text-red-600 hover:bg-red-50" @click="onLogout(); menuMobileAberto = false">Sair</button>
+      </div>
+      <div v-else class="flex flex-col gap-1 text-sm font-medium text-slate-700">
+        <NuxtLink to="/cadastro" class="rounded-lg px-2 py-2 hover:bg-slate-100" @click="menuMobileAberto = false">Cadastre-se</NuxtLink>
+        <a :href="organizerBase" class="rounded-lg px-2 py-2 font-bold uppercase tracking-wide text-warning hover:bg-slate-100">Criar evento</a>
       </div>
     </div>
   </header>

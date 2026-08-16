@@ -20,6 +20,7 @@ function formatarData(iso: string) {
 
 const statusInfo: Record<string, { texto: string; classe: string }> = {
   RASCUNHO: { texto: 'Rascunho', classe: 'bg-slate-100 text-slate-500' },
+  AGUARDANDO_APROVACAO: { texto: 'Em revisão', classe: 'bg-warning/10 text-warning' },
   PUBLICADO: { texto: 'Aberto', classe: 'bg-accent/10 text-accent' },
   INSCRICOES_ENCERRADAS: { texto: 'Inscrições encerradas', classe: 'bg-warning/10 text-warning' },
   CANCELADO: { texto: 'Cancelado', classe: 'bg-red-50 text-red-600' },

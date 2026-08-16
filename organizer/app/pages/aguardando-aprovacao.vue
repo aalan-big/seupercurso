@@ -22,7 +22,7 @@ onMounted(async () => {
   }
 
   if (organizador.value?.status === 'APROVADO') {
-    await navigateTo('/eventos')
+    await navigateTo('/dashboard')
     return
   }
 

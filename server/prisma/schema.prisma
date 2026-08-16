@@ -44,6 +44,7 @@ enum StatusOrganizador {
 
 enum StatusEvento {
   RASCUNHO
+  AGUARDANDO_APROVACAO
   PUBLICADO
   INSCRICOES_ENCERRADAS
   CANCELADO
@@ -169,11 +170,23 @@ model Organizador {
   banco              String?
   agencia            String?
   conta              String?
+  documentoIdentidadeUrl String?
+  motivoRevisao      String?
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
 
   cliente Cliente  @relation(fields: [clienteId], references: [id])
   eventos Evento[]
+  staff   Staff[]
+}
+
+model Admin {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String   @unique
+  passwordHash String
+  nome         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 // ---------------------------------------------------------------------------
@@ -201,12 +214,12 @@ model Evento {
   estado              String
   capacidade          Int?
   status              StatusEvento @default(RASCUNHO)
+  motivoRejeicao      String?
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
 
   organizador    Organizador    @relation(fields: [organizadorId], references: [id])
   patrocinadores Patrocinador[]
-  staff          Staff[]
   modalidades    Modalidade[]
   lotes          Lote[]
   cupons         Cupom[]
@@ -225,13 +238,17 @@ model Patrocinador {
 }
 
 model Staff {
-  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  eventoId String  @db.Uuid
-  nome     String
-  funcao   String
-  celular  String?
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizadorId String   @db.Uuid
+  nome          String
+  funcao        String?
+  email         String   @unique
+  passwordHash  String
+  ativo         Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  evento Evento @relation(fields: [eventoId], references: [id])
+  organizador Organizador @relation(fields: [organizadorId], references: [id])
 }
 
 model Modalidade {

@@ -90,11 +90,11 @@ async function excluirEventosDoOrganizador(
     await tx.modalidade.deleteMany({ where: { eventoId } });
     await tx.lote.deleteMany({ where: { eventoId } });
     await tx.patrocinador.deleteMany({ where: { eventoId } });
-    await tx.staff.deleteMany({ where: { eventoId } });
     await tx.cupom.deleteMany({ where: { eventoId } });
   }
 
   await tx.evento.deleteMany({ where: { organizadorId } });
+  await tx.staff.deleteMany({ where: { organizadorId } });
 }
 
 main()
