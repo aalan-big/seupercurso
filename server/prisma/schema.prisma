@@ -1,0 +1,378 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum StatusUsuario {
+  ATIVO
+  INATIVO
+  BANIDO
+}
+
+enum StatusRegistro {
+  ATIVO
+  INATIVO
+}
+
+enum Genero {
+  MASCULINO
+  FEMININO
+  OUTRO
+}
+
+enum GeneroCategoria {
+  MASCULINO
+  FEMININO
+  LIVRE
+}
+
+enum StatusOrganizador {
+  PENDENTE
+  APROVADO
+  REJEITADO
+  SUSPENSO
+}
+
+enum StatusEvento {
+  RASCUNHO
+  PUBLICADO
+  INSCRICOES_ENCERRADAS
+  CANCELADO
+  FINALIZADO
+}
+
+enum StatusInscricao {
+  PENDENTE_PAGAMENTO
+  CONFIRMADA
+  CANCELADA
+  EXPIRADA
+}
+
+enum MetodoPagamento {
+  PIX
+  CARTAO_CREDITO
+  CARTAO_DEBITO
+  BOLETO
+}
+
+enum StatusPagamento {
+  PENDENTE
+  APROVADO
+  RECUSADO
+  ESTORNADO
+  CANCELADO
+  EXPIRADO
+}
+
+enum StatusResultado {
+  FINALIZADO
+  DNF
+  DNS
+  DESCLASSIFICADO
+}
+
+// ---------------------------------------------------------------------------
+// Identidade e perfil
+// ---------------------------------------------------------------------------
+
+model Usuario {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email           String        @unique
+  passwordHash    String
+  emailVerificado Boolean       @default(false)
+  status          StatusUsuario @default(ATIVO)
+  ultimoLogin     DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  cliente Cliente?
+}
+
+model Cliente {
+  id         String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  usuarioId  String         @unique @db.Uuid
+  fotoPerfil String?
+  status     StatusRegistro @default(ATIVO)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  usuario     Usuario      @relation(fields: [usuarioId], references: [id])
+  pf          ClientePf?
+  pj          ClientePj?
+  enderecos   Endereco[]
+  organizador Organizador?
+  inscricoes  Inscricao[]
+}
+
+model ClientePf {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clienteId      String   @unique @db.Uuid
+  nomeCompleto   String
+  cpf            String   @unique
+  dataNascimento DateTime @db.Date
+  genero         Genero
+  pcd            Boolean  @default(false)
+  documentoPcdUrl String?
+  celular        String
+  nacionalidade  String   @default("Brasileira")
+
+  cliente Cliente @relation(fields: [clienteId], references: [id])
+}
+
+model ClientePj {
+  id                   String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clienteId            String  @unique @db.Uuid
+  razaoSocial          String
+  nomeFantasia         String?
+  cnpj                 String  @unique
+  nomeResponsavel      String
+  documentoResponsavel String
+  celularComercial     String
+
+  cliente Cliente @relation(fields: [clienteId], references: [id])
+}
+
+model Endereco {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clienteId   String  @db.Uuid
+  tipo        String?
+  cep         String
+  logradouro  String
+  numero      String
+  complemento String?
+  bairro      String
+  cidade      String
+  estado      String
+  pais        String  @default("Brasil")
+
+  cliente Cliente @relation(fields: [clienteId], references: [id])
+
+  @@index([clienteId])
+}
+
+model Organizador {
+  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clienteId          String            @unique @db.Uuid
+  status             StatusOrganizador @default(PENDENTE)
+  plano              String?
+  comissaoPercentual Decimal           @db.Decimal(5, 2)
+  chavePix           String?
+  banco              String?
+  agencia            String?
+  conta              String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  cliente Cliente  @relation(fields: [clienteId], references: [id])
+  eventos Evento[]
+}
+
+// ---------------------------------------------------------------------------
+// Eventos
+// ---------------------------------------------------------------------------
+
+model Evento {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizadorId  String       @db.Uuid
+  nome                String
+  descricao           String?
+  regulamentoUrl      String?
+  bannerUrl           String?
+  mapaPercursoUrl     String?
+  termoResponsabilidade String?
+  retiradaKitLocal    String?
+  retiradaKitInicio   DateTime?
+  retiradaKitFim      DateTime?
+  aplicaDescontoIdoso    Boolean  @default(false)
+  percentualDescontoIdoso Decimal? @db.Decimal(5, 2)
+  dataInicio          DateTime
+  dataFim             DateTime
+  local               String
+  cidade              String
+  estado              String
+  capacidade          Int?
+  status              StatusEvento @default(RASCUNHO)
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  organizador    Organizador    @relation(fields: [organizadorId], references: [id])
+  patrocinadores Patrocinador[]
+  staff          Staff[]
+  modalidades    Modalidade[]
+  lotes          Lote[]
+  cupons         Cupom[]
+
+  @@index([status, dataInicio])
+}
+
+model Patrocinador {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventoId String  @db.Uuid
+  nome     String
+  logoUrl  String?
+  site     String?
+
+  evento Evento @relation(fields: [eventoId], references: [id])
+}
+
+model Staff {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventoId String  @db.Uuid
+  nome     String
+  funcao   String
+  celular  String?
+
+  evento Evento @relation(fields: [eventoId], references: [id])
+}
+
+model Modalidade {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventoId    String   @db.Uuid
+  nome        String
+  distanciaKm Decimal  @db.Decimal(6, 2)
+  descricao   String?
+  idadeMinima Int?
+  idadeMaxima Int?
+  ativo       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  evento     Evento                @relation(fields: [eventoId], references: [id])
+  categorias Categoria[]
+  precos     LoteModalidadePreco[]
+}
+
+model Categoria {
+  id           String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  modalidadeId String          @db.Uuid
+  nome         String
+  idadeMinima  Int?
+  idadeMaxima  Int?
+  genero       GeneroCategoria @default(LIVRE)
+  pcd          Boolean         @default(false)
+
+  modalidade Modalidade  @relation(fields: [modalidadeId], references: [id])
+  inscricoes Inscricao[]
+}
+
+model Lote {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventoId    String   @db.Uuid
+  nome        String
+  quantidade  Int?
+  inicioVenda DateTime
+  fimVenda    DateTime
+  createdAt   DateTime @default(now())
+
+  evento     Evento                @relation(fields: [eventoId], references: [id])
+  precos     LoteModalidadePreco[]
+  inscricoes Inscricao[]
+}
+
+// Preço de cada modalidade (produto) dentro de cada lote (janela de venda).
+// Ex.: no 1º lote, 5km custa R$60 e 21km custa R$100.
+model LoteModalidadePreco {
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  loteId       String  @db.Uuid
+  modalidadeId String  @db.Uuid
+  valor        Decimal @db.Decimal(10, 2)
+
+  lote       Lote       @relation(fields: [loteId], references: [id])
+  modalidade Modalidade @relation(fields: [modalidadeId], references: [id])
+
+  @@unique([loteId, modalidadeId])
+}
+
+model Cupom {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventoId           String    @db.Uuid
+  codigo             String
+  percentualDesconto Decimal   @db.Decimal(5, 2)
+  quantidadeMaxima   Int?
+  usosAtuais         Int       @default(0)
+  validoAte          DateTime?
+  ativo              Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+
+  evento     Evento      @relation(fields: [eventoId], references: [id])
+  inscricoes Inscricao[]
+
+  @@unique([eventoId, codigo])
+}
+
+// ---------------------------------------------------------------------------
+// Inscrição e pós-evento
+// ---------------------------------------------------------------------------
+
+model Inscricao {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clienteId     String          @db.Uuid
+  categoriaId   String          @db.Uuid
+  loteId        String          @db.Uuid
+  cupomId       String?         @db.Uuid
+  numeroPeito   String?
+  tamanhoCamisa String?
+  kitEntregueEm DateTime?
+  dataInscricao DateTime        @default(now())
+  status        StatusInscricao @default(PENDENTE_PAGAMENTO)
+
+  cliente     Cliente      @relation(fields: [clienteId], references: [id])
+  categoria   Categoria    @relation(fields: [categoriaId], references: [id])
+  lote        Lote         @relation(fields: [loteId], references: [id])
+  cupom       Cupom?       @relation(fields: [cupomId], references: [id])
+  pagamentos  Pagamento[]
+  certificado Certificado?
+  resultado   Resultado?
+
+  @@index([status])
+}
+
+// 1 inscrição pode ter N tentativas de pagamento (retry após falha).
+// Um índice único parcial (ver migration) garante só 1 pagamento
+// com status APROVADO por inscrição.
+model Pagamento {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  inscricaoId     String          @db.Uuid
+  valor           Decimal         @db.Decimal(10, 2)
+  metodo          MetodoPagamento
+  status          StatusPagamento @default(PENDENTE)
+  gateway         String?
+  codigoTransacao String?
+  dataPagamento   DateTime?
+  createdAt       DateTime        @default(now())
+
+  inscricao Inscricao @relation(fields: [inscricaoId], references: [id])
+
+  @@index([inscricaoId, status])
+}
+
+model Certificado {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  inscricaoId String   @unique @db.Uuid
+  urlPdf      String
+  dataEmissao DateTime @default(now())
+
+  inscricao Inscricao @relation(fields: [inscricaoId], references: [id])
+}
+
+model Resultado {
+  id                 String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  inscricaoId        String          @unique @db.Uuid
+  tempoBrutoSegundos   Int?
+  tempoLiquidoSegundos Int?
+  colocacaoGeral     Int?
+  colocacaoCategoria Int?
+  colocacaoGenero    Int?
+  status             StatusResultado @default(FINALIZADO)
+
+  inscricao Inscricao @relation(fields: [inscricaoId], references: [id])
+}
