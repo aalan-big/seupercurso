@@ -27,6 +27,24 @@ function marcarTodasLidas() {
   notificacoes.value.forEach(n => n.lida = true)
 }
 
+function fecharTodos() {
+  notificacoesAbertas.value = false
+  configuracoesAbertas.value = false
+  perfilAberto.value = false
+}
+
+function escHandler(e: KeyboardEvent) {
+  if (e.key === 'Escape') fecharTodos()
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', escHandler)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', escHandler)
+})
+
 async function onSair() {
   await logout()
   await navigateTo('/login')
@@ -34,6 +52,13 @@ async function onSair() {
 </script>
 
 <template>
+  <!-- Overlay invisível para fechar qualquer dropdown ao clicar em qualquer lugar fora -->
+  <div
+    v-if="notificacoesAbertas || configuracoesAbertas || perfilAberto"
+    class="fixed inset-0 z-30 bg-transparent"
+    @click="fecharTodos"
+  ></div>
+
   <header class="sticky top-0 z-40 flex h-16 w-full items-center justify-between border-b border-slate-200 bg-white/95 px-6 shadow-2xs backdrop-blur-md">
     <!-- Esquerda: Título da Plataforma & Indicador Master -->
     <div class="flex items-center gap-3">
