@@ -28,6 +28,14 @@ export class UpdateEventoDto {
 
   @IsOptional()
   @IsString()
+  mapaEmbedUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  rotaGeoJson?: string;
+
+  @IsOptional()
+  @IsString()
   termoResponsabilidade?: string;
 
   @IsOptional()
@@ -45,6 +53,10 @@ export class UpdateEventoDto {
   @IsOptional()
   @IsBoolean()
   aplicaDescontoIdoso?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  taxaRepassadaAtleta?: boolean;
 
   @IsOptional()
   @IsNumber()

@@ -12,10 +12,10 @@ const sucesso = ref('')
 const relatorioImportacao = ref<{ totalLinhas: number; processados: number; erros: { linha: number; motivo: string }[] } | null>(null)
 
 const statusInfo: Record<string, { texto: string; classe: string }> = {
-  FINALIZADO: { texto: 'Finalizado', classe: 'bg-accent/10 text-accent' },
-  DNF: { texto: 'DNF', classe: 'bg-warning/10 text-warning' },
-  DNS: { texto: 'DNS', classe: 'bg-slate-100 text-slate-500' },
-  DESCLASSIFICADO: { texto: 'Desclassificado', classe: 'bg-red-50 text-red-600' }
+  FINALIZADO: { texto: 'Finalizado', classe: 'bg-emerald-100 text-emerald-800 font-bold' },
+  DNF: { texto: 'DNF (Não Terminou)', classe: 'bg-amber-100 text-amber-900 font-bold' },
+  DNS: { texto: 'DNS (Não Largou)', classe: 'bg-slate-100 text-slate-600' },
+  DESCLASSIFICADO: { texto: 'Desclassificado', classe: 'bg-red-100 text-red-800 font-bold' }
 }
 
 onMounted(async () => {
@@ -55,6 +55,7 @@ async function onImportar(e: Event) {
   importando.value = true
   try {
     relatorioImportacao.value = await importarResultados(eventoSelecionadoId.value, arquivo)
+    await carregarResultados()
   } catch (e) {
     erro.value = extrairErro(e)
   } finally {
@@ -70,12 +71,28 @@ async function onGerarCertificados() {
   try {
     const res = await gerarCertificados(eventoSelecionadoId.value)
     relatorioImportacao.value = null
-    sucesso.value = `${res.gerados} certificado(s) gerado(s).`
+    sucesso.value = `${res.gerados} certificado(s) gerado(s) com sucesso!`
+    await carregarResultados()
   } catch (e) {
     erro.value = extrairErro(e)
   } finally {
     gerando.value = false
   }
+}
+
+function baixarPlanilhaModeloCSV() {
+  const csvHeaders = 'NumeroPeito;CPF;TempoBruto;TempoLiquido;ColocacaoGeral;ColocacaoCategoria;ColocacaoGenero;Status\n'
+  const csvSample1 = '101;12345678900;00:45:30;00:45:22;1;1;1;FINALIZADO\n'
+  const csvSample2 = '102;98765432100;00:48:10;00:48:01;2;2;2;FINALIZADO\n'
+  const csvSample3 = '103;11122233344;00:52:00;00:51:45;3;1;3;FINALIZADO\n'
+
+  const csvContent = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvHeaders + csvSample1 + csvSample2 + csvSample3)
+  const link = document.createElement('a')
+  link.setAttribute('href', csvContent)
+  link.setAttribute('download', 'Modelo_Cronometragem_Resultados_SeuPercurso.csv')
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
 }
 
 function formatarTempo(segundos: number | null) {
@@ -85,110 +102,187 @@ function formatarTempo(segundos: number | null) {
   const s = segundos % 60
   return [h, m, s].map((v) => String(v).padStart(2, '0')).join(':')
 }
+
+const concluintes = computed(() => resultados.value.filter((r) => r.status === 'FINALIZADO').length)
+const certificadosEmitidos = computed(() => resultados.value.filter((r) => r.inscricao.certificado).length)
+const melhorTempo = computed(() => {
+  const tempos = resultados.value
+    .map((r) => r.tempoLiquidoSegundos)
+    .filter((t): t is number => t !== null && t > 0)
+  if (tempos.length === 0) return '—'
+  return formatarTempo(Math.min(...tempos))
+})
 </script>
 
 <template>
-  <div class="mx-auto max-w-5xl">
-    <h1 class="text-2xl font-extrabold uppercase tracking-tight text-primary">Resultados e certificados</h1>
-    <p class="mt-1 text-sm text-slate-500">Importe a planilha de tempos da cronometragem e gere os certificados.</p>
+  <div class="space-y-6">
+    <!-- Cabeçalho Principal -->
+    <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-5">
+      <div>
+        <h1 class="text-2xl font-black uppercase tracking-tight text-primary">Resultados e Certificados Digitais</h1>
+        <p class="mt-1 text-xs text-slate-500">
+          Importe a planilha de tempos da cronometragem, organize a classificação e emita os certificados digitais dos atletas.
+        </p>
+      </div>
 
-    <p v-if="carregandoEventos" class="mt-8 text-sm text-slate-500">Carregando...</p>
+      <div class="flex items-center gap-3">
+        <button
+          type="button"
+          class="inline-flex items-center gap-2 rounded-xl bg-slate-800 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-slate-900 transition"
+          @click="baixarPlanilhaModeloCSV"
+        >
+          📥 Baixar Planilha Modelo (.CSV)
+        </button>
+      </div>
+    </div>
+
+    <p v-if="carregandoEventos" class="text-xs text-slate-400">Carregando eventos...</p>
 
     <template v-else-if="eventos.length === 0">
-      <div class="mt-10 text-center">
-        <div class="text-4xl">🏅</div>
-        <p class="mt-3 text-slate-500">Você ainda não criou nenhum evento.</p>
+      <div class="rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center space-y-3">
+        <span class="text-4xl block">🏅</span>
+        <p class="font-bold text-sm text-slate-700">Você ainda não possui eventos cadastrados.</p>
       </div>
     </template>
 
     <template v-else>
-      <div class="mt-6 flex flex-wrap items-end gap-3">
-        <select
-          v-model="eventoSelecionadoId"
-          class="rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-          @change="carregarResultados"
-        >
-          <option v-for="evento in eventos" :key="evento.id" :value="evento.id">{{ evento.nome }}</option>
-        </select>
+      <!-- Seletor do Evento e Ações Principais -->
+      <div class="rounded-2xl border border-slate-200 bg-white p-5 space-y-4 shadow-xs">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="w-full sm:w-72">
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Selecione o Evento</label>
+            <select
+              v-model="eventoSelecionadoId"
+              class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-xs font-bold text-slate-800 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              @change="carregarResultados"
+            >
+              <option v-for="evento in eventos" :key="evento.id" :value="evento.id">{{ evento.nome }}</option>
+            </select>
+          </div>
 
-        <label
-          class="cursor-pointer rounded-xl border border-slate-300 px-4 py-3 text-sm font-bold uppercase tracking-wide text-slate-700 hover:bg-slate-100"
-        >
-          {{ importando ? 'Importando...' : 'Importar planilha (CSV)' }}
-          <input type="file" accept=".csv,text/csv" class="hidden" :disabled="importando" @change="onImportar" />
-        </label>
+          <div class="flex flex-wrap items-center gap-3 pt-4 sm:pt-0">
+            <label
+              class="inline-flex items-center gap-2 cursor-pointer rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-white shadow hover:bg-slate-800 transition"
+            >
+              <span>📥 {{ importando ? 'Importando Planilha...' : 'Importar Resultados (CSV)' }}</span>
+              <input type="file" accept=".csv,text/csv" class="hidden" :disabled="importando" @change="onImportar" />
+            </label>
 
-        <button
-          type="button"
-          :disabled="gerando || resultados.length === 0"
-          class="rounded-xl bg-warning px-4 py-3 text-sm font-bold uppercase tracking-wide text-primary shadow transition hover:brightness-95 disabled:opacity-50"
-          @click="onGerarCertificados"
-        >
-          {{ gerando ? 'Gerando...' : 'Gerar certificados' }}
-        </button>
+            <button
+              type="button"
+              :disabled="gerando || resultados.length === 0"
+              class="inline-flex items-center gap-2 rounded-xl bg-warning px-4 py-2.5 text-xs font-black uppercase tracking-wider text-primary shadow hover:brightness-95 transition disabled:opacity-40"
+              @click="onGerarCertificados"
+            >
+              <span>🎓 {{ gerando ? 'Gerando Certificados...' : 'Gerar Certificados em Massa' }}</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="rounded-xl bg-slate-50 p-3 text-[11px] text-slate-500 flex items-center justify-between">
+          <span>ℹ️ <strong>Formato das colunas no CSV:</strong> <code>NumeroPeito;CPF;TempoBruto;TempoLiquido;ColocacaoGeral;ColocacaoCategoria;ColocacaoGenero;Status</code></span>
+        </div>
       </div>
 
-      <p class="mt-2 text-xs text-slate-400">
-        CSV com colunas: NumeroPeito;CPF;TempoBruto (hh:mm:ss);TempoLiquido;ColocacaoGeral;ColocacaoCategoria;ColocacaoGenero;Status
+      <!-- Alertas de Feedback -->
+      <p v-if="erro" class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-700">
+        ⚠️ {{ erro }}
       </p>
-
-      <p v-if="erro" class="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-        {{ erro }}
-      </p>
-      <p v-if="sucesso" class="mt-4 rounded-lg border border-accent/30 bg-accent/10 px-4 py-3 text-sm text-accent">
-        {{ sucesso }}
+      <p v-if="sucesso" class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-bold text-emerald-800">
+        ✅ {{ sucesso }}
       </p>
 
       <div
         v-if="relatorioImportacao"
-        class="mt-4 rounded-lg border border-accent/30 bg-accent/10 px-4 py-3 text-sm text-accent"
+        class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-900 space-y-1"
       >
-        {{ relatorioImportacao.processados }} de {{ relatorioImportacao.totalLinhas }} linhas importadas.
-        <template v-if="relatorioImportacao.erros.length > 0">
-          <div class="mt-2 text-red-700">
-            <p v-for="e in relatorioImportacao.erros" :key="e.linha">Linha {{ e.linha }}: {{ e.motivo }}</p>
+        <p class="font-bold">📊 Importação Concluída: {{ relatorioImportacao.processados }} de {{ relatorioImportacao.totalLinhas }} atletas processados com sucesso.</p>
+        <div v-if="relatorioImportacao.erros.length > 0" class="mt-2 text-red-700 space-y-0.5">
+          <p v-for="e in relatorioImportacao.erros" :key="e.linha">⚠️ Linha {{ e.linha }}: {{ e.motivo }}</p>
+        </div>
+      </div>
+
+      <!-- KPIs da Prova -->
+      <div v-if="resultados.length > 0" class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs flex items-center justify-between">
+          <div>
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Atletas Concluintes</span>
+            <p class="text-2xl font-black text-slate-900 mt-1">🏁 {{ concluintes }}</p>
           </div>
-        </template>
+          <span class="text-xs font-bold bg-slate-100 px-2.5 py-1 rounded-full text-slate-600">Finishers</span>
+        </div>
+
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs flex items-center justify-between">
+          <div>
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Melhor Tempo Geral</span>
+            <p class="text-2xl font-black text-amber-600 mt-1">⚡ {{ melhorTempo }}</p>
+          </div>
+          <span class="text-xs font-bold bg-amber-50 px-2.5 py-1 rounded-full text-amber-700">Pace Ouro</span>
+        </div>
+
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs flex items-center justify-between">
+          <div>
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Certificados Emitidos</span>
+            <p class="text-2xl font-black text-emerald-600 mt-1">🎓 {{ certificadosEmitidos }}</p>
+          </div>
+          <span class="text-xs font-bold bg-emerald-50 px-2.5 py-1 rounded-full text-emerald-700">Disponíveis</span>
+        </div>
       </div>
 
-      <p v-if="carregandoResultados" class="mt-8 text-sm text-slate-500">Carregando...</p>
-
-      <div v-else-if="resultados.length === 0" class="mt-10 text-center">
-        <div class="text-4xl">🏅</div>
-        <p class="mt-3 text-slate-500">Nenhum resultado lançado ainda pra esse evento.</p>
+      <!-- Lista de Resultados / Pódio -->
+      <div v-if="carregandoResultados" class="py-12 text-center text-xs text-slate-400">
+        Carregando resultados da prova...
       </div>
 
-      <div v-else class="mt-6 overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <table class="w-full text-left text-sm">
-          <thead class="border-b border-slate-200 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
+      <div v-else-if="resultados.length === 0" class="rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center space-y-2">
+        <span class="text-4xl block">🏅</span>
+        <p class="font-bold text-sm text-slate-700">Nenhum resultado lançado ainda para este evento.</p>
+        <p class="text-xs text-slate-400">Clique no botão "Importar Resultados (CSV)" para carregar os tempos da cronometragem.</p>
+      </div>
+
+      <div v-else class="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-xs">
+        <table class="w-full text-left text-xs">
+          <thead class="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
             <tr>
-              <th class="px-4 py-3">Peito</th>
-              <th class="px-4 py-3">Nome</th>
-              <th class="px-4 py-3">Categoria</th>
-              <th class="px-4 py-3">Tempo líquido</th>
-              <th class="px-4 py-3">Colocação geral</th>
-              <th class="px-4 py-3">Status</th>
-              <th class="px-4 py-3">Certificado</th>
+              <th class="px-4 py-3.5 text-center">Geral</th>
+              <th class="px-4 py-3.5">Nº Peito</th>
+              <th class="px-4 py-3.5">Nome do Atleta</th>
+              <th class="px-4 py-3.5">Categoria</th>
+              <th class="px-4 py-3.5">Tempo Líquido</th>
+              <th class="px-4 py-3.5 text-center">Status</th>
+              <th class="px-4 py-3.5 text-center">Certificado</th>
             </tr>
           </thead>
-          <tbody>
-            <tr v-for="resultado in resultados" :key="resultado.id" class="border-b border-slate-100 last:border-0">
-              <td class="px-4 py-3 text-slate-500">{{ resultado.inscricao.numeroPeito || '—' }}</td>
-              <td class="px-4 py-3 font-medium text-slate-800">{{ resultado.inscricao.cliente.pf?.nomeCompleto || '—' }}</td>
-              <td class="px-4 py-3 text-slate-500">{{ resultado.inscricao.categoria.nome }}</td>
-              <td class="px-4 py-3 text-slate-500">{{ formatarTempo(resultado.tempoLiquidoSegundos) }}</td>
-              <td class="px-4 py-3 text-slate-500">{{ resultado.colocacaoGeral ?? '—' }}</td>
-              <td class="px-4 py-3">
+          <tbody class="divide-y divide-slate-100">
+            <tr
+              v-for="resultado in resultados"
+              :key="resultado.id"
+              class="hover:bg-slate-50 transition"
+              :class="resultado.colocacaoGeral === 1 ? 'bg-amber-50/40' : resultado.colocacaoGeral === 2 ? 'bg-slate-50/80' : resultado.colocacaoGeral === 3 ? 'bg-amber-900/5' : ''"
+            >
+              <td class="px-4 py-3.5 text-center font-bold">
+                <span v-if="resultado.colocacaoGeral === 1" class="text-base" title="1º Lugar Geral">🥇</span>
+                <span v-else-if="resultado.colocacaoGeral === 2" class="text-base" title="2º Lugar Geral">🥈</span>
+                <span v-else-if="resultado.colocacaoGeral === 3" class="text-base" title="3º Lugar Geral">🥉</span>
+                <span v-else class="text-slate-600">{{ resultado.colocacaoGeral ?? '—' }}º</span>
+              </td>
+              <td class="px-4 py-3.5 font-mono font-bold text-slate-700">#{{ resultado.inscricao.numeroPeito || '—' }}</td>
+              <td class="px-4 py-3.5 font-bold text-slate-900">{{ resultado.inscricao.cliente.pf?.nomeCompleto || '—' }}</td>
+              <td class="px-4 py-3.5 text-slate-600">{{ resultado.inscricao.categoria.nome }}</td>
+              <td class="px-4 py-3.5 font-mono font-black text-slate-800">{{ formatarTempo(resultado.tempoLiquidoSegundos) }}</td>
+              <td class="px-4 py-3.5 text-center">
                 <span
-                  class="whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide"
+                  class="whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider"
                   :class="statusInfo[resultado.status]?.classe || 'bg-slate-100 text-slate-500'"
                 >
                   {{ statusInfo[resultado.status]?.texto || resultado.status }}
                 </span>
               </td>
-              <td class="px-4 py-3 text-slate-500">
-                <span v-if="resultado.inscricao.certificado" class="text-accent">Emitido</span>
-                <span v-else>—</span>
+              <td class="px-4 py-3.5 text-center">
+                <span v-if="resultado.inscricao.certificado" class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-bold text-emerald-800">
+                  ✅ Emitido
+                </span>
+                <span v-else class="text-slate-400">—</span>
               </td>
             </tr>
           </tbody>

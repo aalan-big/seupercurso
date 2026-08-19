@@ -14,11 +14,56 @@ const RESUMO_SELECT = {
   capacidade: true,
   status: true,
   regulamentoUrl: true,
+  bannerUrl: true,
+  mapaPercursoUrl: true,
+  mapaEmbedUrl: true,
+  gpxUrl: true,
+  rotaGeoJson: true,
+  taxaRepassadaAtleta: true,
 } as const;
 
 @Injectable()
 export class EventoService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async validarCupom(eventoId: string, codigo: string) {
+    const codigoLimpo = (codigo || '').trim();
+    if (!codigoLimpo) {
+      throw new NotFoundException('Informe o código do cupom.');
+    }
+
+    const cupom = await this.prisma.cupom.findFirst({
+      where: {
+        eventoId,
+        codigo: { equals: codigoLimpo, mode: 'insensitive' },
+      },
+    });
+
+    if (!cupom) {
+      throw new NotFoundException(`Cupom "${codigoLimpo}" não encontrado para este evento.`);
+    }
+
+    if (!cupom.ativo) {
+      throw new NotFoundException('Este cupom está inativo no momento.');
+    }
+
+    if (cupom.validoAte && cupom.validoAte < new Date()) {
+      throw new NotFoundException('Este cupom expirou.');
+    }
+
+    if (
+      cupom.quantidadeMaxima !== null &&
+      cupom.usosAtuais >= cupom.quantidadeMaxima
+    ) {
+      throw new NotFoundException('Este cupom já atingiu o limite de usos.');
+    }
+
+    return {
+      valido: true,
+      codigo: cupom.codigo,
+      percentualDesconto: Number(cupom.percentualDesconto),
+    };
+  }
 
   async findPublicados() {
     const agora = new Date();

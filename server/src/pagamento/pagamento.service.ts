@@ -11,16 +11,37 @@ import { StatusInscricao, StatusPagamento } from '../generated/prisma/enums';
 import { calcularValorInscricao } from '../common/calcular-valor-inscricao';
 import { CreatePagamentoDto } from './dto/create-pagamento.dto';
 
+import { AsaasService } from './asaas.service';
+
+import { EmailService } from '../email/email.service';
+
 @Injectable()
 export class PagamentoService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly asaasService: AsaasService,
+    private readonly emailService: EmailService,
+  ) {}
 
   async create(usuarioId: string, dto: CreatePagamentoDto) {
     const clienteId = await this.getClienteIdOuFalhar(usuarioId);
 
     const inscricao = await this.prisma.inscricao.findUnique({
       where: { id: dto.inscricaoId },
-      include: { categoria: { include: { modalidade: true } } },
+      include: {
+        cliente: { include: { pf: true, pj: true, usuario: true } },
+        categoria: {
+          include: {
+            modalidade: {
+              include: {
+                evento: {
+                  include: { organizador: true },
+                },
+              },
+            },
+          },
+        },
+      },
     });
     if (!inscricao) {
       throw new NotFoundException('Inscrição não encontrada.');
@@ -32,20 +53,6 @@ export class PagamentoService {
     if (inscricao.status === StatusInscricao.CONFIRMADA) {
       throw new ConflictException('Esta inscrição já está confirmada.');
     }
-    if (inscricao.status !== StatusInscricao.PENDENTE_PAGAMENTO) {
-      throw new BadRequestException(
-        'Esta inscrição não está mais disponível para pagamento.',
-      );
-    }
-
-    const pagamentoAprovado = await this.prisma.pagamento.findFirst({
-      where: { inscricaoId: inscricao.id, status: StatusPagamento.APROVADO },
-    });
-    if (pagamentoAprovado) {
-      throw new ConflictException(
-        'Esta inscrição já tem um pagamento aprovado.',
-      );
-    }
 
     const valor = await calcularValorInscricao(this.prisma, {
       loteId: inscricao.loteId,
@@ -55,14 +62,46 @@ export class PagamentoService {
       cupomId: inscricao.cupomId,
     });
 
+    const evento = inscricao.categoria.modalidade.evento;
+    const organizadorWalletId = evento.organizador?.asaasWalletId;
+    const comissaoPercentual = Number(evento.organizador?.comissaoPercentual ?? 10);
+    const comissaoPlataforma = valor * (comissaoPercentual / 100);
+
+    const nomeCliente =
+      inscricao.cliente.pf?.nomeCompleto ||
+      inscricao.cliente.pj?.razaoSocial ||
+      'Atleta Esportivo';
+    const cpfCnpjCliente =
+      inscricao.cliente.pf?.cpf ||
+      inscricao.cliente.pj?.cnpj ||
+      '00000000000';
+    const emailCliente = inscricao.cliente.usuario.email;
+
+    let asaasRes: { asaasPaymentId: string; pixCopiaECola?: string | null; pixQrCodeUrl?: string | null; status?: string } = {
+      asaasPaymentId: `pay_mock_${randomUUID()}`,
+    };
+
+    if (dto.metodo === 'PIX') {
+      asaasRes = await this.asaasService.gerarCobrancaPix({
+        inscricaoId: inscricao.id,
+        valor,
+        cliente: { nome: nomeCliente, cpfCnpj: cpfCnpjCliente, email: emailCliente },
+        organizadorWalletId,
+        comissaoPlataforma,
+      });
+    }
+
     return this.prisma.pagamento.create({
       data: {
         inscricaoId: inscricao.id,
         valor,
         metodo: dto.metodo,
-        status: StatusPagamento.PENDENTE,
-        gateway: 'simulado',
-        codigoTransacao: randomUUID(),
+        status: asaasRes.status === 'APROVADO' ? StatusPagamento.APROVADO : StatusPagamento.PENDENTE,
+        gateway: 'asaas',
+        codigoTransacao: asaasRes.asaasPaymentId,
+        asaasPaymentId: asaasRes.asaasPaymentId,
+        pixCopiaECola: asaasRes.pixCopiaECola || null,
+        pixQrCodeUrl: asaasRes.pixQrCodeUrl || null,
       },
     });
   }
@@ -73,7 +112,7 @@ export class PagamentoService {
       pagamentoId,
     );
 
-    const [pagamentoAtualizado] = await this.prisma.$transaction([
+    const [pagamentoAtualizado, inscricaoAtualizada] = await this.prisma.$transaction([
       this.prisma.pagamento.update({
         where: { id: pagamento.id },
         data: { status: StatusPagamento.APROVADO, dataPagamento: new Date() },
@@ -81,8 +120,41 @@ export class PagamentoService {
       this.prisma.inscricao.update({
         where: { id: pagamento.inscricaoId },
         data: { status: StatusInscricao.CONFIRMADA },
+        include: {
+          cliente: { include: { pf: true, pj: true, usuario: true } },
+          categoria: {
+            include: {
+              modalidade: {
+                include: { evento: true },
+              },
+            },
+          },
+        },
       }),
     ]);
+
+    if (inscricaoAtualizada) {
+      const nomeAtleta =
+        inscricaoAtualizada.cliente.pf?.nomeCompleto ||
+        inscricaoAtualizada.cliente.pj?.razaoSocial ||
+        'Atleta Esportivo';
+      const emailAtleta = inscricaoAtualizada.cliente.usuario.email;
+      const evento = inscricaoAtualizada.categoria.modalidade.evento;
+
+      await this.emailService.enviarConfirmacaoInscricao({
+        emailAtleta,
+        nomeAtleta,
+        nomeEvento: evento.nome,
+        dataEvento: new Date(evento.dataInicio).toLocaleDateString('pt-BR'),
+        localEvento: evento.local,
+        cidadeEstado: `${evento.cidade}/${evento.estado}`,
+        modalidade: inscricaoAtualizada.categoria.modalidade.nome,
+        categoria: inscricaoAtualizada.categoria.nome,
+        tamanhoCamisa: inscricaoAtualizada.tamanhoCamisa,
+        inscricaoId: inscricaoAtualizada.id,
+        valorTotal: Number(pagamento.valor).toFixed(2),
+      });
+    }
 
     return pagamentoAtualizado;
   }

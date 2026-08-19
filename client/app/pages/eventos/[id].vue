@@ -19,6 +19,61 @@ const tamanhoCamisa = ref('')
 const cupomCodigo = ref('')
 const aceiteTermos = ref(false)
 
+const validandoCupom = ref(false)
+const cupomAplicadoInfo = ref<{ codigo: string; percentualDesconto: number } | null>(null)
+const erroCupom = ref('')
+
+async function aplicarCupom() {
+  erroCupom.value = ''
+  const cod = cupomCodigo.value.trim()
+  if (!cod) {
+    erroCupom.value = 'Digite o código do cupom.'
+    return
+  }
+  validandoCupom.value = true
+  try {
+    const config = useRuntimeConfig()
+    const apiBase = config.public.apiBase as string
+    const res = await $fetch<{ valido: boolean; codigo: string; percentualDesconto: number }>(
+      `${apiBase}/eventos/${eventoId}/validar-cupom?codigo=${encodeURIComponent(cod)}`
+    )
+    cupomAplicadoInfo.value = { codigo: res.codigo, percentualDesconto: res.percentualDesconto }
+  } catch (e: any) {
+    cupomAplicadoInfo.value = null
+    erroCupom.value = extrairErro(e)
+  } finally {
+    validandoCupom.value = false
+  }
+}
+
+function removerCupom() {
+  cupomCodigo.value = ''
+  cupomAplicadoInfo.value = null
+  erroCupom.value = ''
+}
+
+const valorBaseModalidade = computed(() => {
+  if (!modalidadeSelecionadaId.value) return 0
+  return precoPara(modalidadeSelecionadaId.value) ?? 0
+})
+
+const valorDescontoCalculado = computed(() => {
+  if (!cupomAplicadoInfo.value || valorBaseModalidade.value <= 0) return 0
+  return valorBaseModalidade.value * (cupomAplicadoInfo.value.percentualDesconto / 100)
+})
+
+const taxaConvenienciaCalculada = computed(() => {
+  if (!eventoSelecionado.value?.taxaRepassadaAtleta || valorBaseModalidade.value <= 0) return 0
+  return valorBaseModalidade.value * 0.10
+})
+
+const valorTotalCalculado = computed(() => {
+  const base = valorBaseModalidade.value
+  const desconto = valorDescontoCalculado.value
+  const taxa = taxaConvenienciaCalculada.value
+  return Math.max(0, base - desconto + taxa)
+})
+
 const inscrevendo = ref(false)
 const erroInscricao = ref('')
 const inscricaoCriada = ref<{ valor: string } | null>(null)
@@ -179,7 +234,16 @@ async function onInscrever() {
       tamanhoCamisa: tamanhoCamisa.value || undefined,
       cupomCodigo: cupomCodigo.value || undefined
     })
-    inscricaoCriada.value = { valor: res.valor }
+    
+    // Gera pagamento PIX Asaas imediatamente
+    const pagamentoRes = await pagarInscricao(res.id, 'PIX')
+    
+    inscricaoCriada.value = {
+      id: res.id,
+      valor: res.valor,
+      pixCopiaECola: pagamentoRes.pixCopiaECola,
+      pixQrCodeUrl: pagamentoRes.pixQrCodeUrl
+    }
   } catch (e) {
     const msg = extrairErro(e)
     if (msg.includes('Complete seu perfil')) {
@@ -218,21 +282,66 @@ async function onInscrever() {
       <div class="mx-auto max-w-5xl px-4 py-10">
         <p v-if="eventoSelecionado.descricao" class="text-slate-700">{{ eventoSelecionado.descricao }}</p>
 
-        <div v-if="inscricaoCriada" class="mt-8 rounded-2xl border border-accent bg-accent/5 p-6">
-          <h2 class="text-lg font-extrabold uppercase tracking-tight text-primary">Inscrição criada!</h2>
-          <p class="mt-2 text-sm text-slate-700">
-            Valor: <strong>R$ {{ Number(inscricaoCriada.valor).toFixed(2) }}</strong>
-          </p>
-          <p class="mt-2 text-sm text-slate-500">
-            Sua inscrição está com pagamento pendente. Em breve você poderá pagar por PIX, cartão ou boleto
-            (integração de pagamento em andamento).
-          </p>
-          <NuxtLink
-            to="/minhas-inscricoes"
-            class="mt-4 inline-block rounded-xl bg-warning px-6 py-3 text-sm font-bold uppercase tracking-wide text-primary shadow transition hover:brightness-95"
-          >
-            Ver minhas inscrições
-          </NuxtLink>
+        <div v-if="inscricaoCriada" class="mt-8 rounded-3xl border border-emerald-200 bg-emerald-50/50 p-6 sm:p-8 space-y-6 shadow-sm">
+          <div class="flex items-center justify-between border-b border-emerald-100 pb-4">
+            <div>
+              <h2 class="text-xl font-black text-slate-900">🎉 Inscrição Realizada com Sucesso!</h2>
+              <p class="text-xs text-slate-500 mt-1">Efetue o pagamento via PIX abaixo para confirmar sua vaga instantaneamente.</p>
+            </div>
+            <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">PIX Aguardando Pagamento</span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+            <!-- QR Code do PIX -->
+            <div class="flex flex-col items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+              <img
+                v-if="inscricaoCriada.pixQrCodeUrl"
+                :src="inscricaoCriada.pixQrCodeUrl"
+                alt="QR Code PIX Asaas"
+                class="w-48 h-48 rounded-xl"
+              />
+              <div v-else class="w-48 h-48 flex items-center justify-center bg-slate-100 rounded-xl text-xs text-slate-400">
+                Gerando QR Code...
+              </div>
+              <p class="text-[11px] text-slate-400 mt-2">Abra o app do seu banco e escaneie o código acima.</p>
+            </div>
+
+            <!-- Dados e Copia e Cola -->
+            <div class="space-y-4">
+              <div class="bg-white p-4 rounded-2xl border border-slate-200 space-y-1">
+                <p class="text-xs text-slate-500 uppercase font-bold tracking-wider">Valor Total da Inscrição</p>
+                <p class="text-2xl font-black text-emerald-600">R$ {{ Number(inscricaoCriada.valor).toFixed(2) }}</p>
+              </div>
+
+              <div v-if="inscricaoCriada.pixCopiaECola" class="space-y-2">
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-600">Código PIX Copia e Cola</label>
+                <div class="flex gap-2">
+                  <input
+                    type="text"
+                    readonly
+                    :value="inscricaoCriada.pixCopiaECola"
+                    class="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-mono text-slate-700 truncate"
+                  />
+                  <button
+                    type="button"
+                    class="rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white shadow hover:bg-slate-800 transition shrink-0"
+                    @click="navigator.clipboard.writeText(inscricaoCriada.pixCopiaECola); alert('Código PIX copiado para a área de transferência!')"
+                  >
+                    📋 Copiar
+                  </button>
+                </div>
+              </div>
+
+              <div class="pt-2 flex flex-wrap gap-3">
+                <NuxtLink
+                  to="/meus-eventos"
+                  class="rounded-xl bg-emerald-600 px-5 py-3 text-xs font-bold text-white shadow hover:bg-emerald-700 transition"
+                >
+                  📄 Ir para Meus Eventos / Modal 360°
+                </NuxtLink>
+              </div>
+            </div>
+          </div>
         </div>
 
         <template v-else>
@@ -355,14 +464,44 @@ async function onInscrever() {
                 <h2 class="text-xl font-extrabold uppercase tracking-tight text-primary">Revise e confirme</h2>
                 <p class="mt-1 text-sm text-slate-500">Confira os detalhes no resumo ao lado antes de confirmar.</p>
 
-                <div class="mt-6">
-                  <label class="mb-1 block text-sm font-semibold text-slate-700">Cupom de desconto (opcional)</label>
-                  <input
-                    v-model="cupomCodigo"
-                    type="text"
-                    placeholder="Código do cupom"
-                    class="w-full max-w-xs rounded-xl border border-slate-300 px-4 py-3 text-sm uppercase focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-                  />
+                <div class="mt-6 space-y-3">
+                  <label class="block text-sm font-semibold text-slate-700">Cupom de desconto (opcional)</label>
+                  <div class="flex gap-2">
+                    <input
+                      v-model="cupomCodigo"
+                      type="text"
+                      placeholder="Código do cupom"
+                      :disabled="!!cupomAplicadoInfo"
+                      class="w-full max-w-xs rounded-xl border border-slate-300 px-4 py-2.5 text-sm uppercase focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 disabled:bg-slate-100 disabled:text-slate-500"
+                      @keydown.enter.prevent="aplicarCupom"
+                    />
+                    <button
+                      v-if="!cupomAplicadoInfo"
+                      type="button"
+                      :disabled="validandoCupom || !cupomCodigo.trim()"
+                      class="rounded-xl bg-primary px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:brightness-95 disabled:opacity-50 transition"
+                      @click="aplicarCupom"
+                    >
+                      {{ validandoCupom ? 'Validando...' : 'Aplicar' }}
+                    </button>
+                    <button
+                      v-else
+                      type="button"
+                      class="rounded-xl bg-red-100 border border-red-200 px-3 py-2.5 text-xs font-bold text-red-700 hover:bg-red-200 transition"
+                      @click="removerCupom"
+                    >
+                      ✕ Remover
+                    </button>
+                  </div>
+
+                  <p v-if="erroCupom" class="text-xs font-bold text-red-600 bg-red-50 p-2.5 rounded-xl border border-red-200">
+                    ❌ {{ erroCupom }}
+                  </p>
+
+                  <div v-if="cupomAplicadoInfo" class="text-xs font-bold text-emerald-800 bg-emerald-50 p-3 rounded-xl border border-emerald-200 flex items-center justify-between">
+                    <span>✅ Cupom "{{ cupomAplicadoInfo.codigo }}" aplicado!</span>
+                    <span class="text-emerald-700"> -{{ cupomAplicadoInfo.percentualDesconto }}% OFF</span>
+                  </div>
                 </div>
 
                 <label class="mt-4 flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4">
@@ -443,10 +582,29 @@ async function onInscrever() {
 
                 <div
                   v-if="modalidadeSelecionada"
-                  class="mt-4 flex items-center justify-between border-t border-slate-100 pt-4"
+                  class="mt-4 border-t border-slate-100 pt-4 space-y-2"
                 >
-                  <span class="text-sm font-bold uppercase text-slate-500">Total</span>
-                  <span class="text-lg font-extrabold text-accent">{{ formatarPreco(precoPara(modalidadeSelecionada.id)) }}</span>
+                  <div v-if="cupomAplicadoInfo" class="flex items-center justify-between text-xs text-emerald-700 font-bold">
+                    <span>Desconto ({{ cupomAplicadoInfo.percentualDesconto }}%)</span>
+                    <span>-R$ {{ valorDescontoCalculado.toFixed(2) }}</span>
+                  </div>
+
+                  <div v-if="eventoSelecionado.taxaRepassadaAtleta" class="flex items-center justify-between text-xs text-slate-500">
+                    <span>Taxa de conveniência (10% fixo)</span>
+                    <span>+R$ {{ taxaConvenienciaCalculada.toFixed(2) }}</span>
+                  </div>
+
+                  <div class="flex items-center justify-between pt-1">
+                    <span class="text-sm font-bold uppercase text-slate-500">Total</span>
+                    <div class="text-right">
+                      <span v-if="cupomAplicadoInfo" class="block text-xs line-through text-slate-400">
+                        R$ {{ valorBaseModalidade.toFixed(2) }}
+                      </span>
+                      <span class="text-lg font-extrabold text-accent">
+                        R$ {{ valorTotalCalculado.toFixed(2) }}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 <p v-if="diasRestantesLote !== null" class="mt-4 text-xs" :class="vagasBadgeClasse">

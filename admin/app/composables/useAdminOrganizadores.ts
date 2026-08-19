@@ -31,6 +31,7 @@ export interface OrganizadorAdmin {
   id: string
   status: 'PENDENTE' | 'APROVADO' | 'REJEITADO' | 'SUSPENSO'
   comissaoPercentual: string
+  fotoRostoUrl: string | null
   documentoIdentidadeUrl: string | null
   motivoRevisao: string | null
   createdAt: string

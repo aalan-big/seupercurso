@@ -52,6 +52,25 @@ async function onSalvar() {
     <p v-if="carregando" class="mt-8 text-sm text-slate-500">Carregando...</p>
 
     <template v-else>
+      <div v-if="organizador?.asaasWalletId" class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-800 flex items-center gap-3">
+        <span class="text-xl">✅</span>
+        <div>
+          <p class="font-bold text-sm">Subconta Asaas Ativa & Verificada</p>
+          <p class="text-[11px] text-emerald-700">Sua conta de repasse automático (ID: {{ organizador.asaasWalletId }}) está configurada para receber pagamentos via PIX e Cartão com liberação D+2.</p>
+        </div>
+      </div>
+
+      <!-- Banner de Trava de Segurança de Titularidade -->
+      <div class="mt-4 rounded-2xl border border-blue-200 bg-blue-50/80 p-4 text-xs text-blue-900 flex items-start gap-3 shadow-2xs">
+        <span class="text-xl">🔒</span>
+        <div class="space-y-1">
+          <p class="font-black text-sm text-blue-950">Trava de Segurança de Titularidade Ativa (PF / PJ)</p>
+          <p class="text-[11px] text-blue-800 leading-relaxed">
+            Por regras de compliance do BACEN e prevenção a fraudes, <strong>os saques via PIX só são processados para contas bancárias ou chaves PIX de titularidade do próprio organizador</strong> (mesmo CPF ou CNPJ cadastrado). Não são permitidas transferências para contas de terceiros.
+          </p>
+        </div>
+      </div>
+
       <p v-if="erro" class="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ erro }}</p>
       <p v-if="sucesso" class="mt-4 rounded-lg border border-accent/30 bg-accent/10 px-4 py-3 text-sm text-accent">{{ sucesso }}</p>
 

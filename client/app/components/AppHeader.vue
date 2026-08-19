@@ -72,7 +72,7 @@ async function onLogout() {
 
       <nav class="hidden gap-6 text-sm font-semibold uppercase tracking-wide text-slate-600 sm:flex">
         <NuxtLink to="/" class="hover:text-secondary">Eventos</NuxtLink>
-        <NuxtLink to="/#eventos" class="hover:text-secondary">Inscrições</NuxtLink>
+        <NuxtLink v-if="token" to="/meus-eventos" class="hover:text-secondary">Meus Eventos</NuxtLink>
         <NuxtLink to="/sobre" class="hover:text-secondary">Sobre</NuxtLink>
         <NuxtLink to="/blog" class="hover:text-secondary">Blog</NuxtLink>
         <NuxtLink to="/contato" class="hover:text-secondary">Contato</NuxtLink>
@@ -114,11 +114,11 @@ async function onLogout() {
             Meu perfil
           </NuxtLink>
           <NuxtLink
-            to="/minhas-inscricoes"
+            to="/meus-eventos"
             class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
             @click="menuAberto = false"
           >
-            Minhas inscrições
+            Meus Eventos
           </NuxtLink>
           <div class="my-1 border-t border-slate-100"></div>
           <button class="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50" @click="onLogout">
@@ -145,7 +145,7 @@ async function onLogout() {
     <div v-if="menuMobileAberto" class="border-t border-slate-200 bg-white px-4 py-3 sm:hidden">
       <nav class="flex flex-col gap-1 text-sm font-semibold uppercase tracking-wide text-slate-600">
         <NuxtLink to="/" class="rounded-lg px-2 py-2 hover:bg-slate-100" @click="menuMobileAberto = false">Eventos</NuxtLink>
-        <NuxtLink to="/#eventos" class="rounded-lg px-2 py-2 hover:bg-slate-100" @click="menuMobileAberto = false">Inscrições</NuxtLink>
+        <NuxtLink v-if="token" to="/meus-eventos" class="rounded-lg px-2 py-2 hover:bg-slate-100" @click="menuMobileAberto = false">Meus Eventos</NuxtLink>
         <NuxtLink to="/sobre" class="rounded-lg px-2 py-2 hover:bg-slate-100" @click="menuMobileAberto = false">Sobre</NuxtLink>
         <NuxtLink to="/blog" class="rounded-lg px-2 py-2 hover:bg-slate-100" @click="menuMobileAberto = false">Blog</NuxtLink>
         <NuxtLink to="/contato" class="rounded-lg px-2 py-2 hover:bg-slate-100" @click="menuMobileAberto = false">Contato</NuxtLink>
@@ -155,7 +155,7 @@ async function onLogout() {
 
       <div v-if="token" class="flex flex-col gap-1 text-sm font-medium text-slate-700">
         <NuxtLink to="/perfil" class="rounded-lg px-2 py-2 hover:bg-slate-100" @click="menuMobileAberto = false">Meu perfil</NuxtLink>
-        <NuxtLink to="/minhas-inscricoes" class="rounded-lg px-2 py-2 hover:bg-slate-100" @click="menuMobileAberto = false">Minhas inscrições</NuxtLink>
+        <NuxtLink to="/meus-eventos" class="rounded-lg px-2 py-2 hover:bg-slate-100" @click="menuMobileAberto = false">Meus Eventos</NuxtLink>
         <button type="button" class="rounded-lg px-2 py-2 text-left text-red-600 hover:bg-red-50" @click="onLogout(); menuMobileAberto = false">Sair</button>
       </div>
       <div v-else class="flex flex-col gap-1 text-sm font-medium text-slate-700">

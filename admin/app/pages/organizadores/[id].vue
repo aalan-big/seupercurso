@@ -28,6 +28,11 @@ async function carregar() {
 
 onMounted(carregar)
 
+const fotoRostoUrl = computed(() => {
+  if (!organizador.value?.fotoRostoUrl) return null
+  return `${config.public.apiBase}${organizador.value.fotoRostoUrl}`
+})
+
 const documentoUrl = computed(() => {
   if (!organizador.value?.documentoIdentidadeUrl) return null
   return `${config.public.apiBase}${organizador.value.documentoIdentidadeUrl}`
@@ -131,18 +136,38 @@ async function confirmarMotivo() {
           </div>
         </div>
 
-        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 class="text-sm font-bold uppercase tracking-wide text-slate-500">Documento de identidade</h2>
+        <!-- Verificação KYC (Selfie vs Documento Oficial) -->
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+          <h2 class="text-sm font-bold uppercase tracking-wide text-slate-500">🔍 Verificação de Identidade (KYC)</h2>
 
-          <div v-if="!documentoUrl" class="mt-3 rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-400">
-            Nenhum documento enviado ainda.
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <!-- 1. Selfie / Foto do Rosto -->
+            <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 flex flex-col justify-between">
+              <span class="text-xs font-bold uppercase text-slate-600 mb-2 block">📸 Foto do Rosto (Selfie)</span>
+              <div v-if="!fotoRostoUrl" class="rounded-lg border border-dashed border-slate-300 p-6 text-center text-xs text-slate-400">
+                Foto do rosto não enviada.
+              </div>
+              <a v-else :href="fotoRostoUrl" target="_blank" rel="noopener" class="block text-center">
+                <img :src="fotoRostoUrl" alt="Foto do Rosto (Selfie)" class="max-h-56 w-full rounded-lg border border-slate-200 object-cover" />
+                <span class="mt-2 inline-block text-[11px] font-bold text-blue-600 hover:underline">🔍 Ampliar Selfie</span>
+              </a>
+            </div>
+
+            <!-- 2. Documento de Identidade -->
+            <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 flex flex-col justify-between">
+              <span class="text-xs font-bold uppercase text-slate-600 mb-2 block">📄 Documento Oficial (RG/CNH)</span>
+              <div v-if="!documentoUrl" class="rounded-lg border border-dashed border-slate-300 p-6 text-center text-xs text-slate-400">
+                Documento oficial não enviado.
+              </div>
+              <a v-else-if="ehPdf" :href="documentoUrl" target="_blank" rel="noopener" class="inline-block text-xs font-bold text-blue-600 hover:underline p-4 text-center">
+                📄 Abrir Documento em PDF
+              </a>
+              <a v-else :href="documentoUrl" target="_blank" rel="noopener" class="block text-center">
+                <img :src="documentoUrl" alt="Documento de Identidade" class="max-h-56 w-full rounded-lg border border-slate-200 object-contain" />
+                <span class="mt-2 inline-block text-[11px] font-bold text-blue-600 hover:underline">🔍 Ampliar Documento</span>
+              </a>
+            </div>
           </div>
-          <a v-else-if="ehPdf" :href="documentoUrl" target="_blank" rel="noopener" class="mt-3 inline-block text-sm font-semibold text-secondary hover:underline">
-            📄 Abrir documento (PDF)
-          </a>
-          <a v-else :href="documentoUrl" target="_blank" rel="noopener" class="mt-3 block">
-            <img :src="documentoUrl" alt="Documento de identidade" class="max-h-80 rounded-lg border border-slate-200 object-contain" />
-          </a>
         </div>
       </div>
 

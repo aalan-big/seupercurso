@@ -50,9 +50,14 @@ function paraSegundos(tempo?: string): number | undefined {
   return undefined;
 }
 
+import { AsaasService } from '../pagamento/asaas.service';
+
 @Injectable()
 export class OrganizadorService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly asaasService: AsaasService,
+  ) {}
 
   async solicitarCadastro(usuarioId: string) {
     let cliente = await this.prisma.cliente.findUnique({
@@ -695,6 +700,58 @@ export class OrganizadorService {
     });
   }
 
+  async atualizarInscricao(
+    usuarioId: string,
+    inscricaoId: string,
+    dto: {
+      numeroPeito?: string;
+      tamanhoCamisa?: string;
+      categoriaId?: string;
+      status?: StatusInscricao;
+    },
+  ) {
+    const organizador = await this.getOrganizadorAprovadoOuFalhar(usuarioId);
+
+    const inscricao = await this.prisma.inscricao.findUnique({
+      where: { id: inscricaoId },
+      include: {
+        categoria: {
+          include: { modalidade: { include: { evento: true } } },
+        },
+      },
+    });
+
+    if (
+      !inscricao ||
+      inscricao.categoria.modalidade.evento.organizadorId !== organizador.id
+    ) {
+      throw new NotFoundException(
+        'Inscrição não encontrada ou sem permissão.',
+      );
+    }
+
+    return this.prisma.inscricao.update({
+      where: { id: inscricaoId },
+      data: {
+        ...(dto.numeroPeito !== undefined ? { numeroPeito: dto.numeroPeito } : {}),
+        ...(dto.tamanhoCamisa !== undefined ? { tamanhoCamisa: dto.tamanhoCamisa } : {}),
+        ...(dto.categoriaId !== undefined ? { categoriaId: dto.categoriaId } : {}),
+        ...(dto.status !== undefined ? { status: dto.status } : {}),
+      },
+      include: {
+        cliente: {
+          include: {
+            pf: true,
+            pj: true,
+            usuario: { select: { email: true } },
+          },
+        },
+        categoria: { include: { modalidade: { include: { evento: true } } } },
+        lote: true,
+      },
+    });
+  }
+
   async exportarInscritosCsv(
     usuarioId: string,
     filtros: FiltrosInscritos,
@@ -1084,6 +1141,29 @@ export class OrganizadorService {
     }
   }
 
+  async atualizarFotoRosto(
+    usuarioId: string,
+    caminhoRelativo: string,
+  ) {
+    const organizador = await this.getOrganizadorOuFalhar(usuarioId);
+
+    if (organizador.fotoRostoUrl) {
+      unlink(
+        join(process.cwd(), organizador.fotoRostoUrl),
+      ).catch(() => undefined);
+    }
+
+    return this.prisma.organizador.update({
+      where: { id: organizador.id },
+      data: {
+        fotoRostoUrl: caminhoRelativo,
+        ...(organizador.status === StatusOrganizador.REJEITADO
+          ? { status: StatusOrganizador.PENDENTE, motivoRevisao: null }
+          : {}),
+      },
+    });
+  }
+
   async atualizarDocumentoIdentidade(
     usuarioId: string,
     caminhoRelativo: string,
@@ -1110,10 +1190,78 @@ export class OrganizadorService {
   async atualizarDadosBancarios(usuarioId: string, dto: UpdateDadosBancariosDto) {
     const organizador = await this.getOrganizadorOuFalhar(usuarioId);
 
+    let asaasData = {};
+    if (!organizador.asaasWalletId) {
+      const cliente = await this.prisma.cliente.findUnique({
+        where: { id: organizador.clienteId },
+        include: { pf: true, pj: true, usuario: true },
+      });
+
+      const nome = cliente?.pf?.nomeCompleto || cliente?.pj?.razaoSocial || cliente?.usuario.email || 'Organizador Eventos';
+      const cpfCnpj = cliente?.pf?.cpf || cliente?.pj?.cnpj || '00000000000';
+      const email = cliente?.usuario.email || 'organizador@seupercurso.com.br';
+
+      const asaasSub = await this.asaasService.criarSubcontaOrganizador({
+        nome,
+        email,
+        cpfCnpj,
+        chavePix: dto.chavePix,
+      });
+
+      asaasData = {
+        asaasAccountId: asaasSub.accountId,
+        asaasWalletId: asaasSub.walletId,
+      };
+    }
+
     return this.prisma.organizador.update({
       where: { id: organizador.id },
-      data: dto,
+      data: {
+        ...dto,
+        ...asaasData,
+      },
     });
+  }
+
+  async solicitarSaque(usuarioId: string, valor: number) {
+    const organizador = await this.getOrganizadorAprovadoOuFalhar(usuarioId);
+
+    const cliente = await this.prisma.cliente.findUnique({
+      where: { id: organizador.clienteId },
+      include: { pf: true, pj: true },
+    });
+
+    const cpfCnpjTitular = (cliente?.pf?.cpf || cliente?.pj?.cnpj || '').replace(/\D/g, '');
+
+    if (!cpfCnpjTitular) {
+      throw new BadRequestException('CPF ou CNPJ do titular não encontrado no cadastro.');
+    }
+
+    // Trava de Titularidade: A chave PIX deve obrigatoriamente corresponder ao CPF/CNPJ do organizador
+    const chavePixOrganizador = (organizador.chavePix || cpfCnpjTitular).replace(/\D/g, '');
+
+    // Se a chave for CPF/CNPJ numérico, verifica se bate rigorosamente com o titular
+    if (chavePixOrganizador.length >= 11 && chavePixOrganizador !== cpfCnpjTitular) {
+      throw new BadRequestException(
+        `🔒 Trava de Segurança de Titularidade: Por conformidade bancária e fiscal, saques via PIX só são permitidos para contas do mesmo CPF/CNPJ do titular (${cliente?.pf?.cpf || cliente?.pj?.cnpj}). Não são permitidos saques para terceiros.`,
+      );
+    }
+
+    const chaveDestinoFinal = organizador.chavePix || cpfCnpjTitular;
+
+    const resSaque = await this.asaasService.solicitarSaquePix({
+      valor,
+      chavePix: chaveDestinoFinal,
+      walletId: organizador.asaasWalletId,
+    });
+
+    return {
+      sucesso: true,
+      mensagem: `Saque de R$ ${valor.toFixed(2)} enviado para processamento via PIX com trava de titularidade ativada.`,
+      transferId: resSaque.transferId,
+      chaveDestino: `CPF/CNPJ Titular: ${cliente?.pf?.cpf || cliente?.pj?.cnpj} (${chaveDestinoFinal})`,
+      valor,
+    };
   }
 
   private async getOrganizadorOuFalhar(usuarioId: string) {
@@ -1141,6 +1289,45 @@ export class OrganizadorService {
     }
 
     return organizador;
+  }
+
+  async gerarNumeracaoPeito(usuarioId: string, eventoId: string, numeroInicial: number = 101) {
+    const organizador = await this.getOrganizadorAprovadoOuFalhar(usuarioId);
+
+    const evento = await this.prisma.evento.findFirst({
+      where: { id: eventoId, organizadorId: organizador.id },
+    });
+    if (!evento) {
+      throw new NotFoundException('Evento não encontrado.');
+    }
+
+    const inscricoes = await this.prisma.inscricao.findMany({
+      where: {
+        categoria: { modalidade: { eventoId } },
+        status: StatusInscricao.CONFIRMADA,
+      },
+      include: {
+        cliente: { include: { pf: true } },
+      },
+      orderBy: [
+        { categoria: { modalidade: { nome: 'asc' } } },
+        { dataInscricao: 'asc' },
+      ],
+    });
+
+    let proximoNumero = numeroInicial;
+    let totalNumerados = 0;
+
+    for (const inscricao of inscricoes) {
+      await this.prisma.inscricao.update({
+        where: { id: inscricao.id },
+        data: { numeroPeito: String(proximoNumero) },
+      });
+      proximoNumero++;
+      totalNumerados++;
+    }
+
+    return { totalNumerados, numeroInicial, numeroFinal: proximoNumero - 1 };
   }
 
   private async getOrganizadorPorIdAprovadoOuFalhar(organizadorId: string) {

@@ -74,12 +74,20 @@ function formatarHora(iso: string) {
 function nomeCliente(item: (typeof resultados.value)[number]) {
   return item.cliente.pf?.nomeCompleto || '—'
 }
+const scannerAberto = ref(false)
+
+function onQrCodeLido(codigo: string) {
+  termoBusca.value = codigo.trim()
+  onBuscar()
+}
 </script>
 
 <template>
-  <div class="mx-auto max-w-xl">
-    <h1 class="text-2xl font-extrabold uppercase tracking-tight text-primary">Check-in de kit</h1>
-    <p class="mt-1 text-sm text-slate-500">Busque o atleta e confirme a entrega do kit.</p>
+  <div class="mx-auto max-w-xl space-y-4">
+    <div>
+      <h1 class="text-2xl font-extrabold uppercase tracking-tight text-primary">Check-in de Kit de Atleta</h1>
+      <p class="mt-1 text-sm text-slate-500">Busque por nome/CPF ou escaneie o QR Code do e-mail do atleta.</p>
+    </div>
 
     <p v-if="carregandoEventos" class="mt-8 text-sm text-slate-500">Carregando...</p>
 
@@ -93,13 +101,23 @@ function nomeCliente(item: (typeof resultados.value)[number]) {
     <template v-else>
       <select
         v-model="eventoSelecionadoId"
-        class="mt-6 w-full rounded-xl border border-slate-300 px-4 py-3 text-base focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+        class="w-full rounded-xl border border-slate-300 px-4 py-3 text-base font-bold text-slate-800 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
         @change="resultados = []"
       >
         <option v-for="evento in eventos" :key="evento.id" :value="evento.id">{{ evento.nome }}</option>
       </select>
 
-      <div class="mt-4 flex gap-2">
+      <!-- Botão de Câmera QR Code em Destaque -->
+      <button
+        type="button"
+        class="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-slate-900 to-primary p-4 text-sm font-extrabold uppercase tracking-wider text-white shadow-md hover:brightness-110 transition active:scale-[0.99]"
+        @click="scannerAberto = true"
+      >
+        <span class="text-xl">📷</span>
+        <span>Escanear QR Code do E-mail</span>
+      </button>
+
+      <div class="flex gap-2">
         <input
           v-model="termoBusca"
           type="text"
@@ -116,6 +134,13 @@ function nomeCliente(item: (typeof resultados.value)[number]) {
           {{ buscando ? '...' : 'Buscar' }}
         </button>
       </div>
+
+      <!-- Componente Modal de Leitura de Câmera QR Code -->
+      <QrCodeScannerModal
+        :aberto="scannerAberto"
+        @close="scannerAberto = false"
+        @scan="onQrCodeLido"
+      />
 
       <p v-if="erro" class="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
         {{ erro }}

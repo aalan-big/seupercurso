@@ -9,7 +9,7 @@ const carregando = ref(false)
 const erro = ref('')
 const sucesso = ref(false)
 
-const abaAtiva = ref<'dados' | 'modalidades' | 'lotes' | 'descontos'>('dados')
+const abaAtiva = ref<'dados' | 'modalidades' | 'lotes' | 'descontos' | 'cronometragem'>('dados')
 
 onMounted(async () => {
   try {
@@ -72,11 +72,19 @@ async function onSubmit(payload: Record<string, unknown>) {
         </button>
         <button
           type="button"
-          class="shrink-0 whitespace-nowrap rounded-lg px-4 py-2 transition"
+          class="shrink-0 whitespace-nowrap rounded-lg px-4 py-2 transition flex items-center gap-1.5"
           :class="abaAtiva === 'descontos' ? 'bg-white text-primary shadow' : 'text-slate-500'"
           @click="abaAtiva = 'descontos'"
         >
           Descontos
+        </button>
+        <button
+          type="button"
+          class="shrink-0 whitespace-nowrap rounded-lg px-4 py-2 transition flex items-center gap-1.5"
+          :class="abaAtiva === 'cronometragem' ? 'bg-white text-primary shadow' : 'text-slate-500'"
+          @click="abaAtiva = 'cronometragem'"
+        >
+          ⏱️ Cronometragem
         </button>
       </div>
 
@@ -110,6 +118,27 @@ async function onSubmit(payload: Record<string, unknown>) {
 
       <div v-if="abaAtiva === 'descontos'" class="mt-6 max-w-2xl">
         <CuponsManager :evento-id="id" :evento="eventoSelecionado" />
+      </div>
+
+      <div v-if="abaAtiva === 'cronometragem'" class="mt-6">
+        <div class="rounded-2xl border border-slate-200 bg-white p-6 space-y-4 shadow-xs">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <span>⏱️</span> Cronometragem deste Evento
+              </h2>
+              <p class="text-xs text-slate-500 mt-1">
+                Gere a chave de API de integração ao vivo ou importe planilhas CSV para {{ eventoSelecionado.nome }}.
+              </p>
+            </div>
+            <NuxtLink
+              to="/cronometragem"
+              class="rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white shadow-xs hover:brightness-95 transition"
+            >
+              Abrir Painel Completo de Cronometragem →
+            </NuxtLink>
+          </div>
+        </div>
       </div>
     </template>
 

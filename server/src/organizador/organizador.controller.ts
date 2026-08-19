@@ -75,6 +75,15 @@ export class OrganizadorController {
     return this.organizadorService.obterFinanceiro(user.userId);
   }
 
+  @HttpCode(HttpStatus.OK)
+  @Post('financeiro/saque')
+  solicitarSaque(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body('valor') valor: number,
+  ) {
+    return this.organizadorService.solicitarSaque(user.userId, Number(valor));
+  }
+
   @Get('staff')
   listarStaff(@CurrentUser() user: AuthenticatedUser) {
     return this.organizadorService.listarStaff(user.userId);
@@ -107,6 +116,42 @@ export class OrganizadorController {
   @Delete('staff/:id')
   removerStaff(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.organizadorService.removerStaff(user.userId, id);
+  }
+
+  @Patch('foto-rosto')
+  @UseInterceptors(
+    FileInterceptor('foto', {
+      storage: diskStorage({
+        destination: './uploads/documentos',
+        filename: (_req, file, callback) => {
+          const sufixo = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+          callback(null, `selfie-${sufixo}${extname(file.originalname)}`);
+        },
+      }),
+      limits: { fileSize: 10 * 1024 * 1024 },
+      fileFilter: (_req, file, callback) => {
+        if (!file.mimetype.startsWith('image/')) {
+          callback(
+            new BadRequestException('Envie uma imagem para a foto do rosto.'),
+            false,
+          );
+          return;
+        }
+        callback(null, true);
+      },
+    }),
+  )
+  uploadFotoRosto(
+    @CurrentUser() user: AuthenticatedUser,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException('Nenhum arquivo de foto enviado.');
+    }
+    return this.organizadorService.atualizarFotoRosto(
+      user.userId,
+      `/uploads/documentos/${file.filename}`,
+    );
   }
 
   @Patch('documento-identidade')
@@ -173,6 +218,20 @@ export class OrganizadorController {
     @Param('eventoId') eventoId: string,
   ) {
     return this.organizadorService.obterKits(user.userId, eventoId);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('eventos/:eventoId/gerar-numeracao-peito')
+  gerarNumeracaoPeito(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('eventoId') eventoId: string,
+    @Body('numeroInicial') numeroInicial?: number,
+  ) {
+    return this.organizadorService.gerarNumeracaoPeito(
+      user.userId,
+      eventoId,
+      numeroInicial ? Number(numeroInicial) : 101,
+    );
   }
 
   @Patch('eventos/:id')
@@ -370,6 +429,15 @@ export class OrganizadorController {
       status,
       busca,
     });
+  }
+
+  @Patch('inscritos/:id')
+  atualizarInscricao(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: { numeroPeito?: string; tamanhoCamisa?: string; categoriaId?: string; status?: any },
+  ) {
+    return this.organizadorService.atualizarInscricao(user.userId, id, dto);
   }
 
   @Get('inscritos/exportar')

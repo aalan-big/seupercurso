@@ -14,7 +14,8 @@ onMounted(async () => {
   try {
     await fetchMe()
   } catch {
-    await navigateTo('/onboarding')
+    token.value = null
+    await navigateTo('/login')
     return
   }
 

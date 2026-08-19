@@ -11,6 +11,12 @@ export function useApi() {
           Authorization: `Bearer ${token.value}`
         }
       }
+    },
+    onResponseError({ response }) {
+      if (response.status === 401) {
+        token.value = null
+      }
     }
   })
 }
+

@@ -75,15 +75,15 @@ onMounted(async () => {
       </div>
     </div>
 
-    <section id="eventos" class="mx-auto max-w-6xl px-4 pb-16 pt-14 sm:pt-20">
-      <h2 class="mb-6 text-2xl font-extrabold uppercase tracking-tight text-primary sm:text-3xl">Inscrições abertas</h2>
+    <section id="eventos" class="mx-auto max-w-7xl px-4 pb-20 pt-14 sm:pt-20">
+      <h2 class="mb-8 text-2xl font-extrabold uppercase tracking-tight text-primary sm:text-3xl">Inscrições abertas</h2>
 
       <p v-if="erro" class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
         {{ erro }}
       </p>
       <p v-else-if="!carregando && eventosFiltrados.length === 0" class="text-slate-500">Nenhum evento encontrado.</p>
 
-      <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div class="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
         <EventoCard v-for="evento in eventosFiltrados" :key="evento.id" :evento="evento" />
       </div>
     </section>

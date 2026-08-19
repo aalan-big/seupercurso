@@ -106,9 +106,27 @@ export class InscricaoService {
     return this.prisma.inscricao.findMany({
       where: { clienteId },
       include: {
-        categoria: { include: { modalidade: { include: { evento: true } } } },
+        categoria: {
+          include: {
+            modalidade: {
+              include: {
+                evento: {
+                  include: {
+                    modalidades: {
+                      include: {
+                        categorias: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
         lote: true,
         pagamentos: { orderBy: { createdAt: 'desc' } },
+        resultado: true,
+        certificado: true,
       },
       orderBy: { dataInscricao: 'desc' },
     });
@@ -131,9 +149,176 @@ export class InscricaoService {
       );
     }
 
-    return this.prisma.inscricao.update({
+  return this.prisma.inscricao.update({
       where: { id: inscricaoId },
       data: { status: StatusInscricao.CANCELADA },
+    });
+  }
+
+  async atualizarTamanhoCamisa(
+    usuarioId: string,
+    inscricaoId: string,
+    tamanhoCamisa: string,
+  ) {
+    const clienteId = await this.getClienteIdOuFalhar(usuarioId);
+
+    const inscricao = await this.prisma.inscricao.findUnique({
+      where: { id: inscricaoId },
+      include: {
+        categoria: { include: { modalidade: { include: { evento: true } } } },
+      },
+    });
+
+    if (!inscricao || inscricao.clienteId !== clienteId) {
+      throw new NotFoundException('Inscrição não encontrada.');
+    }
+
+    if (inscricao.kitEntregueEm) {
+      throw new BadRequestException(
+        'O kit já foi retirado e o tamanho da camisa não pode mais ser alterado.',
+      );
+    }
+
+    const evento = inscricao.categoria.modalidade.evento;
+    const agora = new Date();
+    if (
+      evento.camisasBloqueadas ||
+      (evento.limiteTrocaCamisaAté && evento.limiteTrocaCamisaAté < agora)
+    ) {
+      throw new BadRequestException(
+        'As camisetas deste evento já foram enviadas para a gráfica/produção e o tamanho não pode mais ser alterado.',
+      );
+    }
+
+    return this.prisma.inscricao.update({
+      where: { id: inscricaoId },
+      data: { tamanhoCamisa },
+    });
+  }
+
+  async trocarCategoria(
+    usuarioId: string,
+    inscricaoId: string,
+    novaCategoriaId: string,
+  ) {
+    const cliente = await this.getClienteComPfOuFalhar(usuarioId);
+    const clienteId = cliente.id;
+
+    const inscricao = await this.prisma.inscricao.findUnique({
+      where: { id: inscricaoId },
+      include: {
+        categoria: { include: { modalidade: { include: { evento: true } } } },
+      },
+    });
+
+    if (!inscricao || inscricao.clienteId !== clienteId) {
+      throw new NotFoundException('Inscrição não encontrada.');
+    }
+
+    if (inscricao.kitEntregueEm) {
+      throw new BadRequestException(
+        'O kit já foi retirado e a modalidade não pode mais ser alterada.',
+      );
+    }
+
+    const evento = inscricao.categoria.modalidade.evento;
+    const agora = new Date();
+    if (
+      evento.camisasBloqueadas ||
+      (evento.limiteTrocaCamisaAté && evento.limiteTrocaCamisaAté < agora)
+    ) {
+      throw new BadRequestException(
+        'As alterações de modalidade e kit deste evento já foram encerradas pelo organizador para a produção dos kits.',
+      );
+    }
+
+    const novaCategoria = await this.prisma.categoria.findUnique({
+      where: { id: novaCategoriaId },
+      include: { modalidade: { include: { evento: true } } },
+    });
+
+    if (!novaCategoria) {
+      throw new NotFoundException('Nova categoria não encontrada.');
+    }
+
+    if (
+      novaCategoria.modalidade.eventoId !==
+      inscricao.categoria.modalidade.eventoId
+    ) {
+      throw new BadRequestException(
+        'A nova modalidade precisa ser do mesmo evento.',
+      );
+    }
+
+    this.validarElegibilidadeCategoria(
+      novaCategoria,
+      cliente.pf,
+      novaCategoria.modalidade.evento.dataInicio,
+    );
+
+    return this.prisma.inscricao.update({
+      where: { id: inscricaoId },
+      data: { categoriaId: novaCategoriaId },
+    });
+  }
+
+  async transferirInscricao(
+    usuarioId: string,
+    inscricaoId: string,
+    emailDestino: string,
+  ) {
+    const clienteId = await this.getClienteIdOuFalhar(usuarioId);
+
+    const inscricao = await this.prisma.inscricao.findUnique({
+      where: { id: inscricaoId },
+      include: {
+        categoria: { include: { modalidade: { include: { evento: true } } } },
+      },
+    });
+
+    if (!inscricao || inscricao.clienteId !== clienteId) {
+      throw new NotFoundException('Inscrição não encontrada.');
+    }
+
+    if (inscricao.status === StatusInscricao.CANCELADA || inscricao.status === StatusInscricao.EXPIRADA) {
+      throw new BadRequestException(
+        'Inscrições canceladas ou expiradas não podem ser transferidas.',
+      );
+    }
+
+    if (inscricao.kitEntregueEm) {
+      throw new BadRequestException(
+        'O kit desta inscrição já foi retirado e ela não pode mais ser transferida.',
+      );
+    }
+
+    if (!inscricao.categoria.modalidade.evento.permiteTransferencia) {
+      throw new BadRequestException(
+        'Este evento não permite transferência de titulares.',
+      );
+    }
+
+    const usuarioDestino = await this.prisma.usuario.findUnique({
+      where: { email: emailDestino.toLowerCase().trim() },
+      include: { cliente: true },
+    });
+
+    if (!usuarioDestino || !usuarioDestino.cliente) {
+      throw new NotFoundException(
+        `O atleta com e-mail "${emailDestino}" não possui cadastro na plataforma. Peça para ele criar uma conta primeiro!`,
+      );
+    }
+
+    if (usuarioDestino.cliente.id === clienteId) {
+      throw new BadRequestException('Você não pode transferir a inscrição para você mesmo.');
+    }
+
+    return this.prisma.inscricao.update({
+      where: { id: inscricaoId },
+      data: {
+        clienteId: usuarioDestino.cliente.id,
+        numeroPeito: null, // reseta o número de peito para reassociação
+      },
     });
   }
 
@@ -225,12 +410,23 @@ export class InscricaoService {
   }
 
   private async resolverCupomOuFalhar(eventoId: string, codigo: string) {
-    const cupom = await this.prisma.cupom.findUnique({
-      where: { eventoId_codigo: { eventoId, codigo: codigo.toUpperCase() } },
+    const codigoLimpo = codigo.trim();
+    if (!codigoLimpo) {
+      throw new BadRequestException('Informe o código do cupom.');
+    }
+
+    const cupom = await this.prisma.cupom.findFirst({
+      where: {
+        eventoId,
+        codigo: { equals: codigoLimpo, mode: 'insensitive' },
+      },
     });
 
-    if (!cupom || !cupom.ativo) {
-      throw new BadRequestException('Cupom inválido.');
+    if (!cupom) {
+      throw new BadRequestException(`Cupom "${codigoLimpo}" não foi encontrado para este evento.`);
+    }
+    if (!cupom.ativo) {
+      throw new BadRequestException('Este cupom está inativo no momento.');
     }
     if (cupom.validoAte && cupom.validoAte < new Date()) {
       throw new BadRequestException('Este cupom expirou.');
@@ -239,7 +435,7 @@ export class InscricaoService {
       cupom.quantidadeMaxima !== null &&
       cupom.usosAtuais >= cupom.quantidadeMaxima
     ) {
-      throw new BadRequestException('Este cupom já atingiu o limite de usos.');
+      throw new BadRequestException('Este cupom já atingiu o limite máximo de usos.');
     }
 
     return cupom.id;

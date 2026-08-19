@@ -53,6 +53,9 @@ const linkClasse = 'flex items-center gap-2 rounded-lg px-3 py-2 text-slate-600 
       <NuxtLink to="/kits" :class="linkClasse" active-class="bg-accent/10 text-primary" @click="emit('fechar')">
         <span>👕</span> Kits
       </NuxtLink>
+      <NuxtLink to="/cronometragem" :class="linkClasse" active-class="bg-accent/10 text-primary" @click="emit('fechar')">
+        <span>⏱️</span> Cronometragem
+      </NuxtLink>
       <NuxtLink to="/resultados" :class="linkClasse" active-class="bg-accent/10 text-primary" @click="emit('fechar')">
         <span>🏅</span> Resultados
       </NuxtLink>

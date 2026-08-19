@@ -1,7 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'auth' })
 
-const { token, login } = useAuth()
+const { token, login, fetchMe } = useAuth()
 const route = useRoute()
 
 const destino = computed(() => {
@@ -13,9 +13,14 @@ const form = reactive({ email: '', password: '' })
 const erro = ref('')
 const carregando = ref(false)
 
-onMounted(() => {
+onMounted(async () => {
   if (token.value) {
-    navigateTo(destino.value)
+    try {
+      await fetchMe()
+      await navigateTo(destino.value)
+    } catch {
+      token.value = null
+    }
   }
 })
 

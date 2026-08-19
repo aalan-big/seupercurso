@@ -13,6 +13,7 @@ import { AdminAuthModule } from './admin-auth/admin-auth.module';
 import { AdminModule } from './admin/admin.module';
 import { StaffAuthModule } from './staff-auth/staff-auth.module';
 import { StaffModule } from './staff/staff.module';
+import { CronometragemModule } from './cronometragem/cronometragem.module';
 import { envValidationSchema } from './config/env.validation';
 
 @Module({
@@ -32,6 +33,7 @@ import { envValidationSchema } from './config/env.validation';
     AdminModule,
     StaffAuthModule,
     StaffModule,
+    CronometragemModule,
   ],
   controllers: [AppController],
   providers: [AppService],

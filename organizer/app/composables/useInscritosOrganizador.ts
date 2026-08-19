@@ -57,5 +57,16 @@ export function useInscritosOrganizador() {
     URL.revokeObjectURL(url)
   }
 
-  return { inscritos, fetchInscritos, exportarCsv }
+  async function atualizarInscricao(
+    id: string,
+    payload: { numeroPeito?: string; tamanhoCamisa?: string; categoriaId?: string; status?: string }
+  ) {
+    const res = await api<InscritoOrganizador>(`/organizadores/me/inscritos/${id}`, {
+      method: 'PATCH',
+      body: payload
+    })
+    return res
+  }
+
+  return { inscritos, fetchInscritos, exportarCsv, atualizarInscricao }
 }

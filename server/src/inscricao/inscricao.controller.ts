@@ -16,6 +16,9 @@ import {
 } from '../auth/decorators/current-user.decorator';
 import { InscricaoService } from './inscricao.service';
 import { CreateInscricaoDto } from './dto/create-inscricao.dto';
+import { UpdateTamanhoCamisaDto } from './dto/update-tamanho-camisa.dto';
+import { TrocarCategoriaDto } from './dto/trocar-categoria.dto';
+import { TransferirInscricaoDto } from './dto/transferir-inscricao.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('inscricoes')
@@ -39,5 +42,44 @@ export class InscricaoController {
   @Patch(':id/cancelar')
   cancelar(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.inscricaoService.cancelar(user.userId, id);
+  }
+
+  @Patch(':id/tamanho-camisa')
+  atualizarTamanhoCamisa(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateTamanhoCamisaDto,
+  ) {
+    return this.inscricaoService.atualizarTamanhoCamisa(
+      user.userId,
+      id,
+      dto.tamanhoCamisa,
+    );
+  }
+
+  @Patch(':id/trocar-categoria')
+  trocarCategoria(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: TrocarCategoriaDto,
+  ) {
+    return this.inscricaoService.trocarCategoria(
+      user.userId,
+      id,
+      dto.novaCategoriaId,
+    );
+  }
+
+  @Post(':id/transferir')
+  transferirInscricao(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: TransferirInscricaoDto,
+  ) {
+    return this.inscricaoService.transferirInscricao(
+      user.userId,
+      id,
+      dto.emailDestino,
+    );
   }
 }

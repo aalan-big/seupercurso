@@ -170,8 +170,12 @@ model Organizador {
   banco              String?
   agencia            String?
   conta              String?
+  fotoRostoUrl       String?
   documentoIdentidadeUrl String?
   motivoRevisao      String?
+  asaasAccountId     String?           @unique
+  asaasWalletId      String?
+  asaasApiKey        String?
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
 
@@ -201,12 +205,20 @@ model Evento {
   regulamentoUrl      String?
   bannerUrl           String?
   mapaPercursoUrl     String?
+  mapaEmbedUrl        String?
+  gpxUrl              String?
+  rotaGeoJson         String?
   termoResponsabilidade String?
   retiradaKitLocal    String?
   retiradaKitInicio   DateTime?
   retiradaKitFim      DateTime?
+  limiteTrocaCamisaAté DateTime?
+  camisasBloqueadas    Boolean  @default(false)
+  permiteTransferencia Boolean  @default(true)
+  apiKeyCronometragem  String?  @unique
   aplicaDescontoIdoso    Boolean  @default(false)
   percentualDescontoIdoso Decimal? @db.Decimal(5, 2)
+  taxaRepassadaAtleta    Boolean  @default(false)
   dataInicio          DateTime
   dataFim             DateTime
   local               String
@@ -364,6 +376,9 @@ model Pagamento {
   status          StatusPagamento @default(PENDENTE)
   gateway         String?
   codigoTransacao String?
+  asaasPaymentId  String?         @unique
+  pixQrCodeUrl    String?
+  pixCopiaECola   String?
   dataPagamento   DateTime?
   createdAt       DateTime        @default(now())
 

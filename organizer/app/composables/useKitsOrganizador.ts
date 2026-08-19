@@ -20,5 +20,15 @@ export function useKitsOrganizador() {
     return res
   }
 
-  return { kits, fetchKits }
+  async function gerarNumeracaoPeito(eventoId: string, numeroInicial: number = 101) {
+    return await api<{ totalNumerados: number; numeroInicial: number; numeroFinal: number }>(
+      `/organizadores/me/eventos/${eventoId}/gerar-numeracao-peito`,
+      {
+        method: 'POST',
+        body: { numeroInicial }
+      }
+    )
+  }
+
+  return { kits, fetchKits, gerarNumeracaoPeito }
 }

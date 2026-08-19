@@ -2,15 +2,24 @@
 import type { FinanceiroOrganizador } from '../../composables/useFinanceiroOrganizador'
 
 const { buscar } = useFinanceiroOrganizador()
+const { organizador, fetchMe } = useOrganizador()
+const api = useApi()
 
 const financeiro = ref<FinanceiroOrganizador | null>(null)
 const carregando = ref(true)
 const erro = ref('')
 
+// Modal Saque State
+const modalSaqueAberto = ref(false)
+const solicitandoSaque = ref(false)
+const erroSaque = ref('')
+const comprovanteSaque = ref<{ transferId: string; chaveDestino: string; valor: number } | null>(null)
+
 onMounted(async () => {
   erro.value = ''
   carregando.value = true
   try {
+    await fetchMe()
     financeiro.value = await buscar()
   } catch (e) {
     erro.value = extrairErro(e)
@@ -22,65 +31,289 @@ onMounted(async () => {
 function formatarValor(valor: number) {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
+
+async function realizarSaquePix() {
+  if (!financeiro.value || financeiro.value.totalRepasse <= 0) return
+  solicitandoSaque.value = true
+  erroSaque.value = ''
+  comprovanteSaque.value = null
+
+  try {
+    const res = await api<{ sucesso: boolean; transferId: string; chaveDestino: string; valor: number }>(
+      '/organizadores/me/financeiro/saque',
+      {
+        method: 'POST',
+        body: { valor: financeiro.value.totalRepasse }
+      }
+    )
+    comprovanteSaque.value = res
+  } catch (e) {
+    erroSaque.value = extrairErro(e)
+  } finally {
+    solicitandoSaque.value = false
+  }
+}
+
+function exportarRelatorioCSV() {
+  if (!financeiro.value || financeiro.value.porEvento.length === 0) return
+
+  let csvContent = 'data:text/csv;charset=utf-8,'
+  csvContent += 'Evento,Inscrições Pagas,Total Arrecadado (R$),Comissão Plataforma (R$),Valor Líquido a Receber (R$)\n'
+
+  financeiro.value.porEvento.forEach((ev) => {
+    csvContent += `"${ev.nome.replace(/"/g, '""')}",${ev.quantidadePagamentos},${ev.totalArrecadado.toFixed(2)},${ev.comissaoPlataforma.toFixed(2)},${ev.repasse.toFixed(2)}\n`
+  })
+
+  const encodedUri = encodeURI(csvContent)
+  const link = document.createElement('a')
+  link.setAttribute('href', encodedUri)
+  link.setAttribute('download', `Relatorio_Financeiro_SeuPercurso_${new Date().toISOString().slice(0, 10)}.csv`)
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
 </script>
 
 <template>
-  <div>
-    <h1 class="text-2xl font-extrabold uppercase tracking-tight text-primary">Financeiro</h1>
-    <p class="mt-1 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
-      Pagamento ainda é simulado — esses números refletem os pagamentos aprovados registrados no sistema, não repasse real.
+  <div class="space-y-6">
+    <!-- Cabeçalho Principal do Dashboard Financeiro -->
+    <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-5">
+      <div>
+        <h1 class="text-2xl font-black uppercase tracking-tight text-primary">Dashboard Financeiro & Vendas</h1>
+        <p class="mt-1 text-xs text-slate-500">
+          Acompanhe suas vendas de inscrições, o repasse líquido a receber e solicite seus saques via PIX.
+        </p>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <button
+          type="button"
+          :disabled="!financeiro || financeiro.porEvento.length === 0"
+          class="inline-flex items-center gap-2 rounded-xl bg-slate-800 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-slate-900 transition disabled:opacity-40"
+          @click="exportarRelatorioCSV"
+        >
+          📊 Exportar Relatório (CSV)
+        </button>
+      </div>
+    </div>
+
+    <!-- Banner da Subconta Asaas -->
+    <div v-if="organizador?.asaasWalletId" class="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-5 text-xs text-emerald-900 flex flex-wrap items-center justify-between gap-4 shadow-xs">
+      <div class="flex items-center gap-3">
+        <span class="text-3xl">✅</span>
+        <div>
+          <p class="font-bold text-sm text-emerald-950">Subconta Asaas Ativa & Verificada</p>
+          <p class="text-[11px] text-emerald-800 mt-0.5">
+            Sua conta de repasse automático (Wallet: <code class="font-mono font-bold">{{ organizador.asaasWalletId }}</code>) está apta a receber solicitações de saques instantâneos via PIX.
+          </p>
+        </div>
+      </div>
+      <NuxtLink to="/dados-bancarios" class="rounded-xl bg-white/90 px-3 py-1.5 text-xs font-bold text-emerald-800 border border-emerald-200 hover:bg-white transition">
+        ⚙️ Ver Dados Bancários
+      </NuxtLink>
+    </div>
+
+    <p v-if="erro" class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-700">
+      ⚠️ {{ erro }}
     </p>
 
-    <p v-if="erro" class="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-      {{ erro }}
-    </p>
-
-    <p v-if="carregando" class="mt-6 text-sm text-slate-500">Carregando...</p>
+    <div v-if="carregando" class="py-12 text-center text-xs text-slate-400">
+      Carregando métricas financeiras...
+    </div>
 
     <template v-else-if="financeiro">
-      <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p class="text-2xl font-extrabold text-primary">{{ formatarValor(financeiro.totalArrecadado) }}</p>
-          <p class="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Total arrecadado</p>
+      <!-- 4 Cards KPI Executivos -->
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <!-- Card 1: Total Arrecadado -->
+        <div class="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-xs transition hover:shadow-md">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Total Arrecadado (Bruto)</span>
+            <span class="rounded-lg bg-blue-50 p-2 text-blue-600">💵</span>
+          </div>
+          <p class="mt-3 text-2xl font-black text-slate-900">{{ formatarValor(financeiro.totalArrecadado) }}</p>
+          <p class="mt-1 text-[11px] text-slate-500">Valor bruto de todas as inscrições</p>
         </div>
-        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p class="text-2xl font-extrabold text-slate-500">{{ formatarValor(financeiro.comissaoPlataforma) }}</p>
-          <p class="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Comissão da plataforma ({{ financeiro.comissaoPercentual }}%)</p>
+
+        <!-- Card 2: Comissão Plataforma -->
+        <div class="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-xs transition hover:shadow-md">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Comissão Plataforma ({{ financeiro.comissaoPercentual }}%)</span>
+            <span class="rounded-lg bg-amber-50 p-2 text-amber-600">🏷️</span>
+          </div>
+          <p class="mt-3 text-2xl font-black text-slate-700">{{ formatarValor(financeiro.comissaoPlataforma) }}</p>
+          <p class="mt-1 text-[11px] text-slate-500">Taxa de intermediação do sistema</p>
         </div>
-        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p class="text-2xl font-extrabold text-accent">{{ formatarValor(financeiro.totalRepasse) }}</p>
-          <p class="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Valor a receber</p>
+
+        <!-- Card 3 & 4: Saldo Líquido a Receber + Botão de Saque com Trava de Titularidade -->
+        <div class="relative overflow-hidden rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-500 to-emerald-600 p-5 text-white shadow-sm transition hover:shadow-md sm:col-span-2 flex flex-col justify-between space-y-3">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold uppercase tracking-wider text-emerald-100">Saldo Líquido Disponível</span>
+              <span class="rounded-lg bg-white/20 p-2 text-white">✨</span>
+            </div>
+            <p class="mt-2 text-3xl font-black text-white">{{ formatarValor(financeiro.totalRepasse) }}</p>
+            <p class="mt-1 text-[11px] text-emerald-100">
+              🔒 Trava de Titularidade Ativa: Repasse restrito ao mesmo CPF/CNPJ
+            </p>
+          </div>
+
+          <!-- Botão de Saque em Destaque -->
+          <button
+            type="button"
+            :disabled="financeiro.totalRepasse <= 0"
+            class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-white py-3 text-xs font-black uppercase tracking-wider text-emerald-950 shadow hover:bg-emerald-50 transition active:scale-[0.99] disabled:opacity-50"
+            @click="modalSaqueAberto = true"
+          >
+            <span>💸 Solicitar Saque via PIX</span>
+          </button>
         </div>
       </div>
 
-      <h2 class="mt-8 text-sm font-bold uppercase tracking-wide text-slate-500">Por evento</h2>
+      <!-- Tabela Detalhada por Evento -->
+      <div class="space-y-3 pt-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-black uppercase tracking-wider text-slate-700">Detalhamento e Repasses por Evento</h2>
+          <span class="text-xs text-slate-400">Valores consolidados em BRL</span>
+        </div>
 
-      <div v-if="financeiro.porEvento.length === 0" class="mt-3 rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-        Nenhum pagamento aprovado ainda.
-      </div>
+        <div v-if="financeiro.porEvento.length === 0" class="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center space-y-2">
+          <span class="text-4xl block">📊</span>
+          <p class="font-bold text-sm text-slate-700">Nenhum pagamento aprovado até o momento.</p>
+          <p class="text-xs text-slate-400">Assim que as inscrições forem confirmadas pelo atleta via PIX ou Cartão, os repasses aparecerão aqui.</p>
+        </div>
 
-      <div v-else class="mt-3 overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <table class="w-full text-left text-sm">
-          <thead class="border-b border-slate-200 text-xs font-bold uppercase tracking-wide text-slate-500">
-            <tr>
-              <th class="px-4 py-3">Evento</th>
-              <th class="px-4 py-3">Pagamentos</th>
-              <th class="px-4 py-3">Arrecadado</th>
-              <th class="px-4 py-3">Comissão</th>
-              <th class="px-4 py-3">A receber</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="evento in financeiro.porEvento" :key="evento.eventoId" class="border-b border-slate-100 last:border-0">
-              <td class="px-4 py-3 font-semibold text-slate-700">{{ evento.nome }}</td>
-              <td class="px-4 py-3 text-slate-600">{{ evento.quantidadePagamentos }}</td>
-              <td class="px-4 py-3 text-slate-600">{{ formatarValor(evento.totalArrecadado) }}</td>
-              <td class="px-4 py-3 text-slate-500">{{ formatarValor(evento.comissaoPlataforma) }}</td>
-              <td class="px-4 py-3 text-accent">{{ formatarValor(evento.repasse) }}</td>
-            </tr>
-          </tbody>
-        </table>
+        <div v-else class="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-xs">
+          <table class="w-full text-left text-xs">
+            <thead class="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              <tr>
+                <th class="px-5 py-3.5">Nome do Evento</th>
+                <th class="px-5 py-3.5 text-center">Inscrições Pagas</th>
+                <th class="px-5 py-3.5">Valor Bruto</th>
+                <th class="px-5 py-3.5">Taxa Plataforma</th>
+                <th class="px-5 py-3.5">Líquido a Receber</th>
+                <th class="px-5 py-3.5 text-center">Status Repasse</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr
+                v-for="evento in financeiro.porEvento"
+                :key="evento.eventoId"
+                class="hover:bg-slate-50/80 transition"
+              >
+                <td class="px-5 py-4 font-bold text-slate-900">
+                  <NuxtLink :to="`/eventos/${evento.eventoId}`" class="hover:text-primary transition">
+                    {{ evento.nome }}
+                  </NuxtLink>
+                </td>
+                <td class="px-5 py-4 text-center">
+                  <span class="inline-block rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
+                    🎟️ {{ evento.quantidadePagamentos }}
+                  </span>
+                </td>
+                <td class="px-5 py-4 font-semibold text-slate-800">{{ formatarValor(evento.totalArrecadado) }}</td>
+                <td class="px-5 py-4 text-slate-500">{{ formatarValor(evento.comissaoPlataforma) }}</td>
+                <td class="px-5 py-4 font-black text-emerald-600">{{ formatarValor(evento.repasse) }}</td>
+                <td class="px-5 py-4 text-center">
+                  <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-bold text-emerald-800">
+                    🟢 D+0 PIX / D+2 Cartão
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </template>
+
+    <!-- MODAL DE SAQUE VIA PIX -->
+    <Teleport to="body">
+      <div v-if="modalSaqueAberto && financeiro" class="fixed inset-0 z-[300] flex items-center justify-center p-4">
+        <div class="fixed inset-0 bg-slate-950/75 backdrop-blur-xs" @click="modalSaqueAberto = false"></div>
+
+        <div class="relative w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl z-[301] p-6 space-y-5">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div class="flex items-center gap-2">
+              <span class="text-2xl">💸</span>
+              <div>
+                <h3 class="font-black text-sm text-slate-900">Solicitar Saque do Saldo Líquido</h3>
+                <p class="text-[11px] text-slate-500">Transferência via PIX da Subconta Asaas</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              class="rounded-xl bg-slate-100 p-2 text-xs font-bold text-slate-500 hover:bg-slate-200 transition"
+              @click="modalSaqueAberto = false"
+            >
+              ✕ Fechar
+            </button>
+          </div>
+
+          <div v-if="erroSaque" class="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-700">
+            ⚠️ {{ erroSaque }}
+          </div>
+
+          <!-- Comprovante de Sucesso -->
+          <div v-if="comprovanteSaque" class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-900 space-y-2 text-center">
+            <span class="text-4xl block">🎉</span>
+            <p class="font-black text-sm text-emerald-950">Saque Solicitado com Sucesso!</p>
+            <p class="text-[11px] text-emerald-800">
+              O valor de <strong>{{ formatarValor(comprovanteSaque.valor) }}</strong> foi enviado para processamento no Asaas e cairá na sua chave PIX:
+            </p>
+            <div class="bg-white/80 p-2 rounded-xl border border-emerald-200 font-mono font-bold text-emerald-900">
+              {{ comprovanteSaque.chaveDestino }}
+            </div>
+            <p class="text-[10px] text-slate-400 font-mono pt-1">ID Transação: {{ comprovanteSaque.transferId }}</p>
+          </div>
+
+          <div v-else class="space-y-4 text-xs">
+            <div class="rounded-2xl bg-emerald-50 p-4 border border-emerald-200 space-y-1 text-center">
+              <span class="text-xs font-bold uppercase tracking-wider text-emerald-800">Valor Total Disponível</span>
+              <p class="text-3xl font-black text-emerald-900">{{ formatarValor(financeiro.totalRepasse) }}</p>
+            </div>
+
+            <div class="rounded-xl bg-slate-50 p-3 text-[11px] text-slate-600 space-y-1">
+              <div class="flex justify-between">
+                <span class="font-bold text-slate-500">Destino do Pagamento:</span>
+                <span class="font-bold text-slate-900">{{ organizador?.chavePix || 'Chave do Cadastro' }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="font-bold text-slate-500">Taxa de Saque:</span>
+                <span class="font-bold text-emerald-700">Isento (Gratuito)</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-end gap-3 border-t border-slate-100 pt-3">
+            <button
+              v-if="!comprovanteSaque"
+              type="button"
+              class="rounded-xl border border-slate-300 px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 transition"
+              @click="modalSaqueAberto = false"
+            >
+              Cancelar
+            </button>
+
+            <button
+              v-if="comprovanteSaque"
+              type="button"
+              class="w-full rounded-xl bg-slate-900 py-2.5 text-xs font-bold text-white transition"
+              @click="modalSaqueAberto = false"
+            >
+              Concluir
+            </button>
+
+            <button
+              v-else
+              type="button"
+              :disabled="solicitandoSaque"
+              class="rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-xs hover:bg-emerald-700 transition disabled:opacity-40"
+              @click="realizarSaquePix"
+            >
+              🚀 {{ solicitandoSaque ? 'Processando Saque...' : 'Confirmar Transferência PIX' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>

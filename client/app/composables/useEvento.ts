@@ -10,6 +10,7 @@ export interface EventoResumo {
   capacidade: number | null
   status: string
   regulamentoUrl: string | null
+  bannerUrl?: string | null
   valorApartirDe: number | null
 }
 

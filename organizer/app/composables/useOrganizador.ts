@@ -8,6 +8,7 @@ export interface Organizador {
   banco: string | null
   agencia: string | null
   conta: string | null
+  fotoRostoUrl: string | null
   documentoIdentidadeUrl: string | null
   motivoRevisao: string | null
   createdAt: string
@@ -26,6 +27,17 @@ export function useOrganizador() {
 
   async function fetchMe() {
     const res = await api<Organizador>('/organizadores/me')
+    organizador.value = res
+    return res
+  }
+
+  async function uploadFotoRosto(arquivo: File) {
+    const formData = new FormData()
+    formData.append('foto', arquivo)
+    const res = await api<Organizador>('/organizadores/me/foto-rosto', {
+      method: 'PATCH',
+      body: formData
+    })
     organizador.value = res
     return res
   }
@@ -59,6 +71,7 @@ export function useOrganizador() {
     organizador,
     solicitarCadastro,
     fetchMe,
+    uploadFotoRosto,
     uploadDocumentoIdentidade,
     atualizarDadosBancarios
   }

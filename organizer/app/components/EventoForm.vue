@@ -69,6 +69,7 @@ const form = reactive({
   retiradaKitLocal: props.evento?.retiradaKitLocal ?? '',
   retiradaKitInicio: props.evento?.retiradaKitInicio?.slice(0, 16) ?? '',
   retiradaKitFim: props.evento?.retiradaKitFim?.slice(0, 16) ?? '',
+  taxaRepassadaAtleta: props.evento?.taxaRepassadaAtleta ?? false,
   status: props.evento?.status ?? 'RASCUNHO'
 })
 
@@ -87,6 +88,53 @@ function classeCampo(campo: (typeof camposObrigatorios)[number]) {
     ? 'w-full rounded-xl border border-red-400 px-4 py-3 text-sm focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-200'
     : 'w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30'
 }
+
+const temAlteracoes = computed(() => {
+  if (!props.modoEdicao || !props.evento) return true
+
+  const ev = props.evento
+  const regAtual = ev.regulamentoUrl?.startsWith('/uploads/') ? '' : (ev.regulamentoUrl ?? '')
+
+  return (
+    form.nome !== (ev.nome ?? '') ||
+    form.descricao !== (ev.descricao ?? '') ||
+    form.local !== (ev.local ?? '') ||
+    form.cidade !== (ev.cidade ?? '') ||
+    form.estado !== (ev.estado ?? '') ||
+    form.dataInicio !== (ev.dataInicio?.slice(0, 10) ?? '') ||
+    form.dataFim !== (ev.dataFim?.slice(0, 10) ?? '') ||
+    form.capacidade !== (ev.capacidade ?? undefined) ||
+    form.regulamentoUrl !== regAtual ||
+    form.termoResponsabilidade !== (ev.termoResponsabilidade ?? '') ||
+    form.retiradaKitLocal !== (ev.retiradaKitLocal ?? '') ||
+    form.retiradaKitInicio !== (ev.retiradaKitInicio?.slice(0, 16) ?? '') ||
+    form.retiradaKitFim !== (ev.retiradaKitFim?.slice(0, 16) ?? '') ||
+    form.status !== (ev.status ?? 'RASCUNHO')
+  )
+})
+
+watch(
+  () => props.evento,
+  (ev) => {
+    if (ev) {
+      form.nome = ev.nome ?? ''
+      form.descricao = ev.descricao ?? ''
+      form.local = ev.local ?? ''
+      form.cidade = ev.cidade ?? ''
+      form.estado = ev.estado ?? ''
+      form.dataInicio = ev.dataInicio?.slice(0, 10) ?? ''
+      form.dataFim = ev.dataFim?.slice(0, 10) ?? ''
+      form.capacidade = ev.capacidade ?? undefined
+      form.regulamentoUrl = ev.regulamentoUrl?.startsWith('/uploads/') ? '' : (ev.regulamentoUrl ?? '')
+      form.termoResponsabilidade = ev.termoResponsabilidade ?? ''
+      form.retiradaKitLocal = ev.retiradaKitLocal ?? ''
+      form.retiradaKitInicio = ev.retiradaKitInicio?.slice(0, 16) ?? ''
+      form.retiradaKitFim = ev.retiradaKitFim?.slice(0, 16) ?? ''
+      form.status = ev.status ?? 'RASCUNHO'
+    }
+  },
+  { deep: true }
+)
 
 function onSubmit() {
   tentouEnviar.value = true
@@ -111,7 +159,8 @@ function onSubmit() {
     termoResponsabilidade: form.termoResponsabilidade || undefined,
     retiradaKitLocal: form.retiradaKitLocal || undefined,
     retiradaKitInicio: form.retiradaKitInicio || undefined,
-    retiradaKitFim: form.retiradaKitFim || undefined
+    retiradaKitFim: form.retiradaKitFim || undefined,
+    taxaRepassadaAtleta: form.taxaRepassadaAtleta
   }
   if (props.modoEdicao) payload.status = form.status
   emit('submit', payload)
@@ -250,6 +299,49 @@ function onSubmit() {
           type="datetime-local"
           class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
         />
+      </div>
+    </div>
+
+    <div class="rounded-2xl border border-blue-200 bg-blue-50/50 p-4 space-y-3">
+      <label class="block text-sm font-extrabold text-blue-950 flex items-center gap-2">
+        <span>💳</span> Taxa de Conveniência da Plataforma
+      </label>
+      <p class="text-xs text-slate-600">
+        A taxa fixa da plataforma é calculada sempre em cima do valor cheio do lote/evento (ex: 10% de R$ 70,00 = R$ 7,00). Escolha como a taxa será tratada:
+      </p>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+        <label
+          class="flex items-center gap-2.5 rounded-xl border p-3 cursor-pointer transition"
+          :class="!form.taxaRepassadaAtleta ? 'border-primary bg-white shadow-xs font-bold text-primary' : 'border-slate-200 bg-white text-slate-600'"
+        >
+          <input
+            v-model="form.taxaRepassadaAtleta"
+            type="radio"
+            :value="false"
+            class="h-4 w-4 text-primary accent-primary"
+          />
+          <div class="text-xs">
+            <p class="font-bold">Absorver taxa (Padrão)</p>
+            <p class="text-[11px] text-slate-500 font-normal">O valor da corrida para o atleta é o preço do lote.</p>
+          </div>
+        </label>
+
+        <label
+          class="flex items-center gap-2.5 rounded-xl border p-3 cursor-pointer transition"
+          :class="form.taxaRepassadaAtleta ? 'border-primary bg-white shadow-xs font-bold text-primary' : 'border-slate-200 bg-white text-slate-600'"
+        >
+          <input
+            v-model="form.taxaRepassadaAtleta"
+            type="radio"
+            :value="true"
+            class="h-4 w-4 text-primary accent-primary"
+          />
+          <div class="text-xs">
+            <p class="font-bold">Repassar taxa ao atleta</p>
+            <p class="text-[11px] text-slate-500 font-normal">Adiciona a taxa fixa da plataforma no total pago pelo atleta.</p>
+          </div>
+        </label>
       </div>
     </div>
 

@@ -39,9 +39,15 @@ export function useAuth() {
   }
 
   async function fetchMe() {
-    const res = await api<AuthUser>('/auth/me')
-    user.value = res
-    return res
+    try {
+      const res = await api<AuthUser>('/auth/me')
+      user.value = res
+      return res
+    } catch (e) {
+      token.value = null
+      user.value = null
+      throw e
+    }
   }
 
   function logout() {
