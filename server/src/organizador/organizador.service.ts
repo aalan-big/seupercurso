@@ -51,12 +51,15 @@ function paraSegundos(tempo?: string): number | undefined {
 }
 
 import { AsaasService } from '../pagamento/asaas.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import { CategoriaAuditLog, NivelAuditLog } from '../generated/prisma/enums';
 
 @Injectable()
 export class OrganizadorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly asaasService: AsaasService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   async solicitarCadastro(usuarioId: string) {
@@ -1253,6 +1256,19 @@ export class OrganizadorService {
       valor,
       chavePix: chaveDestinoFinal,
       walletId: organizador.asaasWalletId,
+    });
+
+    this.auditLogService.log({
+      categoria: CategoriaAuditLog.FINANCEIRO,
+      nivel: NivelAuditLog.SUCCESS,
+      mensagem: `Solicitação de Saque PIX de R$ ${valor.toFixed(2)} processada`,
+      detalhes: {
+        valor,
+        transferId: resSaque.transferId,
+        chaveDestino: chaveDestinoFinal,
+        organizadorId: organizador.id,
+      },
+      usuarioId,
     });
 
     return {

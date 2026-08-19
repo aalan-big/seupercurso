@@ -14,6 +14,8 @@ import { CreatePagamentoDto } from './dto/create-pagamento.dto';
 import { AsaasService } from './asaas.service';
 
 import { EmailService } from '../email/email.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import { CategoriaAuditLog, NivelAuditLog } from '../generated/prisma/enums';
 
 @Injectable()
 export class PagamentoService {
@@ -21,6 +23,7 @@ export class PagamentoService {
     private readonly prisma: PrismaService,
     private readonly asaasService: AsaasService,
     private readonly emailService: EmailService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   async create(usuarioId: string, dto: CreatePagamentoDto) {
@@ -91,7 +94,7 @@ export class PagamentoService {
       });
     }
 
-    return this.prisma.pagamento.create({
+    const pagamentoCriado = await this.prisma.pagamento.create({
       data: {
         inscricaoId: inscricao.id,
         valor,
@@ -104,6 +107,22 @@ export class PagamentoService {
         pixQrCodeUrl: asaasRes.pixQrCodeUrl || null,
       },
     });
+
+    this.auditLogService.log({
+      categoria: CategoriaAuditLog.FINANCEIRO,
+      nivel: NivelAuditLog.INFO,
+      mensagem: `Cobrança ${dto.metodo} gerada no valor de R$ ${valor.toFixed(2)}`,
+      detalhes: {
+        pagamentoId: pagamentoCriado.id,
+        inscricaoId: inscricao.id,
+        metodo: dto.metodo,
+        valotTotal: valor,
+        comissaoPlataforma: valor * (comissaoPercentual / 100),
+      },
+      usuarioId,
+    });
+
+    return pagamentoCriado;
   }
 
   async simularAprovacao(usuarioId: string, pagamentoId: string) {

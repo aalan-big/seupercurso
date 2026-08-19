@@ -408,3 +408,32 @@ model Resultado {
 
   inscricao Inscricao @relation(fields: [inscricaoId], references: [id])
 }
+
+enum CategoriaAuditLog {
+  FINANCEIRO
+  SEGURANCA
+  OPERACIONAL
+  ASAAS_WEBHOOK
+}
+
+enum NivelAuditLog {
+  INFO
+  SUCCESS
+  WARN
+  ERROR
+}
+
+model AuditLog {
+  id        String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  categoria CategoriaAuditLog @default(OPERACIONAL)
+  nivel     NivelAuditLog     @default(INFO)
+  mensagem  String
+  detalhes  Json?
+  usuarioId String?           @db.Uuid
+  ip        String?
+  createdAt DateTime          @default(now())
+
+  @@index([categoria])
+  @@index([nivel])
+  @@index([createdAt])
+}

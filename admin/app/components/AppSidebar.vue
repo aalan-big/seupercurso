@@ -53,6 +53,9 @@ const linkClasse = 'flex items-center gap-2 rounded-lg px-3 py-2 text-slate-600 
       <NuxtLink to="/financeiro" :class="linkClasse" active-class="bg-accent/10 text-primary" @click="emit('fechar')">
         <span>💰</span> Financeiro
       </NuxtLink>
+      <NuxtLink to="/logs" :class="linkClasse" active-class="bg-accent/10 text-primary" @click="emit('fechar')">
+        <span>📜</span> Logs do Sistema
+      </NuxtLink>
     </nav>
 
     <div class="border-t border-slate-200 p-4">
