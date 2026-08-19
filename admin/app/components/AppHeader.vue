@@ -7,8 +7,7 @@ const perfilAberto = ref(false)
 
 const notificacoes = ref([
   { id: '1', tipo: 'kyc', titulo: 'Novo Cadastro de Organizador', descricao: 'Selfie e RG enviados para análise KYC', hora: 'Há 5 min', lida: false },
-  { id: '2', tipo: 'saque', titulo: 'Solicitação de Saque PIX', descricao: 'Organizador solicitou R$ 54,00 com trava de titularidade', hora: 'Há 18 min', lida: false },
-  { id: '3', tipo: 'venda', titulo: 'Nova Inscrição Confirmada', descricao: 'Inscrição #105 paga via PIX Asaas D+0', hora: 'Há 40 min', lida: true }
+  { id: '2', tipo: 'saque', titulo: 'Solicitação de Saque PIX', descricao: 'Organizador solicitou R$ 54,00 com trava de titularidade', hora: 'Há 18 min', lida: false }
 ])
 
 const naoLidas = computed(() => notificacoes.value.filter(n => !n.lida).length)
@@ -24,7 +23,11 @@ const iniciais = computed(() => {
 })
 
 function marcarTodasLidas() {
-  notificacoes.value.forEach(n => n.lida = true)
+  notificacoes.value = []
+}
+
+function removerNotificacao(id: string) {
+  notificacoes.value = notificacoes.value.filter(n => n.id !== id)
 }
 
 function fecharTodos() {
@@ -107,18 +110,25 @@ async function onSair() {
             </button>
           </div>
 
-          <div class="divide-y divide-slate-100 max-h-80 overflow-y-auto">
+          <div v-if="notificacoes.length === 0" class="p-8 text-center text-xs text-slate-400 space-y-1">
+            <span class="text-3xl block">🎉</span>
+            <p class="font-bold text-slate-700">Nenhuma notificação pendente!</p>
+            <p class="text-[11px] text-slate-400">Tudo em dia com a plataforma.</p>
+          </div>
+
+          <div v-else class="divide-y divide-slate-100 max-h-80 overflow-y-auto">
             <div
               v-for="n in notificacoes"
               :key="n.id"
-              class="p-4 transition hover:bg-slate-50"
-              :class="!n.lida ? 'bg-blue-50/40' : ''"
+              class="p-4 transition hover:bg-slate-50 cursor-pointer group"
+              @click="removerNotificacao(n.id)"
             >
               <div class="flex items-start justify-between gap-2">
-                <p class="text-xs font-black text-slate-900">{{ n.titulo }}</p>
+                <p class="text-xs font-black text-slate-900 group-hover:text-blue-600 transition">{{ n.titulo }}</p>
                 <span class="text-[10px] font-semibold text-slate-400 whitespace-nowrap">{{ n.hora }}</span>
               </div>
               <p class="mt-1 text-[11px] text-slate-600 leading-relaxed">{{ n.descricao }}</p>
+              <span class="mt-1 inline-block text-[10px] font-bold text-slate-400 group-hover:text-blue-600 transition">Clique para marcar como lida ✓</span>
             </div>
           </div>
         </div>
