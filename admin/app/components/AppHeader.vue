@@ -132,26 +132,35 @@ async function onSair() {
         </div>
       </div>
 
-      <!-- 👤 3. Badge do Perfil do Usuário com Avatar (AA aalanallvesgt@gmail.com) -->
+      <!-- 👤 3. Badge do Perfil do Usuário com Nome (Aalan Alves) e Avatar -->
       <div class="relative">
         <button
           type="button"
-          class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-1.5 pr-3 hover:bg-slate-100 transition"
+          class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-1.5 pr-3.5 hover:bg-slate-100 transition shadow-2xs"
           @click="perfilAberto = !perfilAberto; notificacoesAbertas = false; configuracoesAbertas = false"
         >
           <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 font-black text-xs text-white shadow-xs">
             {{ iniciais }}
           </div>
-          <span class="text-xs font-bold text-slate-800 line-clamp-1">
-            {{ user?.email || 'aalanallvesgt@gmail.com' }}
-          </span>
+          <div class="text-left leading-tight">
+            <span class="block text-xs font-black text-slate-900">
+              {{ user?.nome || 'Aalan Alves' }}
+            </span>
+            <span class="block text-[10px] font-semibold text-slate-400">
+              {{ user?.email || 'aalanallvesgt@gmail.com' }}
+            </span>
+          </div>
+          <span class="text-xs text-slate-400">▾</span>
         </button>
 
         <!-- Dropdown de Ações do Perfil -->
-        <div v-if="perfilAberto" class="absolute right-0 mt-3 w-60 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-xl z-50">
+        <div v-if="perfilAberto" class="absolute right-0 mt-3 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-xl z-50">
           <div class="p-3 border-b border-slate-100 text-xs">
-            <p class="font-black text-slate-900">{{ user?.nome || 'Administrador Master' }}</p>
+            <p class="font-black text-slate-900">{{ user?.nome || 'Aalan Alves' }}</p>
             <p class="text-[11px] text-slate-500 font-mono">{{ user?.email || 'aalanallvesgt@gmail.com' }}</p>
+            <span class="mt-1 inline-block rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+              👑 Administrador Master
+            </span>
           </div>
           <button
             type="button"
