@@ -57,20 +57,5 @@ const linkClasse = 'flex items-center gap-2 rounded-lg px-3 py-2 text-slate-600 
         <span>📜</span> Logs do Sistema
       </NuxtLink>
     </nav>
-
-    <div class="border-t border-slate-200 p-4">
-      <div class="flex items-center gap-2">
-        <span class="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-xs font-bold text-white">
-          {{ iniciais }}
-        </span>
-        <span class="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">{{ user?.email }}</span>
-      </div>
-      <button
-        class="mt-3 w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-red-600 hover:bg-red-50"
-        @click="onLogout"
-      >
-        Sair
-      </button>
-    </div>
   </aside>
 </template>
