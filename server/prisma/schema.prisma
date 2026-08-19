@@ -49,6 +49,7 @@ enum StatusEvento {
   INSCRICOES_ENCERRADAS
   CANCELADO
   FINALIZADO
+  SUSPENSO
 }
 
 enum StatusInscricao {

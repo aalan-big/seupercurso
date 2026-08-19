@@ -12,7 +12,7 @@ export interface EventoAdmin {
   cidade: string
   estado: string
   capacidade: number | null
-  status: 'RASCUNHO' | 'AGUARDANDO_APROVACAO' | 'PUBLICADO' | 'INSCRICOES_ENCERRADAS' | 'CANCELADO' | 'FINALIZADO'
+  status: 'RASCUNHO' | 'AGUARDANDO_APROVACAO' | 'PUBLICADO' | 'INSCRICOES_ENCERRADAS' | 'CANCELADO' | 'FINALIZADO' | 'SUSPENSO'
   motivoRejeicao: string | null
   createdAt: string
   organizador: {
@@ -53,5 +53,12 @@ export function useAdminEventos() {
     })
   }
 
-  return { eventos, fetchLista, buscar, aprovar, rejeitar }
+  async function suspender(id: string, motivo?: string) {
+    return api<EventoAdmin>(`/admin/eventos/${id}/suspender`, {
+      method: 'POST',
+      body: { motivo }
+    })
+  }
+
+  return { eventos, fetchLista, buscar, aprovar, rejeitar, suspender }
 }

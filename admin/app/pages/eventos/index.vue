@@ -1,13 +1,14 @@
 <script setup lang="ts">
 const { eventos, fetchLista } = useAdminEventos()
 
-const filtro = ref<'AGUARDANDO_APROVACAO' | 'PUBLICADO' | 'RASCUNHO' | ''>('AGUARDANDO_APROVACAO')
+const filtro = ref<'AGUARDANDO_APROVACAO' | 'PUBLICADO' | 'RASCUNHO' | 'SUSPENSO' | ''>('AGUARDANDO_APROVACAO')
 const carregando = ref(true)
 const erro = ref('')
 
 const abas = [
   { valor: 'AGUARDANDO_APROVACAO' as const, label: 'Aguardando revisão' },
   { valor: 'PUBLICADO' as const, label: 'Publicados' },
+  { valor: 'SUSPENSO' as const, label: '🛑 Barrados / Suspensos' },
   { valor: 'RASCUNHO' as const, label: 'Rascunho' },
   { valor: '' as const, label: 'Todos' }
 ]
@@ -38,7 +39,8 @@ const statusClasse: Record<string, string> = {
   PUBLICADO: 'bg-accent/10 text-accent',
   INSCRICOES_ENCERRADAS: 'bg-slate-200 text-slate-600',
   CANCELADO: 'bg-red-100 text-red-700',
-  FINALIZADO: 'bg-slate-200 text-slate-600'
+  FINALIZADO: 'bg-slate-200 text-slate-600',
+  SUSPENSO: 'bg-red-500 text-white font-black'
 }
 
 function formatarData(iso: string) {

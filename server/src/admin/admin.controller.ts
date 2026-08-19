@@ -77,4 +77,10 @@ export class AdminController {
   rejeitarEvento(@Param('id') id: string, @Body() dto: MotivoDto) {
     return this.adminService.rejeitarEvento(id, dto.motivo);
   }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('eventos/:id/suspender')
+  suspenderEvento(@Param('id') id: string, @Body() dto: MotivoDto) {
+    return this.adminService.suspenderEvento(id, dto.motivo);
+  }
 }

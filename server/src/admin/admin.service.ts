@@ -108,12 +108,6 @@ export class AdminService {
   async aprovarEvento(id: string) {
     const evento = await this.getEventoOuFalhar(id);
 
-    if (evento.status !== StatusEvento.AGUARDANDO_APROVACAO) {
-      throw new BadRequestException(
-        'Só é possível aprovar um evento que está aguardando revisão.',
-      );
-    }
-
     return this.prisma.evento.update({
       where: { id },
       data: { status: StatusEvento.PUBLICADO, motivoRejeicao: null },
@@ -121,17 +115,20 @@ export class AdminService {
   }
 
   async rejeitarEvento(id: string, motivo?: string) {
-    const evento = await this.getEventoOuFalhar(id);
-
-    if (evento.status !== StatusEvento.AGUARDANDO_APROVACAO) {
-      throw new BadRequestException(
-        'Só é possível rejeitar um evento que está aguardando revisão.',
-      );
-    }
+    await this.getEventoOuFalhar(id);
 
     return this.prisma.evento.update({
       where: { id },
       data: { status: StatusEvento.RASCUNHO, motivoRejeicao: motivo ?? null },
+    });
+  }
+
+  async suspenderEvento(id: string, motivo?: string) {
+    await this.getEventoOuFalhar(id);
+
+    return this.prisma.evento.update({
+      where: { id },
+      data: { status: StatusEvento.SUSPENSO, motivoRejeicao: motivo ?? 'Evento suspenso/barrado pela administração master da plataforma.' },
     });
   }
 
