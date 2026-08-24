@@ -6,7 +6,13 @@ const { organizador, fetchMe } = useOrganizador()
 
 const verificando = ref(true)
 
+const route = useRoute()
+
 onMounted(async () => {
+  if (route.query.token && typeof route.query.token === 'string') {
+    token.value = route.query.token
+  }
+
   if (!token.value) {
     verificando.value = false
     return
@@ -14,14 +20,20 @@ onMounted(async () => {
 
   try {
     await fetchMe()
-    await navigateTo(organizador.value?.status === 'APROVADO' ? '/dashboard' : '/aguardando-aprovacao')
+    if (organizador.value?.status === 'APROVADO') {
+      await navigateTo('/dashboard')
+    } else if (organizador.value?.status) {
+      await navigateTo('/aguardando-aprovacao')
+    } else {
+      await navigateTo('/onboarding')
+    }
     return
   } catch {
-    token.value = null
-    verificando.value = false
+    await navigateTo('/onboarding')
     return
   }
 })
+
 </script>
 
 <template>

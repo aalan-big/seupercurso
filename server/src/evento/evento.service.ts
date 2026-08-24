@@ -20,6 +20,8 @@ const RESUMO_SELECT = {
   gpxUrl: true,
   rotaGeoJson: true,
   taxaRepassadaAtleta: true,
+  aceitaPix: true,
+  aceitaCartao: true,
 } as const;
 
 @Injectable()
@@ -51,9 +53,18 @@ export class EventoService {
       throw new NotFoundException('Este cupom expirou.');
     }
 
+    const usosEfetivos = await this.prisma.inscricao.count({
+      where: {
+        cupomId: cupom.id,
+        status: {
+          notIn: [StatusInscricao.CANCELADA, StatusInscricao.EXPIRADA],
+        },
+      },
+    });
+
     if (
       cupom.quantidadeMaxima !== null &&
-      cupom.usosAtuais >= cupom.quantidadeMaxima
+      usosEfetivos >= cupom.quantidadeMaxima
     ) {
       throw new NotFoundException('Este cupom já atingiu o limite de usos.');
     }
@@ -92,8 +103,22 @@ export class EventoService {
   }
 
   async findOneDetalhado(id: string) {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+    let targetId = id;
+    if (!isUuid) {
+      const todosEventos = await this.prisma.evento.findMany({
+        where: { status: StatusEvento.PUBLICADO },
+        select: { id: true },
+      });
+      const encontrado = todosEventos.find((e) => e.id.toLowerCase().startsWith(id.toLowerCase()));
+      if (encontrado) {
+        targetId = encontrado.id;
+      }
+    }
+
     const evento = await this.prisma.evento.findFirst({
-      where: { id, status: StatusEvento.PUBLICADO },
+      where: { id: targetId, status: StatusEvento.PUBLICADO },
       select: {
         ...RESUMO_SELECT,
         modalidades: {
@@ -148,6 +173,29 @@ export class EventoService {
 
     if (!evento) {
       throw new NotFoundException('Evento não encontrado.');
+    }
+
+    // Garante que todas as modalidades ativas do evento tenham ao menos 1 categoria (Geral)
+    for (const mod of evento.modalidades) {
+      if (mod.ativo && mod.categorias.length === 0) {
+        const catPadrao = await this.prisma.categoria.create({
+          data: {
+            modalidadeId: mod.id,
+            nome: 'Geral',
+            genero: 'LIVRE',
+            pcd: false,
+          },
+          select: {
+            id: true,
+            nome: true,
+            idadeMinima: true,
+            idadeMaxima: true,
+            genero: true,
+            pcd: true,
+          },
+        });
+        mod.categorias.push(catPadrao);
+      }
     }
 
     return {

@@ -7,10 +7,9 @@ const config = useRuntimeConfig()
 const apiBase = config.public.apiBase as string
 
 const bannerUrlFormatada = computed(() => {
-  if (!props.evento.bannerUrl) return null
-  if (props.evento.bannerUrl.startsWith('http')) return props.evento.bannerUrl
-  return `${apiBase.replace(/\/$/, '')}/${props.evento.bannerUrl.replace(/^\//, '')}`
+  return urlFoto(props.evento.bannerUrl, apiBase)
 })
+
 
 function formatarData(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })

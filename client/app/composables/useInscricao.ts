@@ -17,6 +17,8 @@ export interface PagamentoDaInscricao {
   metodo: string
   status: string
   codigoTransacao: string | null
+  pixCopiaECola?: string | null
+  pixQrCodeUrl?: string | null
   dataPagamento: string | null
   createdAt: string
 }
@@ -53,6 +55,8 @@ export interface EventoInfo {
   limiteTrocaCamisaAté?: string | null
   camisasBloqueadas?: boolean
   permiteTransferencia?: boolean
+  aceitaPix?: boolean
+  aceitaCartao?: boolean
   dataInicio: string
   dataFim: string
   local: string
@@ -145,10 +149,35 @@ export function useInscricao() {
     await fetchMinhas()
   }
 
-  async function pagarInscricao(inscricaoId: string, metodo: 'PIX' | 'CREDITO' = 'PIX') {
-    const res = await api<{ id: string; status: string; pixCopiaECola?: string; pixQrCodeUrl?: string }>('/pagamentos', {
+  async function pagarInscricao(
+    inscricaoId: string,
+    metodo: 'PIX' | 'CARTAO_CREDITO' | 'CREDITO' = 'PIX',
+    cartaoDados?: {
+      holderName?: string
+      numero?: string
+      mesValidade?: string
+      anoValidade?: string
+      ccv?: string
+      parcelas?: number
+    }
+  ) {
+    const metodoMapeado = metodo === 'CREDITO' ? 'CARTAO_CREDITO' : metodo
+    const res = await api<{ id: string; status: string; valor?: string; pixCopiaECola?: string; pixQrCodeUrl?: string }>('/pagamentos', {
       method: 'POST',
-      body: { inscricaoId, metodo }
+      body: {
+        inscricaoId,
+        metodo: metodoMapeado,
+        ...(cartaoDados
+          ? {
+              cartaoHolderName: cartaoDados.holderName,
+              cartaoNumero: cartaoDados.numero,
+              cartaoMesValidade: cartaoDados.mesValidade,
+              cartaoAnoValidade: cartaoDados.anoValidade,
+              cartaoCcv: cartaoDados.ccv,
+              parcelas: cartaoDados.parcelas
+            }
+          : {})
+      }
     })
     await fetchMinhas()
     return res

@@ -18,18 +18,38 @@ export class ClienteService {
   constructor(private readonly prisma: PrismaService) {}
 
   async createPessoaFisica(usuarioId: string, dto: CreateClientePfDto) {
-    await this.garantirQueAindaNaoTemPerfil(usuarioId);
+    const cliente = await this.prisma.cliente.findUnique({
+      where: { usuarioId },
+      include: { pf: true },
+    });
 
     try {
-      return await this.prisma.cliente.create({
-        data: {
-          usuarioId,
-          pf: {
-            create: { ...dto, dataNascimento: new Date(dto.dataNascimento) },
+      if (!cliente) {
+        return await this.prisma.cliente.create({
+          data: {
+            usuarioId,
+            pf: {
+              create: { ...dto, dataNascimento: new Date(dto.dataNascimento) },
+            },
           },
-        },
-        include: { pf: true },
-      });
+          include: { pf: true },
+        });
+      }
+
+      if (cliente.pf) {
+        return await this.prisma.clientePf.update({
+          where: { clienteId: cliente.id },
+          data: { ...dto, dataNascimento: new Date(dto.dataNascimento) },
+        });
+      } else {
+        return await this.prisma.clientePf.create({
+          data: {
+            clienteId: cliente.id,
+            ...dto,
+            dataNascimento: new Date(dto.dataNascimento),
+          },
+        });
+      }
     } catch (error) {
       throw this.tratarErroDeUnicidade(
         error,
@@ -39,16 +59,35 @@ export class ClienteService {
   }
 
   async createPessoaJuridica(usuarioId: string, dto: CreateClientePjDto) {
-    await this.garantirQueAindaNaoTemPerfil(usuarioId);
+    const cliente = await this.prisma.cliente.findUnique({
+      where: { usuarioId },
+      include: { pj: true },
+    });
 
     try {
-      return await this.prisma.cliente.create({
-        data: {
-          usuarioId,
-          pj: { create: dto },
-        },
-        include: { pj: true },
-      });
+      if (!cliente) {
+        return await this.prisma.cliente.create({
+          data: {
+            usuarioId,
+            pj: { create: dto },
+          },
+          include: { pj: true },
+        });
+      }
+
+      if (cliente.pj) {
+        return await this.prisma.clientePj.update({
+          where: { clienteId: cliente.id },
+          data: dto,
+        });
+      } else {
+        return await this.prisma.clientePj.create({
+          data: {
+            clienteId: cliente.id,
+            ...dto,
+          },
+        });
+      }
     } catch (error) {
       throw this.tratarErroDeUnicidade(
         error,
@@ -56,6 +95,7 @@ export class ClienteService {
       );
     }
   }
+
 
   async getMe(usuarioId: string) {
     const cliente = await this.prisma.cliente.findUnique({

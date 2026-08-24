@@ -60,7 +60,7 @@ async function onSubmit(payload: Record<string, unknown>) {
           :class="abaAtiva === 'modalidades' ? 'bg-white text-primary shadow' : 'text-slate-500'"
           @click="abaAtiva = 'modalidades'"
         >
-          Modalidades
+          Percursos & Categorias
         </button>
         <button
           type="button"

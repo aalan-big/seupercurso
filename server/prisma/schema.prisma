@@ -220,6 +220,8 @@ model Evento {
   aplicaDescontoIdoso    Boolean  @default(false)
   percentualDescontoIdoso Decimal? @db.Decimal(5, 2)
   taxaRepassadaAtleta    Boolean  @default(false)
+  aceitaPix              Boolean  @default(true)
+  aceitaCartao           Boolean  @default(true)
   dataInicio          DateTime
   dataFim             DateTime
   local               String

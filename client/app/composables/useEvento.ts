@@ -9,7 +9,9 @@ export interface EventoResumo {
   estado: string
   capacidade: number | null
   status: string
-  regulamentoUrl: string | null
+  taxaRepassadaAtleta?: boolean
+  aceitaPix?: boolean
+  aceitaCartao?: boolean
   bannerUrl?: string | null
   valorApartirDe: number | null
 }

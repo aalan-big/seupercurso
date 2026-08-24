@@ -27,13 +27,14 @@ const cards = computed(() => {
   if (!dashboard.value) return []
   const c = dashboard.value.contadores
   return [
-    { label: 'Meus eventos', valor: c.totalEventos, cor: 'text-primary' },
-    { label: 'Publicados', valor: c.eventosPublicados, cor: 'text-accent' },
-    { label: 'Aguardando revisão', valor: c.eventosAguardandoAprovacao, cor: 'text-warning' },
-    { label: 'Inscrições confirmadas', valor: c.inscricoesConfirmadas, cor: 'text-secondary' },
-    { label: 'Kits pendentes de entrega', valor: c.kitsPendentes, cor: 'text-warning' }
+    { label: 'Meus eventos', valor: c.totalEventos, cor: 'text-slate-900', icone: 'eventos' },
+    { label: 'Publicados', valor: c.eventosPublicados, cor: 'text-emerald-600', icone: 'check' },
+    { label: 'Aguardando revisão', valor: c.eventosAguardandoAprovacao, cor: 'text-amber-500', icone: 'warning' },
+    { label: 'Inscrições confirmadas', valor: c.inscricoesConfirmadas, cor: 'text-blue-600', icone: 'inscritos' },
+    { label: 'Kits pendentes de entrega', valor: c.kitsPendentes, cor: 'text-amber-500', icone: 'kits' }
   ]
 })
+
 
 function formatarData(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })
@@ -102,11 +103,17 @@ const dadosKits = computed(() => {
 
     <template v-else-if="dashboard">
       <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <div v-for="card in cards" :key="card.label" class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p class="text-3xl font-extrabold" :class="card.cor">{{ card.valor }}</p>
-          <p class="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{{ card.label }}</p>
+        <div v-for="card in cards" :key="card.label" class="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs flex flex-col justify-between space-y-3">
+          <div class="flex items-center justify-between">
+            <p class="text-3xl font-black tracking-tight" :class="card.cor">{{ card.valor }}</p>
+            <div class="h-9 w-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600 shrink-0">
+              <AppIcon :name="card.icone" size="18" />
+            </div>
+          </div>
+          <p class="text-xs font-bold uppercase tracking-wide text-slate-500">{{ card.label }}</p>
         </div>
       </div>
+
 
       <div class="mt-8">
         <TendenciaChart titulo="Inscrições confirmadas — últimos 14 dias" :serie="dashboard.inscricoesPorDia" />

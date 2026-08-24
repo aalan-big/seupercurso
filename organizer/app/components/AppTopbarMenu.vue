@@ -82,89 +82,93 @@ async function onLogout() {
     <div class="flex flex-col items-end">
       <button
         type="button"
-        class="group relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-secondary text-sm font-bold text-white"
+        class="group relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-slate-900 text-sm font-bold text-white shadow-xs"
         :disabled="enviandoFoto"
         title="Trocar foto de perfil"
         @click="abrirSeletorFoto"
       >
         <img v-if="fotoUrl" :src="fotoUrl" alt="Foto de perfil" class="h-full w-full object-cover" />
-        <span v-else class="text-base">👤</span>
+        <AppIcon v-else name="user" size="18" class="text-slate-300" />
         <span
-          class="absolute inset-0 flex items-center justify-center bg-black/50 text-xs opacity-0 transition-opacity group-hover:opacity-100"
+          class="absolute inset-0 flex items-center justify-center bg-black/60 text-white opacity-0 transition-opacity group-hover:opacity-100"
           :class="{ 'opacity-100': enviandoFoto }"
         >
-          {{ enviandoFoto ? '...' : '📷' }}
+          <AppIcon name="camera" size="14" class="text-white" />
         </span>
       </button>
-      <p v-if="erroFoto" class="mt-1 text-[11px] text-red-600">{{ erroFoto }}</p>
+      <p v-if="erroFoto" class="mt-1 text-[11px] text-red-600 font-semibold">{{ erroFoto }}</p>
     </div>
     <input ref="fotoInputRef" type="file" accept="image/*" class="hidden" @change="onFotoSelecionada" />
 
     <div ref="containerRef" class="relative">
-    <button
-      type="button"
-      class="flex h-9 w-9 items-center justify-center rounded-full text-lg text-slate-500 transition hover:bg-slate-100"
-      aria-label="Configurações"
-      @click="alternar"
-    >
-      ⚙️
-    </button>
-
-    <div
-      v-if="aberto"
-      class="absolute right-0 top-full z-50 mt-2 w-48 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-sm shadow-lg"
-    >
-      <NuxtLink
-        to="/configuracoes"
-        class="block px-4 py-2 font-medium text-slate-700 hover:bg-slate-100"
-        @click="fechar"
-      >
-        Meus dados
-      </NuxtLink>
-      <NuxtLink
-        to="/verificacao"
-        class="block px-4 py-2 font-medium text-slate-700 hover:bg-slate-100"
-        @click="fechar"
-      >
-        Verificação de conta
-      </NuxtLink>
-      <NuxtLink
-        to="/dados-bancarios"
-        class="block px-4 py-2 font-medium text-slate-700 hover:bg-slate-100"
-        @click="fechar"
-      >
-        Dados bancários
-      </NuxtLink>
-      <NuxtLink
-        to="/senha"
-        class="block px-4 py-2 font-medium text-slate-700 hover:bg-slate-100"
-        @click="fechar"
-      >
-        Alterar senha
-      </NuxtLink>
-      <NuxtLink
-        to="/equipe"
-        class="block px-4 py-2 font-medium text-slate-700 hover:bg-slate-100"
-        @click="fechar"
-      >
-        Minha equipe
-      </NuxtLink>
-      <div class="my-1 border-t border-slate-100"></div>
-      <NuxtLink
-        to="/suporte"
-        class="block px-4 py-2 font-medium text-slate-700 hover:bg-slate-100"
-        @click="fechar"
-      >
-        Suporte
-      </NuxtLink>
       <button
         type="button"
-        class="block w-full px-4 py-2 text-left font-medium text-red-600 hover:bg-red-50"
-        @click="onLogout"
+        class="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+        aria-label="Configurações"
+        @click="alternar"
       >
-        🚪 Sair
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0">
+          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
       </button>
-    </div>
+
+      <div
+        v-if="aberto"
+        class="absolute right-0 top-full z-50 mt-2 w-52 overflow-hidden rounded-2xl border border-slate-200 bg-white py-1.5 text-xs font-bold shadow-xl"
+      >
+        <NuxtLink
+          to="/configuracoes"
+          class="flex items-center gap-2.5 px-4 py-2.5 text-slate-700 hover:bg-slate-100 transition"
+          @click="fechar"
+        >
+          <AppIcon name="user" size="16" class="text-slate-500" /> Meus dados
+        </NuxtLink>
+        <NuxtLink
+          to="/verificacao"
+          class="flex items-center gap-2.5 px-4 py-2.5 text-slate-700 hover:bg-slate-100 transition"
+          @click="fechar"
+        >
+          <AppIcon name="verificacao" size="16" class="text-amber-500" /> Verificação de conta
+        </NuxtLink>
+        <NuxtLink
+          to="/dados-bancarios"
+          class="flex items-center gap-2.5 px-4 py-2.5 text-slate-700 hover:bg-slate-100 transition"
+          @click="fechar"
+        >
+          <AppIcon name="financeiro" size="16" class="text-slate-500" /> Dados bancários
+        </NuxtLink>
+        <NuxtLink
+          to="/senha"
+          class="flex items-center gap-2.5 px-4 py-2.5 text-slate-700 hover:bg-slate-100 transition"
+          @click="fechar"
+        >
+          <AppIcon name="lock" size="16" class="text-slate-500" /> Alterar senha
+        </NuxtLink>
+        <NuxtLink
+          to="/equipe"
+          class="flex items-center gap-2.5 px-4 py-2.5 text-slate-700 hover:bg-slate-100 transition"
+          @click="fechar"
+        >
+          <AppIcon name="inscritos" size="16" class="text-slate-500" /> Minha equipe
+        </NuxtLink>
+        <div class="my-1 border-t border-slate-100"></div>
+        <NuxtLink
+          to="/suporte"
+          class="flex items-center gap-2.5 px-4 py-2.5 text-slate-700 hover:bg-slate-100 transition"
+          @click="fechar"
+        >
+          <AppIcon name="sparkles" size="16" class="text-slate-500" /> Suporte
+        </NuxtLink>
+        <button
+          type="button"
+          class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left font-bold text-red-600 hover:bg-red-50 transition"
+          @click="onLogout"
+        >
+          <AppIcon name="logout" size="16" class="text-red-600" /> Sair da conta
+        </button>
+      </div>
     </div>
   </div>
 </template>
+

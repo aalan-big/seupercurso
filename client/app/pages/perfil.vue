@@ -2,8 +2,18 @@
 const { token, user } = useAuth()
 const { cliente, fetchMe, updatePessoaFisica, updateEndereco, uploadFoto, uploadDocumentoPcd } = useCliente()
 const config = useRuntimeConfig()
+const organizerBase = config.public.organizerBase as string
+
+const organizerLink = computed(() => {
+  if (token.value) {
+    return `${organizerBase}/onboarding?token=${encodeURIComponent(token.value)}`
+  }
+  return `${organizerBase}/cadastro`
+})
 
 const carregando = ref(true)
+
+
 const erro = ref('')
 
 const fotoInputRef = ref<HTMLInputElement | null>(null)
@@ -261,8 +271,28 @@ async function salvarEndereco() {
     </p>
 
     <template v-else>
+      <!-- Card Quero ser Organizador -->
+      <div class="mt-8 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-6 shadow-sm flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <p class="font-black text-base text-amber-950 flex items-center gap-2">
+            <span>🏆</span> Quer organizar seus próprios eventos esportivos?
+          </p>
+          <p class="text-xs text-amber-800 mt-1">
+            Crie corridas e campeonatos, gerencie inscrições e receba via PIX e Cartão com repasses automáticos Asaas.
+          </p>
+        </div>
+        <a
+          :href="organizerLink"
+          target="_blank"
+          class="rounded-xl bg-amber-500 px-5 py-3 text-xs font-black uppercase tracking-wider text-white shadow-sm hover:bg-amber-600 transition"
+        >
+          Quero ser Organizador 🚀
+        </a>
+      </div>
+
       <!-- Dados do atleta -->
-      <div class="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+
         <div class="flex items-start justify-between gap-3">
           <div class="flex items-center gap-4">
             <button

@@ -121,7 +121,9 @@ function inicializarMapaLeaflet() {
   leafletMap = L.map('leaflet-map-canvas', {
     center: [startLat, startLng],
     zoom: 15,
-    zoomControl: true
+    zoomControl: true,
+    tap: false,
+    touchZoom: true
   })
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -157,7 +159,14 @@ function inicializarMapaLeaflet() {
   })
 
   atualizarDesenhoMapaLeaflet()
+
+  setTimeout(() => {
+    if (leafletMap) {
+      leafletMap.invalidateSize()
+    }
+  }, 250)
 }
+
 
 function atualizarDesenhoMapaLeaflet() {
   if (!leafletMap || typeof window === 'undefined' || !(window as any).L) return
@@ -260,117 +269,118 @@ function confirmarSalvar() {
   <Teleport to="body">
     <div
       v-if="aberto"
-      class="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+      class="fixed inset-0 z-[120] flex items-center justify-center p-2 sm:p-4 overflow-y-auto"
     >
       <!-- Backdrop escuro -->
       <div class="fixed inset-0 bg-slate-900/80 backdrop-blur-md" @click="emit('fechar')"></div>
 
       <!-- Modal do Desenhador -->
-      <div class="relative z-[121] w-full max-w-4xl rounded-3xl bg-slate-900 text-white shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div class="relative z-[121] w-full max-w-4xl rounded-2xl sm:rounded-3xl bg-slate-900 text-white shadow-2xl overflow-hidden flex flex-col h-[94vh] sm:h-auto sm:max-h-[92vh]">
         <!-- Cabeçalho -->
-        <div class="flex items-center justify-between border-b border-slate-800 p-5 bg-slate-950">
+        <div class="flex items-center justify-between border-b border-slate-800 p-3 sm:p-5 bg-slate-950 shrink-0">
           <div>
-            <h2 class="text-xl font-black tracking-tight flex items-center gap-2 text-warning">
-              <span>🎨</span> Desenhador de Rota Interativo (OpenStreetMap)
+            <h2 class="text-sm sm:text-xl font-black tracking-tight flex items-center gap-2 text-warning">
+              <AppIcon name="eventos" size="20" class="text-warning shrink-0" />
+              <span>Desenhador de Rota Interativo</span>
             </h2>
-            <p class="text-xs text-slate-400">
-              Clique nas ruas reais da cidade para traçar a rota. Adicione marcadores de hidratação e largada.
+            <p class="text-[11px] sm:text-xs text-slate-400">
+              Toque/clique nas ruas para traçar o percurso. Adicione pontos de apoio e hidratação.
             </p>
           </div>
-          <button type="button" class="rounded-full bg-slate-800 p-2 text-slate-400 hover:text-white" @click="emit('fechar')">
-            ✕
+          <button type="button" class="rounded-full bg-slate-800 p-2 text-slate-400 hover:text-white shrink-0 ml-2" @click="emit('fechar')">
+            <AppIcon name="close" size="18" />
           </button>
         </div>
 
         <!-- Barra de Ferramentas de Desenho -->
-        <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-900 px-5 py-3 border-b border-slate-800">
+        <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-900 px-3 py-2 sm:px-5 sm:py-3 border-b border-slate-800 shrink-0">
           <!-- Ferramenta Ativa -->
-          <div class="flex items-center gap-2 overflow-x-auto">
+          <div class="flex items-center gap-1.5 overflow-x-auto max-w-full pb-1 sm:pb-0">
             <button
               type="button"
-              class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+              class="px-2.5 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition flex items-center gap-1 shrink-0"
               :class="modoAtual === 'linha' ? 'bg-primary text-white shadow-xs' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'"
               @click="modoAtual = 'linha'"
             >
-              ✏️ Traçar Rota
+              <AppIcon name="eventos" size="14" /> Rota
             </button>
             <button
               type="button"
-              class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+              class="px-2.5 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition flex items-center gap-1 shrink-0"
               :class="modoAtual === 'largada' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'"
               @click="modoAtual = 'largada'"
             >
-              🟢 + Largada
+              <AppIcon name="check" size="14" /> +Largada
             </button>
             <button
               type="button"
-              class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+              class="px-2.5 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition flex items-center gap-1 shrink-0"
               :class="modoAtual === 'hidratacao' ? 'bg-cyan-600 text-white shadow-xs' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'"
               @click="modoAtual = 'hidratacao'"
             >
-              💧 + Hidratação
+              <AppIcon name="sparkles" size="14" /> +Hidratação
             </button>
             <button
               type="button"
-              class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+              class="px-2.5 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition flex items-center gap-1 shrink-0"
               :class="modoAtual === 'chegada' ? 'bg-rose-600 text-white shadow-xs' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'"
               @click="modoAtual = 'chegada'"
             >
-              🏁 + Chegada
+              <AppIcon name="checkin" size="14" /> +Chegada
             </button>
           </div>
 
           <!-- Ações Desfazer / Limpar -->
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-1.5">
             <button
               type="button"
               :disabled="pontos.length === 0"
-              class="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-50"
+              class="px-2.5 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-50 flex items-center gap-1"
               @click="desfazerUltimoPonto"
             >
-              ↩️ Desfazer
+              <AppIcon name="chevron" size="14" /> Desfazer
             </button>
             <button
               type="button"
               :disabled="pontos.length === 0 && marcadores.length === 0"
-              class="px-3 py-1.5 rounded-xl text-xs font-bold bg-red-950 text-red-400 hover:bg-red-900 disabled:opacity-50"
+              class="px-2.5 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold bg-red-950 text-red-400 hover:bg-red-900 disabled:opacity-50 flex items-center gap-1"
               @click="limparTudo"
             >
-              🗑️ Limpar
+              <AppIcon name="close" size="14" /> Limpar
             </button>
           </div>
         </div>
 
         <!-- Canvas do Mapa Leaflet / OpenStreetMap com Ruas Reais -->
-        <div class="relative flex-1 min-h-[420px] bg-slate-950 overflow-hidden">
-          <div id="leaflet-map-canvas" class="w-full h-full min-h-[420px] z-0"></div>
+        <div class="relative flex-1 min-h-[260px] sm:min-h-[400px] bg-slate-950 overflow-hidden">
+          <div id="leaflet-map-canvas" class="w-full h-full min-h-[260px] sm:min-h-[400px] z-0"></div>
 
           <!-- Orientação da Cidade -->
-          <div class="absolute top-4 left-4 z-10 rounded-xl bg-slate-900/90 backdrop-blur-md border border-slate-800 p-3 text-xs text-slate-300 shadow pointer-events-none">
-            <p class="font-bold text-white">📍 Cidade: {{ cidade || 'Iguatu' }}/{{ estado || 'CE' }}</p>
-            <p class="text-[11px] text-slate-400 mt-0.5">Clique nas ruas reais para traçar a rota.</p>
+          <div class="absolute top-3 left-3 z-10 rounded-xl bg-slate-900/90 backdrop-blur-md border border-slate-800 p-2 sm:p-3 text-[10px] sm:text-xs text-slate-300 shadow pointer-events-none">
+            <p class="font-bold text-white">{{ cidade || 'Iguatu' }}/{{ estado || 'CE' }}</p>
+            <p class="text-[10px] text-slate-400 hidden sm:block mt-0.5">Clique nas ruas reais para traçar a rota.</p>
           </div>
         </div>
 
         <!-- Rodapé com Contador de KM e Botão Salvar -->
-        <div class="flex items-center justify-between border-t border-slate-800 p-5 bg-slate-950">
-          <div class="flex items-center gap-4">
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-t border-slate-800 p-3 sm:p-5 bg-slate-950 shrink-0">
+          <div class="flex items-center justify-between sm:justify-start gap-4">
             <div>
-              <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Distância Total Calculada:</p>
-              <p class="text-2xl font-black text-warning font-mono">
-                🏃 {{ distanciaTotalKm }} <span class="text-sm font-sans text-slate-300">km</span>
+              <p class="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">Distância Total:</p>
+              <p class="text-xl sm:text-2xl font-black text-warning font-mono flex items-center gap-1">
+                <AppIcon name="cronometragem" size="20" class="text-warning" /> {{ distanciaTotalKm }} <span class="text-xs sm:text-sm font-sans text-slate-300">km</span>
               </p>
             </div>
-            <div class="text-xs text-slate-400 border-l border-slate-800 pl-4">
-              <p>Pontos traçados: <strong class="text-white">{{ pontos.length }}</strong></p>
-              <p>Marcadores criados: <strong class="text-white">{{ marcadores.length }}</strong></p>
+            <div class="text-[11px] sm:text-xs text-slate-400 border-l border-slate-800 pl-3 sm:pl-4">
+              <p>Pontos: <strong class="text-white">{{ pontos.length }}</strong></p>
+              <p>Marcadores: <strong class="text-white">{{ marcadores.length }}</strong></p>
             </div>
           </div>
 
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-2 sm:gap-3">
             <button
               type="button"
-              class="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2.5 text-xs font-bold text-slate-300 hover:bg-slate-700 transition"
+              class="flex-1 sm:flex-initial rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 sm:py-2.5 text-xs font-bold text-slate-300 hover:bg-slate-700 transition"
               @click="emit('fechar')"
             >
               Cancelar
@@ -378,14 +388,16 @@ function confirmarSalvar() {
             <button
               type="button"
               :disabled="salvando || pontos.length === 0"
-              class="rounded-xl bg-secondary px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow hover:brightness-95 disabled:opacity-50"
+              class="flex-1 sm:flex-initial rounded-xl bg-warning px-5 py-2 sm:py-2.5 text-xs font-black uppercase tracking-wider text-primary shadow hover:brightness-95 disabled:opacity-50 flex items-center justify-center gap-1.5"
               @click="confirmarSalvar"
             >
-              {{ salvando ? 'Salvando...' : '💾 Salvar Rota no Evento' }}
+              <AppIcon name="check" size="14" class="text-primary" /> {{ salvando ? 'Salvando...' : 'Salvar Rota' }}
             </button>
           </div>
         </div>
+
       </div>
     </div>
   </Teleport>
 </template>
+

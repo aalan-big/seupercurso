@@ -51,6 +51,9 @@ export interface EventoOrganizador {
   retiradaKitFim: string | null
   aplicaDescontoIdoso: boolean
   percentualDescontoIdoso: string | null
+  taxaRepassadaAtleta: boolean
+  aceitaPix: boolean
+  aceitaCartao: boolean
   dataInicio: string
   dataFim: string
   local: string
@@ -68,6 +71,8 @@ export interface EventoOrganizador {
 export interface EventoOrganizadorInput {
   nome: string
   descricao?: string
+  aceitaPix?: boolean
+  aceitaCartao?: boolean
   regulamentoUrl?: string
   termoResponsabilidade?: string
   retiradaKitLocal?: string
@@ -223,6 +228,7 @@ export function useEventoOrganizador() {
     eventos,
     eventoSelecionado,
     fetchMeusEventos,
+    fetchEventos: fetchMeusEventos,
     fetchEvento,
     criarEvento,
     atualizarEvento,

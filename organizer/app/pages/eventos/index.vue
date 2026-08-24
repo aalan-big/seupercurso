@@ -14,11 +14,12 @@ onMounted(async () => {
   }
 })
 
+const config = useRuntimeConfig()
+
 function bannerUrlFormatted(url?: string | null) {
-  if (!url) return ''
-  if (url.startsWith('http')) return url
-  return `http://localhost:3000${url}`
+  return urlFoto(url, config.public.apiBase as string) || ''
 }
+
 
 function formatarData(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })

@@ -14,9 +14,20 @@ interface AuthResponse {
 }
 
 export function useAuth() {
-  const token = useCookie<string | null>('rotapass_organizer_token', { default: () => null })
+  const tokenOrg = useCookie<string | null>('rotapass_organizer_token', { default: () => null })
+  const tokenClient = useCookie<string | null>('seupercurso_token', { default: () => null })
+
+  const token = computed({
+    get: () => tokenOrg.value || tokenClient.value,
+    set: (val) => {
+      tokenOrg.value = val
+      tokenClient.value = val
+    }
+  })
+
   const user = useState<AuthUser | null>('auth_user', () => null)
   const api = useApi()
+
 
   async function register(email: string, password: string) {
     const res = await api<AuthResponse>('/auth/register', {

@@ -50,18 +50,32 @@ export class InscricaoService {
       categoria.modalidadeId,
     );
 
-    const inscricaoAtiva = await this.prisma.inscricao.findFirst({
+    const inscricaoPendenteAnterior = await this.prisma.inscricao.findFirst({
       where: {
         clienteId,
-        status: {
-          notIn: [StatusInscricao.CANCELADA, StatusInscricao.EXPIRADA],
-        },
+        status: StatusInscricao.PENDENTE_PAGAMENTO,
         categoria: { modalidade: { eventoId: lote.eventoId } },
       },
     });
-    if (inscricaoAtiva) {
+
+    if (inscricaoPendenteAnterior) {
+      // Se havia uma tentativa pendente anterior não paga, cancela para liberar a vaga e o cupom
+      await this.prisma.inscricao.update({
+        where: { id: inscricaoPendenteAnterior.id },
+        data: { status: StatusInscricao.CANCELADA },
+      });
+    }
+
+    const inscricaoConfirmada = await this.prisma.inscricao.findFirst({
+      where: {
+        clienteId,
+        status: StatusInscricao.CONFIRMADA,
+        categoria: { modalidade: { eventoId: lote.eventoId } },
+      },
+    });
+    if (inscricaoConfirmada) {
       throw new ConflictException(
-        'Você já tem uma inscrição ativa para este evento.',
+        'Você já tem uma inscrição confirmada e paga para este evento.',
       );
     }
 
@@ -145,7 +159,7 @@ export class InscricaoService {
 
     if (inscricao.status !== StatusInscricao.PENDENTE_PAGAMENTO) {
       throw new BadRequestException(
-        'Só é possível cancelar inscrições com pagamento pendente.',
+        'Inscrições já pagas não podem ser canceladas. Você pode transferir a titularidade da sua vaga para outro atleta cadastrado na plataforma pelo e-mail.',
       );
     }
 
@@ -431,9 +445,18 @@ export class InscricaoService {
     if (cupom.validoAte && cupom.validoAte < new Date()) {
       throw new BadRequestException('Este cupom expirou.');
     }
+    const usosEfetivos = await this.prisma.inscricao.count({
+      where: {
+        cupomId: cupom.id,
+        status: {
+          notIn: [StatusInscricao.CANCELADA, StatusInscricao.EXPIRADA],
+        },
+      },
+    });
+
     if (
       cupom.quantidadeMaxima !== null &&
-      cupom.usosAtuais >= cupom.quantidadeMaxima
+      usosEfetivos >= cupom.quantidadeMaxima
     ) {
       throw new BadRequestException('Este cupom já atingiu o limite máximo de usos.');
     }

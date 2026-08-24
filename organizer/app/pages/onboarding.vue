@@ -78,7 +78,15 @@ const erro = ref('')
 const carregando = ref(false)
 const hoje = new Date().toISOString().slice(0, 10)
 
+const route = useRoute()
+
+const { cliente, fetchMe: fetchClienteMe } = useCliente()
+
 onMounted(async () => {
+  if (route.query.token && typeof route.query.token === 'string') {
+    token.value = route.query.token
+  }
+
   if (!token.value) {
     await navigateTo('/login')
     return
@@ -92,21 +100,40 @@ onMounted(async () => {
       return
     }
 
-    if (!organizador.value?.documentoIdentidadeUrl) {
-      // solicitação já existe mas o documento ainda não foi enviado — retoma na etapa 3
-      step.value = 3
-      verificando.value = false
+    if (organizador.value?.documentoIdentidadeUrl && organizador.value?.fotoRostoUrl) {
+      await navigateTo('/aguardando-aprovacao')
       return
     }
-
-    await navigateTo('/aguardando-aprovacao')
-    return
   } catch {
-    // ainda não solicitou cadastro de organizador — segue pra tela de onboarding
+    // ainda não solicitou organizador
+  }
+
+  // pré-carrega os dados do atleta na Etapa 1, mantendo a opção de escolher Empresa (PJ) ou Pessoa Física (PF)
+  try {
+    const clienteData = await fetchClienteMe()
+    if (clienteData?.pf) {
+      pfForm.nomeCompleto = clienteData.pf.nomeCompleto || ''
+      pfForm.cpf = clienteData.pf.cpf || ''
+      pfForm.celular = clienteData.pf.celular || ''
+      if (clienteData.pf.dataNascimento) {
+        pfForm.dataNascimento = new Date(clienteData.pf.dataNascimento).toISOString().split('T')[0]
+      }
+      if (clienteData.pf.genero) {
+        pfForm.genero = clienteData.pf.genero
+      }
+      pjForm.nomeResponsavel = clienteData.pf.nomeCompleto || ''
+      pjForm.documentoResponsavel = clienteData.pf.cpf || ''
+      pjForm.celularComercial = clienteData.pf.celular || ''
+    }
+  } catch {
+    // ok
   }
 
   verificando.value = false
 })
+
+
+
 
 function formatarCpf(e: Event, alvo: 'pf' | 'responsavel') {
   const input = e.target as HTMLInputElement
@@ -201,7 +228,13 @@ async function onSubmitEndereco() {
   }
 }
 
+const fotoRostoArquivo = ref<File | null>(null)
 const documentoArquivo = ref<File | null>(null)
+
+function onSelecionarFotoRosto(e: Event) {
+  const input = e.target as HTMLInputElement
+  fotoRostoArquivo.value = input.files?.[0] ?? null
+}
 
 function onSelecionarDocumento(e: Event) {
   const input = e.target as HTMLInputElement
@@ -211,6 +244,10 @@ function onSelecionarDocumento(e: Event) {
 async function onSubmitDocumento() {
   erro.value = ''
 
+  if (!fotoRostoArquivo.value) {
+    erro.value = 'Envie uma foto do seu rosto (selfie) para validação de identidade.'
+    return
+  }
   if (!documentoArquivo.value) {
     erro.value = 'Envie uma foto ou PDF do seu documento de identidade (RG ou CNH).'
     return
@@ -218,6 +255,7 @@ async function onSubmitDocumento() {
 
   carregando.value = true
   try {
+    await uploadFotoRosto(fotoRostoArquivo.value)
     await uploadDocumentoIdentidade(documentoArquivo.value)
     await navigateTo('/aguardando-aprovacao')
   } catch (e) {
@@ -226,14 +264,54 @@ async function onSubmitDocumento() {
     carregando.value = false
   }
 }
+
+const mostrarQrMobile = ref(true)
+
+const celularNumero = computed(() => {
+  const cel = tipoPessoa.value === 'PF' ? pfForm.celular : pjForm.celularComercial
+  return (cel || '').replace(/\D/g, '')
+})
+
+const celularFormatado = computed(() => {
+  return (tipoPessoa.value === 'PF' ? pfForm.celular : pjForm.celularComercial) || 'celular cadastrado'
+})
+
+const currentUrl = computed(() => {
+  if (typeof window === 'undefined') return ''
+  const tokenStr = token.value ? `?token=${encodeURIComponent(token.value)}` : ''
+  return `${window.location.origin}/onboarding${tokenStr}`
+})
+
+const qrCodeUrl = computed(() => {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(currentUrl.value)}`
+})
+
+const whatsappUrl = computed(() => {
+  const num = celularNumero.value ? `55${celularNumero.value}` : ''
+  const msg = `Olá! Clique no link a seguir para enviar a sua Selfie e os Documentos para verificação no SeuPercurso:\n\n${currentUrl.value}`
+  return `https://api.whatsapp.com/send?phone=${num}&text=${encodeURIComponent(msg)}`
+})
+
+const mostrarLiveness = ref(false)
+
+function onFotoLivenessCapturada(file: File) {
+  fotoRostoArquivo.value = file
+  mostrarLiveness.value = false
+}
+
+
+
+
 </script>
 
 <template>
   <div v-if="!verificando">
     <div class="mb-6 flex items-center gap-2">
-      <div
-        class="flex items-center gap-2 text-xs font-bold uppercase tracking-wide"
+      <button
+        type="button"
+        class="flex items-center gap-2 text-xs font-bold uppercase tracking-wide cursor-pointer hover:opacity-80 transition"
         :class="step >= 1 ? 'text-primary' : 'text-slate-400'"
+        @click="step = 1"
       >
         <span
           class="flex h-6 w-6 items-center justify-center rounded-full"
@@ -242,11 +320,13 @@ async function onSubmitDocumento() {
           1
         </span>
         Dados
-      </div>
+      </button>
       <div class="h-0.5 flex-1" :class="step >= 2 ? 'bg-primary' : 'bg-slate-200'"></div>
-      <div
-        class="flex items-center gap-2 text-xs font-bold uppercase tracking-wide"
+      <button
+        type="button"
+        class="flex items-center gap-2 text-xs font-bold uppercase tracking-wide cursor-pointer hover:opacity-80 transition"
         :class="step >= 2 ? 'text-primary' : 'text-slate-400'"
+        @click="step = 2"
       >
         <span
           class="flex h-6 w-6 items-center justify-center rounded-full"
@@ -255,11 +335,13 @@ async function onSubmitDocumento() {
           2
         </span>
         Endereço
-      </div>
+      </button>
       <div class="h-0.5 flex-1" :class="step >= 3 ? 'bg-primary' : 'bg-slate-200'"></div>
-      <div
-        class="flex items-center gap-2 text-xs font-bold uppercase tracking-wide"
+      <button
+        type="button"
+        class="flex items-center gap-2 text-xs font-bold uppercase tracking-wide cursor-pointer hover:opacity-80 transition"
         :class="step >= 3 ? 'text-primary' : 'text-slate-400'"
+        @click="step = 3"
       >
         <span
           class="flex h-6 w-6 items-center justify-center rounded-full"
@@ -268,7 +350,7 @@ async function onSubmitDocumento() {
           3
         </span>
         Documento
-      </div>
+      </button>
     </div>
 
     <h1 class="text-2xl font-extrabold uppercase tracking-tight text-primary">
@@ -283,6 +365,16 @@ async function onSubmitDocumento() {
             : 'Envie uma foto ou PDF do seu RG ou CNH — nossa equipe confere antes de liberar sua conta, por segurança de quem vai se inscrever nos seus eventos.'
       }}
     </p>
+
+    <button
+      v-if="step === 3"
+      type="button"
+      class="mt-2 text-xs font-bold text-amber-700 hover:text-amber-900 underline flex items-center gap-1.5 transition"
+      @click="step = 1"
+    >
+      <span>✏️</span> Deseja cadastrar como Empresa (CNPJ) ou alterar os dados iniciais? Clique aqui
+    </button>
+
 
     <p v-if="erro" class="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
       {{ erro }}
@@ -540,26 +632,104 @@ async function onSubmitDocumento() {
       </button>
     </form>
 
-    <form v-else class="mt-6 flex flex-col gap-4" @submit.prevent="onSubmitDocumento">
-      <div>
-        <label class="mb-1 block text-sm font-semibold text-slate-700">RG ou CNH (foto ou PDF)</label>
+    <form v-else class="mt-6 flex flex-col gap-6" @submit.prevent="onSubmitDocumento">
+      <!-- Card QR Code & WhatsApp para abrir no Celular (100% Grátis) - Apenas para usuários no PC -->
+      <div class="hidden sm:block rounded-2xl border border-emerald-200 bg-emerald-50/70 p-5 space-y-4 shadow-xs">
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <AppIcon name="camera" size="22" class="text-emerald-700" />
+            <div>
+              <h3 class="font-black text-sm text-emerald-950">Prefere tirar a selfie e fotos pelo Celular?</h3>
+              <p class="text-xs text-emerald-800">Aponte a câmera do celular para o QR Code ou envie o link direto no WhatsApp.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            class="text-xs font-bold text-emerald-900 underline hover:text-emerald-950 shrink-0"
+            @click="mostrarQrMobile = !mostrarQrMobile"
+          >
+            {{ mostrarQrMobile ? 'Ocultar QR Code' : 'Exibir QR Code' }}
+          </button>
+        </div>
+
+        <div v-if="mostrarQrMobile" class="flex flex-wrap items-center justify-center gap-6 pt-3 border-t border-emerald-200/80">
+          <div class="bg-white p-3 rounded-2xl border border-emerald-200 shadow-xs text-center">
+            <img :src="qrCodeUrl" alt="QR Code Validação Mobile" class="h-36 w-36 mx-auto rounded-lg" />
+            <p class="mt-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Aponte a câmera do celular</p>
+          </div>
+
+          <div class="space-y-3 max-w-xs text-center sm:text-left">
+            <a
+              :href="whatsappUrl"
+              target="_blank"
+              rel="noopener"
+              class="inline-flex items-center justify-center gap-2 w-full rounded-xl bg-emerald-600 px-4 py-3 text-xs font-black uppercase tracking-wider text-white shadow-sm hover:bg-emerald-700 transition"
+            >
+              <AppIcon name="whatsapp" size="16" /> Abrir no Meu WhatsApp
+            </a>
+            <p class="text-[11px] text-emerald-800 leading-tight">
+              Link de validação formatado para o número <strong>{{ celularFormatado }}</strong>.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 1. Foto do Rosto (Selfie) -->
+      <div class="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 space-y-3">
+        <label class="block text-sm font-bold text-slate-800 flex items-center gap-2">
+          <AppIcon name="user" size="16" class="text-indigo-600" /> 1. Foto do Rosto (Prova de Vida Ao Vivo)
+        </label>
+        <p class="text-xs text-slate-500">A foto do seu rosto deve ser capturada ao vivo pela câmera interativa para validação antifraude.</p>
+
+        <button
+          type="button"
+          class="w-full rounded-xl bg-warning py-3.5 text-xs font-black uppercase tracking-wider text-primary shadow-md hover:brightness-95 transition flex items-center justify-center gap-2"
+          @click="mostrarLiveness = true"
+        >
+          <AppIcon name="camera" size="16" class="text-primary" /> Tirar Selfie Ao Vivo (Prova de Vida 3D)
+        </button>
+
+        <p v-if="fotoRostoArquivo" class="text-xs font-bold text-emerald-600 text-center bg-emerald-50 py-2 rounded-xl border border-emerald-200 flex items-center justify-center gap-1">
+          <AppIcon name="check" size="14" /> Selfie capturada com Prova de Vida: {{ fotoRostoArquivo.name }}
+        </p>
+      </div>
+
+      <!-- 2. Documento Oficial (RG ou CNH) -->
+      <div class="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 space-y-2">
+        <label class="block text-sm font-bold text-slate-800 flex items-center gap-2">
+          <AppIcon name="documento" size="16" class="text-amber-600" /> 2. Documento Oficial (RG ou CNH)
+        </label>
+        <p class="text-xs text-slate-500">Envie foto legível da frente/verso do RG ou CNH (ou arquivo em PDF).</p>
         <input
           type="file"
           accept="image/*,application/pdf"
           required
-          class="block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200"
+          class="block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-white file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-100 border border-slate-200 rounded-xl p-1"
           @change="onSelecionarDocumento"
         />
-        <p v-if="documentoArquivo" class="mt-2 text-xs text-slate-500">Selecionado: {{ documentoArquivo.name }}</p>
+        <p v-if="documentoArquivo" class="text-xs font-bold text-emerald-600 flex items-center gap-1">
+          <AppIcon name="check" size="14" /> Documento selecionado: {{ documentoArquivo.name }}
+        </p>
       </div>
 
       <button
         type="submit"
         :disabled="carregando"
-        class="mt-2 rounded-xl bg-warning px-4 py-3 text-sm font-bold uppercase tracking-wide text-primary transition hover:brightness-95 disabled:opacity-50"
+        class="mt-2 rounded-xl bg-slate-900 px-4 py-3.5 text-sm font-black uppercase tracking-wide text-white transition hover:bg-primary disabled:opacity-50"
       >
-        {{ carregando ? 'Enviando...' : 'Enviar solicitação' }}
+        {{ carregando ? 'Enviando documentos...' : 'Enviar solicitação completa' }}
       </button>
     </form>
+
+
+    <!-- Componente de Prova de Vida 3D Ao Vivo -->
+    <LivenessCamera
+      v-if="mostrarLiveness"
+      @capturado="onFotoLivenessCapturada"
+      @fechar="mostrarLiveness = false"
+    />
   </div>
 </template>
+
+
+

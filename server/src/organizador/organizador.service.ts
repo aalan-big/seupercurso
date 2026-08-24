@@ -839,7 +839,19 @@ export class OrganizadorService {
     const organizador = await this.getOrganizadorAprovadoOuFalhar(usuarioId);
     await this.getEventoDoOrganizadorOuFalhar(organizador.id, eventoId);
 
-    return this.prisma.modalidade.create({ data: { ...dto, eventoId } });
+    const modalidade = await this.prisma.modalidade.create({ data: { ...dto, eventoId } });
+
+    // Auto-cria categoria padrão Geral
+    await this.prisma.categoria.create({
+      data: {
+        modalidadeId: modalidade.id,
+        nome: 'Geral',
+        genero: 'LIVRE',
+        pcd: false,
+      },
+    });
+
+    return modalidade;
   }
 
   async atualizarModalidade(
@@ -1150,6 +1162,17 @@ export class OrganizadorService {
   ) {
     const organizador = await this.getOrganizadorOuFalhar(usuarioId);
 
+    if (
+      organizador.status === StatusOrganizador.APROVADO ||
+      (organizador.status === StatusOrganizador.PENDENTE &&
+        organizador.fotoRostoUrl &&
+        organizador.documentoIdentidadeUrl)
+    ) {
+      throw new BadRequestException(
+        'Seus documentos já foram enviados e estão em análise ou aprovados. O envio fica bloqueado a menos que o Administrador solicite revisão.',
+      );
+    }
+
     if (organizador.fotoRostoUrl) {
       unlink(
         join(process.cwd(), organizador.fotoRostoUrl),
@@ -1173,6 +1196,17 @@ export class OrganizadorService {
   ) {
     const organizador = await this.getOrganizadorOuFalhar(usuarioId);
 
+    if (
+      organizador.status === StatusOrganizador.APROVADO ||
+      (organizador.status === StatusOrganizador.PENDENTE &&
+        organizador.fotoRostoUrl &&
+        organizador.documentoIdentidadeUrl)
+    ) {
+      throw new BadRequestException(
+        'Seus documentos já foram enviados e estão em análise ou aprovados. O envio fica bloqueado a menos que o Administrador solicite revisão.',
+      );
+    }
+
     if (organizador.documentoIdentidadeUrl) {
       unlink(
         join(process.cwd(), organizador.documentoIdentidadeUrl),
@@ -1189,6 +1223,7 @@ export class OrganizadorService {
       },
     });
   }
+
 
   async atualizarDadosBancarios(usuarioId: string, dto: UpdateDadosBancariosDto) {
     const organizador = await this.getOrganizadorOuFalhar(usuarioId);

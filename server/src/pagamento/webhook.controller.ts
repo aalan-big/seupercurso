@@ -1,4 +1,5 @@
-import { Controller, Post, Body, Logger, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, Headers, Logger, HttpCode, HttpStatus, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { StatusInscricao, StatusPagamento } from '../generated/prisma/enums';
 
@@ -11,12 +12,25 @@ export class WebhookController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
+    private readonly configService: ConfigService,
   ) {}
 
   @Post('asaas')
   @HttpCode(HttpStatus.OK)
-  async receberWebhookAsaas(@Body() body: any) {
+  async receberWebhookAsaas(
+    @Headers('asaas-access-token') tokenRecebido: string,
+    @Body() body: any,
+  ) {
+    const webhookSecret = this.configService.get<string>('ASAAS_WEBHOOK_SECRET');
+
+    // Validação de segurança: verifica se o token enviado pelo Asaas bate com o .env
+    if (webhookSecret && tokenRecebido !== webhookSecret) {
+      this.logger.warn(`Tentativa de acesso não autorizado no Webhook com token: ${tokenRecebido}`);
+      throw new UnauthorizedException('Token de segurança do webhook inválido.');
+    }
+
     this.logger.log(`Webhook Asaas recebido: ${body.event}`);
+
 
     const event = body.event;
     const payment = body.payment;

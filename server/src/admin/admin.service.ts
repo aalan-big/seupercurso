@@ -1,11 +1,13 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '../generated/prisma/client';
 import {
   StatusEvento,
   StatusInscricao,
   StatusOrganizador,
   StatusPagamento,
 } from '../generated/prisma/enums';
+
 import { montarSerieDiaria } from '../common/montar-serie-diaria';
 
 const ORGANIZADOR_INCLUDE = {
@@ -29,12 +31,25 @@ export class AdminService {
   constructor(private readonly prisma: PrismaService) {}
 
   async listarOrganizadores(status?: string) {
+    const whereClause: Prisma.OrganizadorWhereInput = status
+      ? {
+          status: status as StatusOrganizador,
+          ...(status === StatusOrganizador.PENDENTE
+            ? {
+                fotoRostoUrl: { not: null },
+                documentoIdentidadeUrl: { not: null },
+              }
+            : {}),
+        }
+      : {};
+
     return this.prisma.organizador.findMany({
-      where: status ? { status: status as StatusOrganizador } : undefined,
+      where: whereClause,
       orderBy: { createdAt: 'asc' },
       include: ORGANIZADOR_INCLUDE,
     });
   }
+
 
   async buscarOrganizador(id: string) {
     const organizador = await this.prisma.organizador.findUnique({
@@ -50,15 +65,10 @@ export class AdminService {
   async aprovarOrganizador(id: string) {
     const organizador = await this.getOrganizadorOuFalhar(id);
 
-    if (!organizador.documentoIdentidadeUrl) {
-      throw new BadRequestException(
-        'Esse organizador ainda não enviou o documento de identidade — não é possível aprovar.',
-      );
-    }
-
     return this.prisma.organizador.update({
       where: { id },
       data: { status: StatusOrganizador.APROVADO, motivoRevisao: null },
+      include: ORGANIZADOR_INCLUDE,
     });
   }
 
@@ -68,6 +78,7 @@ export class AdminService {
     return this.prisma.organizador.update({
       where: { id },
       data: { status: StatusOrganizador.REJEITADO, motivoRevisao: motivo ?? null },
+      include: ORGANIZADOR_INCLUDE,
     });
   }
 
@@ -83,6 +94,7 @@ export class AdminService {
     return this.prisma.organizador.update({
       where: { id },
       data: { status: StatusOrganizador.SUSPENSO, motivoRevisao: motivo ?? null },
+      include: ORGANIZADOR_INCLUDE,
     });
   }
 
@@ -106,11 +118,12 @@ export class AdminService {
   }
 
   async aprovarEvento(id: string) {
-    const evento = await this.getEventoOuFalhar(id);
+    await this.getEventoOuFalhar(id);
 
     return this.prisma.evento.update({
       where: { id },
       data: { status: StatusEvento.PUBLICADO, motivoRejeicao: null },
+      include: EVENTO_INCLUDE,
     });
   }
 
@@ -120,6 +133,7 @@ export class AdminService {
     return this.prisma.evento.update({
       where: { id },
       data: { status: StatusEvento.RASCUNHO, motivoRejeicao: motivo ?? null },
+      include: EVENTO_INCLUDE,
     });
   }
 
@@ -129,6 +143,7 @@ export class AdminService {
     return this.prisma.evento.update({
       where: { id },
       data: { status: StatusEvento.SUSPENSO, motivoRejeicao: motivo ?? 'Evento suspenso/barrado pela administração master da plataforma.' },
+      include: EVENTO_INCLUDE,
     });
   }
 
@@ -151,7 +166,11 @@ export class AdminService {
       inscricoesRecentes,
     ] = await Promise.all([
       this.prisma.organizador.count({
-        where: { status: StatusOrganizador.PENDENTE },
+        where: {
+          status: StatusOrganizador.PENDENTE,
+          fotoRostoUrl: { not: null },
+          documentoIdentidadeUrl: { not: null },
+        },
       }),
       this.prisma.evento.count({
         where: { status: StatusEvento.AGUARDANDO_APROVACAO },
@@ -164,11 +183,16 @@ export class AdminService {
         where: { status: StatusInscricao.CONFIRMADA },
       }),
       this.prisma.organizador.findMany({
-        where: { status: StatusOrganizador.PENDENTE },
+        where: {
+          status: StatusOrganizador.PENDENTE,
+          fotoRostoUrl: { not: null },
+          documentoIdentidadeUrl: { not: null },
+        },
         orderBy: { createdAt: 'asc' },
         take: 5,
         include: ORGANIZADOR_INCLUDE,
       }),
+
       this.prisma.evento.findMany({
         where: { status: StatusEvento.AGUARDANDO_APROVACAO },
         orderBy: { createdAt: 'asc' },

@@ -116,24 +116,19 @@ function formatarDataHora(iso?: string | null) {
 
 const mapaUrlFormatted = computed(() => {
   const raw = props.inscricao?.categoria.modalidade.evento.mapaPercursoUrl
-  if (!raw) return null
-  if (raw.startsWith('http')) return raw
-  return `${apiBase.replace(/\/$/, '')}/${raw.replace(/^\//, '')}`
+  return urlFoto(raw, apiBase)
 })
 
 const bannerUrlFormatted = computed(() => {
   const raw = props.inscricao?.categoria.modalidade.evento.bannerUrl
-  if (!raw) return null
-  if (raw.startsWith('http')) return raw
-  return `${apiBase.replace(/\/$/, '')}/${raw.replace(/^\//, '')}`
+  return urlFoto(raw, apiBase)
 })
 
 const regulamentoUrlFormatted = computed(() => {
   const raw = props.inscricao?.categoria.modalidade.evento.regulamentoUrl
-  if (!raw) return null
-  if (raw.startsWith('http')) return raw
-  return `${apiBase.replace(/\/$/, '')}/${raw.replace(/^\//, '')}`
+  return urlFoto(raw, apiBase)
 })
+
 
 const regulamentoUrlEmbed = computed(() => {
   if (!regulamentoUrlFormatted.value) return null
@@ -477,12 +472,12 @@ async function submeterTransferencia() {
 
               <div class="pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div>
-                  <p class="text-xs font-bold text-slate-800">Passar vaga para outro atleta</p>
-                  <p class="text-xs text-slate-500">Desistiu do evento? Transfira sua inscrição para o e-mail de um amigo.</p>
+                  <p class="text-xs font-bold text-slate-800">Passar vaga para outro atleta (Troca de Titularidade)</p>
+                  <p class="text-xs text-slate-500">Inscrições pagas não aceitam cancelamento, mas você pode transferi-la para o e-mail de outro atleta cadastrado na plataforma.</p>
                 </div>
                 <button
                   type="button"
-                  class="rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 transition self-stretch sm:self-auto text-center"
+                  class="rounded-xl border border-indigo-200 bg-indigo-50 px-3.5 py-2 text-xs font-bold text-indigo-900 hover:bg-indigo-100 transition self-stretch sm:self-auto text-center"
                   @click="mostrandoTransferencia = !mostrandoTransferencia"
                 >
                   🤝 Transferir Vaga
@@ -493,18 +488,18 @@ async function submeterTransferencia() {
               <div v-if="mostrandoTransferencia" class="mt-3 rounded-2xl border border-indigo-200 bg-indigo-50/50 p-4 space-y-3">
                 <p class="text-xs font-bold text-indigo-900 uppercase tracking-wider">Transferir Titularidade da Inscrição</p>
                 <p class="text-xs text-slate-600">
-                  Informe o e-mail do atleta cadastrado que assumirá o seu ingresso nesta prova:
+                  Informe o e-mail do atleta (que já deve possuir conta cadastrada na plataforma) que assumirá o seu ingresso nesta prova:
                 </p>
 
                 <input
                   v-model="emailDestinatario"
                   type="email"
-                  placeholder="atleta@email.com"
+                  placeholder="email.do.atleta@exemplo.com"
                   class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-medium text-slate-800 placeholder-slate-400 focus:border-indigo-500 focus:outline-none"
                 />
 
                 <div class="rounded-xl bg-amber-50 border border-amber-200 p-3 text-[11px] text-amber-800">
-                  ⚠️ <strong>Atenção:</strong> Ao confirmar a transferência, esta vaga deixará o seu painel e passará a pertencer ao atleta informado. Esta ação não poderá ser desfeita.
+                  ⚠️ <strong>Atenção:</strong> Após a transferência, esta vaga deixará o seu painel e passará a pertencer ao novo atleta. Esta operação não pode ser desfeita.
                 </div>
 
                 <p v-if="erroTransferencia" class="text-xs text-red-600 font-bold">{{ erroTransferencia }}</p>

@@ -157,6 +157,77 @@ async function onRemoverCategoria(modalidadeId: string, categoriaId: string) {
   }
 }
 
+async function onCriarCategoriasPcdPadrao(modalidadeId: string) {
+  erro.value = ''
+  salvando.value = true
+  try {
+    await criarCategoria(props.eventoId, modalidadeId, {
+      nome: 'PCD - Geral',
+      genero: 'LIVRE',
+      pcd: true
+    })
+    await criarCategoria(props.eventoId, modalidadeId, {
+      nome: 'PCD - Cadeirantes',
+      genero: 'LIVRE',
+      pcd: true
+    })
+    await criarCategoria(props.eventoId, modalidadeId, {
+      nome: 'PCD - Deficiente Visual',
+      genero: 'LIVRE',
+      pcd: true
+    })
+  } catch (e) {
+    erro.value = extrairErro(e)
+  } finally {
+    salvando.value = false
+  }
+}
+
+function preencherPreset(nome: string, distanciaKm: string, descricao?: string) {
+  novaModalidade.nome = nome
+  novaModalidade.distanciaKm = distanciaKm
+  novaModalidade.descricao = descricao || ''
+}
+
+const sugestoesModalidades = [
+  { nome: 'Corrida', km: '5' },
+  { nome: 'Caminhada', km: '3' },
+  { nome: 'Meia Maratona', km: '21' },
+  { nome: 'Maratona', km: '42' },
+  { nome: 'MTB Pro', km: '50' },
+  { nome: 'MTB Sport', km: '25' },
+  { nome: 'Ciclismo Estrada', km: '80' },
+  { nome: 'Motocross MX1', km: '12' },
+  { nome: 'Motocross MX2', km: '10' },
+  { nome: 'Enduro Pro', km: '40' },
+  { nome: 'Veloterra Nacional', km: '8' },
+  { nome: 'Natação Mar Aberto', km: '1.5' },
+  { nome: 'Triathlon Sprint', km: '25.75' },
+  { nome: 'PCD', km: '5' }
+]
+
+const menuSugestoesAberto = ref(false)
+
+const sugestoesFiltradas = computed(() => {
+  const busca = novaModalidade.nome.trim().toLowerCase()
+  if (!busca) return sugestoesModalidades
+  return sugestoesModalidades.filter((s) => s.nome.toLowerCase().includes(busca))
+})
+
+function selecionarSugestao(sug: { nome: string; km: string }) {
+  novaModalidade.nome = sug.nome
+  if (!novaModalidade.distanciaKm) {
+    novaModalidade.distanciaKm = sug.km
+  }
+  menuSugestoesAberto.value = false
+}
+
+function fecharMenuComDelay() {
+  setTimeout(() => {
+    menuSugestoesAberto.value = false
+  }, 200)
+}
+
 function faixaEtaria(min: number | null, max: number | null) {
   if (!min && !max) return 'Todas as idades'
   if (min && max) return `${min} a ${max} anos`
@@ -166,70 +237,96 @@ function faixaEtaria(min: number | null, max: number | null) {
 </script>
 
 <template>
-  <div>
-    <p v-if="erro" class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-      {{ erro }}
+  <div class="space-y-4">
+    <p v-if="erro" class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-700">
+      <AppIcon name="warning" size="16" class="inline mr-1" /> {{ erro }}
     </p>
 
-    <div v-if="modalidades.length === 0" class="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-      Nenhuma modalidade cadastrada ainda. Adicione o percurso (ex.: 5km, 10km) que os atletas vão poder escolher.
+    <!-- Estado Vazio -->
+    <div v-if="modalidades.length === 0" class="rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center space-y-3 shadow-xs">
+      <div class="h-12 w-12 rounded-2xl bg-amber-50 text-warning flex items-center justify-center mx-auto">
+        <AppIcon name="eventos" size="24" />
+      </div>
+      <h3 class="font-bold text-sm text-slate-800">Nenhuma modalidade cadastrada</h3>
+      <p class="text-xs text-slate-500 max-w-sm mx-auto">
+        Adicione os percursos da sua prova (ex.: Corrida 5km, Caminhada 3km, 21km Meia Maratona) para liberar a criação de lotes de inscrição.
+      </p>
     </div>
 
+    <!-- Lista de Modalidades -->
     <div v-else class="flex flex-col gap-4">
       <div
         v-for="modalidade in modalidades"
         :key="modalidade.id"
-        class="rounded-2xl border border-slate-200 bg-white shadow-sm"
+        class="rounded-3xl border border-slate-200 bg-white shadow-xs overflow-hidden transition hover:border-slate-300"
       >
-        <div v-if="modalidadeEditandoId === modalidade.id" class="p-4">
+        <!-- Form de Edição da Modalidade -->
+        <div v-if="modalidadeEditandoId === modalidade.id" class="p-4 sm:p-5 bg-slate-50/50 space-y-3">
+          <h4 class="text-xs font-black uppercase tracking-wider text-slate-700">Editar Modalidade</h4>
           <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <input
-              v-model="edicaoModalidade.nome"
-              type="text"
-              placeholder="Nome (ex.: 10km)"
-              class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-            />
-            <input
-              v-model="edicaoModalidade.distanciaKm"
-              type="number"
-              step="0.1"
-              min="0.1"
-              placeholder="Distância (km)"
-              class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-            />
-            <input
-              v-model="edicaoModalidade.idadeMinima"
-              type="number"
-              min="0"
-              placeholder="Idade mín. (opcional)"
-              class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-            />
-            <input
-              v-model="edicaoModalidade.idadeMaxima"
-              type="number"
-              min="0"
-              placeholder="Idade máx. (opcional)"
-              class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-            />
-            <textarea
-              v-model="edicaoModalidade.descricao"
-              placeholder="Descrição (opcional)"
-              rows="2"
-              class="col-span-2 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-            ></textarea>
+            <div>
+              <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Nome da Modalidade</label>
+              <input
+                v-model="edicaoModalidade.nome"
+                type="text"
+                placeholder="Ex.: Corrida 10km"
+                class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-semibold focus:border-warning focus:outline-none"
+              />
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Distância (km)</label>
+              <input
+                v-model="edicaoModalidade.distanciaKm"
+                type="number"
+                step="0.1"
+                min="0.1"
+                placeholder="Ex.: 10"
+                class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-semibold focus:border-warning focus:outline-none"
+              />
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Idade Mínima</label>
+              <input
+                v-model="edicaoModalidade.idadeMinima"
+                type="number"
+                min="0"
+                placeholder="Opcional"
+                class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-semibold focus:border-warning focus:outline-none"
+              />
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Idade Máxima</label>
+              <input
+                v-model="edicaoModalidade.idadeMaxima"
+                type="number"
+                min="0"
+                placeholder="Opcional"
+                class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-semibold focus:border-warning focus:outline-none"
+              />
+            </div>
+            <div class="sm:col-span-2">
+              <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Descrição do Percurso</label>
+              <textarea
+                v-model="edicaoModalidade.descricao"
+                placeholder="Detalhes adicionais (opcional)"
+                rows="2"
+                class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold focus:border-warning focus:outline-none"
+              ></textarea>
+            </div>
           </div>
-          <div class="mt-3 flex gap-2">
+
+          <div class="flex items-center gap-2 pt-2">
             <button
               type="button"
               :disabled="salvando"
-              class="rounded-xl bg-warning px-4 py-2 text-sm font-bold uppercase tracking-wide text-primary transition hover:brightness-95 disabled:opacity-50"
+              class="rounded-xl bg-warning px-5 py-2.5 text-xs font-black uppercase tracking-wider text-primary transition hover:brightness-95 disabled:opacity-50 flex items-center gap-1.5"
               @click="onSalvarEdicao(modalidade.id)"
             >
-              {{ salvando ? 'Salvando...' : 'Salvar' }}
+              <AppIcon name="check" size="14" /> {{ salvando ? 'Salvando...' : 'Salvar Alterações' }}
             </button>
             <button
               type="button"
-              class="rounded-xl px-4 py-2 text-sm font-bold uppercase tracking-wide text-slate-500 hover:bg-slate-100"
+              class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100"
               @click="cancelarEdicao"
             >
               Cancelar
@@ -237,174 +334,272 @@ function faixaEtaria(min: number | null, max: number | null) {
           </div>
         </div>
 
-        <div v-else class="flex items-center justify-between gap-3 p-4">
-          <div>
-            <p class="font-bold text-slate-800">{{ modalidade.nome }} · {{ modalidade.distanciaKm }} km</p>
-            <p class="mt-0.5 text-xs text-slate-400">{{ faixaEtaria(modalidade.idadeMinima, modalidade.idadeMaxima) }}</p>
+        <!-- Cabeçalho do Card da Modalidade (Mobile Friendly) -->
+        <div v-else class="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="space-y-1">
+            <div class="flex items-center gap-2">
+              <span class="rounded-lg bg-amber-100 px-2.5 py-1 text-xs font-black text-amber-950 uppercase tracking-wider">
+                🏃 {{ modalidade.distanciaKm }} km
+              </span>
+              <h3 class="font-extrabold text-base text-slate-900">{{ modalidade.nome }}</h3>
+            </div>
+            <p class="text-xs text-slate-500 font-medium">
+              Faixa etária geral: <strong>{{ faixaEtaria(modalidade.idadeMinima, modalidade.idadeMaxima) }}</strong>
+            </p>
           </div>
-          <div class="flex items-center gap-2">
+
+          <div class="flex items-center gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 justify-between sm:justify-end">
             <button
               type="button"
-              class="rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide"
-              :class="modalidade.ativo ? 'bg-accent/10 text-accent' : 'bg-slate-100 text-slate-500'"
+              class="rounded-xl px-3 py-1.5 text-xs font-extrabold uppercase tracking-wide transition flex items-center gap-1"
+              :class="modalidade.ativo ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'"
               @click="onToggleAtivo(modalidade)"
             >
-              {{ modalidade.ativo ? 'Ativa' : 'Inativa' }}
+              <AppIcon name="check" size="12" /> {{ modalidade.ativo ? 'Ativa' : 'Inativa' }}
             </button>
-            <button
-              type="button"
-              class="text-xs font-bold uppercase tracking-wide text-secondary hover:underline"
-              @click="abrirEdicao(modalidade)"
-            >
-              Editar
-            </button>
-            <button
-              type="button"
-              class="text-xs font-bold uppercase tracking-wide text-red-600 hover:text-red-700"
-              @click="onRemoverModalidade(modalidade.id)"
-            >
-              Remover
-            </button>
+
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                class="rounded-xl bg-slate-100 hover:bg-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 transition flex items-center gap-1"
+                @click="abrirEdicao(modalidade)"
+              >
+                Editar
+              </button>
+              <button
+                type="button"
+                class="rounded-xl bg-red-50 hover:bg-red-100 px-3 py-1.5 text-xs font-bold text-red-600 transition flex items-center gap-1"
+                @click="onRemoverModalidade(modalidade.id)"
+              >
+                Excluir
+              </button>
+            </div>
           </div>
         </div>
 
-        <div class="border-t border-slate-100 px-4 py-3">
-          <button
-            type="button"
-            class="text-xs font-bold uppercase tracking-wide text-secondary hover:underline"
-            @click="abrirCategorias(modalidade.id)"
-          >
-            {{ modalidadeAbertaId === modalidade.id ? 'Ocultar categorias' : `Categorias (${modalidade.categorias.length})` }}
-          </button>
-
-          <div v-if="modalidadeAbertaId === modalidade.id" class="mt-3 flex flex-col gap-2">
-            <div
-              v-for="categoria in modalidade.categorias"
-              :key="categoria.id"
-              class="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm"
-            >
-              <span class="flex items-center gap-2">
-                {{ categoria.nome }} · {{ faixaEtaria(categoria.idadeMinima, categoria.idadeMaxima) }} · {{ categoria.genero }}
-                <span
-                  v-if="categoria.pcd"
-                  class="rounded-full bg-secondary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-secondary"
-                >
-                  PCD
-                </span>
-              </span>
-              <button
-                type="button"
-                class="text-xs font-bold uppercase tracking-wide text-red-600 hover:text-red-700"
-                @click="onRemoverCategoria(modalidade.id, categoria.id)"
-              >
-                Remover
-              </button>
-            </div>
-
-            <div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-4">
-              <input
-                v-model="novaCategoria.nome"
-                type="text"
-                placeholder="Nome (ex.: 18-39)"
-                class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-              />
-              <input
-                v-model="novaCategoria.idadeMinima"
-                type="number"
-                min="0"
-                placeholder="Idade mín."
-                class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-              />
-              <input
-                v-model="novaCategoria.idadeMaxima"
-                type="number"
-                min="0"
-                placeholder="Idade máx."
-                class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-              />
-              <select
-                v-model="novaCategoria.genero"
-                class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-              >
-                <option v-for="opcao in generoOpcoes" :key="opcao.valor" :value="opcao.valor">{{ opcao.label }}</option>
-              </select>
-            </div>
-            <label class="mt-2 flex items-center gap-2 text-sm text-slate-600">
-              <input v-model="novaCategoria.pcd" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-accent focus:ring-accent/30" />
-              Categoria PCD (pessoas com deficiência)
-            </label>
+        <!-- Seção Expansível de Categorias -->
+        <div class="border-t border-slate-100 bg-slate-50/50 p-4 sm:px-5 sm:py-4">
+          <div class="flex items-center justify-between">
             <button
               type="button"
-              :disabled="salvando"
-              class="self-start rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-slate-700 hover:bg-slate-200 disabled:opacity-50"
-              @click="onCriarCategoria(modalidade.id)"
+              class="text-xs font-black uppercase tracking-wider text-slate-700 hover:text-primary flex items-center gap-1.5"
+              @click="abrirCategorias(modalidade.id)"
             >
-              + Adicionar categoria
+              <span>Categorias Especificas ({{ modalidade.categorias.length }})</span>
+              <AppIcon name="chevron" size="14" :class="modalidadeAbertaId === modalidade.id ? 'rotate-180 transition' : 'transition'" />
             </button>
+          </div>
+
+          <div v-if="modalidadeAbertaId === modalidade.id" class="mt-4 space-y-4">
+            <div v-if="modalidade.categorias.length === 0" class="text-xs italic text-slate-400">
+              Nenhuma categoria específica cadastrada para esta modalidade.
+            </div>
+
+            <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div
+                v-for="categoria in modalidade.categorias"
+                :key="categoria.id"
+                class="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3 text-xs shadow-xs"
+              >
+                <div>
+                  <p class="font-extrabold text-slate-800">{{ categoria.nome }}</p>
+                  <p class="text-[11px] text-slate-500 mt-0.5">
+                    {{ faixaEtaria(categoria.idadeMinima, categoria.idadeMaxima) }} · {{ categoria.genero }}
+                    <span v-if="categoria.pcd" class="ml-1 rounded-md bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold text-indigo-700">PCD</span>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  class="text-red-500 hover:text-red-700 font-bold p-1"
+                  title="Remover Categoria"
+                  @click="onRemoverCategoria(modalidade.id, categoria.id)"
+                >
+                  <AppIcon name="close" size="14" />
+                </button>
+              </div>
+            </div>
+
+            <!-- Form de Adicionar Nova Categoria -->
+            <div class="rounded-2xl border border-slate-200 bg-white p-4 space-y-3 shadow-xs">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <h5 class="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1">
+                  <span>➕ Adicionar Categoria para {{ modalidade.nome }}</span>
+                </h5>
+                <button
+                  type="button"
+                  :disabled="salvando"
+                  class="rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 text-xs font-extrabold text-indigo-700 transition flex items-center gap-1 self-start sm:self-auto"
+                  @click="onCriarCategoriasPcdPadrao(modalidade.id)"
+                >
+                  <span>♿ + Auto-Criar Categorias PCD Padrão</span>
+                </button>
+              </div>
+
+              <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-4">
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-400 uppercase mb-0.5">Nome</label>
+                  <input
+                    v-model="novaCategoria.nome"
+                    type="text"
+                    placeholder="Ex.: PCD Geral ou 18 a 29 Anos"
+                    class="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold focus:border-warning focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-400 uppercase mb-0.5">Idade Mín.</label>
+                  <input
+                    v-model="novaCategoria.idadeMinima"
+                    type="number"
+                    min="0"
+                    placeholder="Ex.: 18"
+                    class="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold focus:border-warning focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-400 uppercase mb-0.5">Idade Máx.</label>
+                  <input
+                    v-model="novaCategoria.idadeMaxima"
+                    type="number"
+                    min="0"
+                    placeholder="Ex.: 29"
+                    class="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold focus:border-warning focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-400 uppercase mb-0.5">Gênero</label>
+                  <select
+                    v-model="novaCategoria.genero"
+                    class="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold focus:border-warning focus:outline-none bg-white"
+                  >
+                    <option v-for="opcao in generoOpcoes" :key="opcao.valor" :value="opcao.valor">{{ opcao.label }}</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
+                <label class="flex items-center gap-2 text-xs font-extrabold text-indigo-900 bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2 cursor-pointer transition hover:bg-indigo-100">
+                  <input v-model="novaCategoria.pcd" type="checkbox" class="h-4 w-4 rounded accent-indigo-600" />
+                  <span>♿ Marcar Categoria PCD (Pessoas com Deficiência)</span>
+                </label>
+
+                <button
+                  type="button"
+                  :disabled="salvando || !novaCategoria.nome"
+                  class="w-full sm:w-auto rounded-xl bg-slate-900 px-4 py-2 text-xs font-extrabold uppercase tracking-wider text-white shadow-xs hover:bg-primary disabled:opacity-50 transition"
+                  @click="onCriarCategoria(modalidade.id)"
+                >
+                  + Salvar Categoria
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="mt-4">
+    <!-- Botão de Nova Modalidade -->
+    <div class="pt-2">
       <button
         v-if="!mostrarFormModalidade"
         type="button"
-        class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold uppercase tracking-wide text-slate-700 hover:bg-slate-100"
+        class="w-full sm:w-auto rounded-2xl bg-warning px-5 py-3 text-xs font-black uppercase tracking-wider text-primary shadow hover:brightness-95 transition flex items-center justify-center gap-2"
         @click="mostrarFormModalidade = true"
       >
-        + Nova modalidade
+        <AppIcon name="eventos" size="16" /> + Adicionar Nova Modalidade
       </button>
 
-      <div v-else class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <input
-            v-model="novaModalidade.nome"
-            type="text"
-            placeholder="Nome (ex.: 10km)"
-            class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-          />
-          <input
-            v-model="novaModalidade.distanciaKm"
-            type="number"
-            step="0.1"
-            min="0.1"
-            placeholder="Distância (km)"
-            class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-          />
-          <input
-            v-model="novaModalidade.idadeMinima"
-            type="number"
-            min="0"
-            placeholder="Idade mín. (opcional)"
-            class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-          />
-          <input
-            v-model="novaModalidade.idadeMaxima"
-            type="number"
-            min="0"
-            placeholder="Idade máx. (opcional)"
-            class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-          />
-          <textarea
-            v-model="novaModalidade.descricao"
-            placeholder="Descrição (opcional)"
-            rows="2"
-            class="col-span-2 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-          ></textarea>
+      <div v-else class="rounded-3xl border border-slate-200 bg-white p-5 space-y-4 shadow-sm">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <h4 class="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-2">
+            <span>🏃</span> Cadastrar Novo Percurso / Modalidade da Prova
+          </h4>
         </div>
-        <div class="mt-3 flex gap-2">
+
+
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div class="relative">
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nome da Modalidade *</label>
+            <input
+              v-model="novaModalidade.nome"
+              type="text"
+              placeholder="Ex.: Corrida, MTB Pro, Caminhada..."
+              class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-semibold focus:border-amber-500 focus:outline-none"
+              @focus="menuSugestoesAberto = true"
+              @input="menuSugestoesAberto = true"
+              @blur="fecharMenuComDelay"
+            />
+
+            <!-- Menu de sugestões posicionado EXATAMENTE abaixo do campo -->
+            <div
+              v-if="menuSugestoesAberto && sugestoesFiltradas.length > 0"
+              class="absolute left-0 top-full z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl"
+            >
+              <button
+                v-for="sug in sugestoesFiltradas"
+                :key="sug.nome"
+                type="button"
+                class="w-full rounded-lg px-3 py-2 text-left text-xs font-bold text-slate-700 transition hover:bg-amber-50 hover:text-amber-950 flex items-center justify-between"
+                @mousedown.prevent="selecionarSugestao(sug)"
+              >
+                <span>{{ sug.nome }}</span>
+                <span class="text-[10px] text-slate-400 font-normal">Sugerir {{ sug.km }}km</span>
+              </button>
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Distância (em km) *</label>
+            <input
+              v-model="novaModalidade.distanciaKm"
+              type="number"
+              step="0.1"
+              min="0.1"
+              placeholder="Ex.: 10"
+              class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-semibold focus:border-amber-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Idade Mínima Permitida</label>
+            <input
+              v-model="novaModalidade.idadeMinima"
+              type="number"
+              min="0"
+              placeholder="Ex.: 16 (Opcional)"
+              class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-semibold focus:border-amber-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Idade Máxima Permitida</label>
+            <input
+              v-model="novaModalidade.idadeMaxima"
+              type="number"
+              min="0"
+              placeholder="Ex.: 80 (Opcional)"
+              class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-semibold focus:border-amber-500 focus:outline-none"
+            />
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Descrição Breve do Percurso</label>
+            <textarea
+              v-model="novaModalidade.descricao"
+              placeholder="Descrição do percurso ou altimetria (opcional)"
+              rows="2"
+              class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold focus:border-amber-500 focus:outline-none"
+            ></textarea>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3 pt-2">
           <button
             type="button"
-            :disabled="salvando"
-            class="rounded-xl bg-warning px-4 py-2 text-sm font-bold uppercase tracking-wide text-primary transition hover:brightness-95 disabled:opacity-50"
+            :disabled="salvando || !novaModalidade.nome || !novaModalidade.distanciaKm"
+            class="rounded-xl bg-warning px-6 py-3 text-xs font-black uppercase tracking-wider text-primary shadow hover:brightness-95 disabled:opacity-50 flex items-center gap-1.5"
             @click="onCriarModalidade"
           >
-            {{ salvando ? 'Salvando...' : 'Salvar modalidade' }}
+            <AppIcon name="check" size="14" /> {{ salvando ? 'Salvando...' : 'Salvar Modalidade' }}
           </button>
           <button
             type="button"
-            class="rounded-xl px-4 py-2 text-sm font-bold uppercase tracking-wide text-slate-500 hover:bg-slate-100"
+            class="rounded-xl border border-slate-300 bg-white px-4 py-3 text-xs font-bold text-slate-600 hover:bg-slate-100"
             @click="mostrarFormModalidade = false"
           >
             Cancelar

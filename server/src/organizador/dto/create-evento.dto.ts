@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsDateString,
   IsInt,
   IsOptional,
@@ -55,4 +56,16 @@ export class CreateEventoDto {
   @IsInt()
   @Min(1)
   capacidade?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  taxaRepassadaAtleta?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  aceitaPix?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  aceitaCartao?: boolean;
 }

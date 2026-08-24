@@ -19,7 +19,9 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage, memoryStorage } from 'multer';
 import { extname } from 'path';
+import { existsSync, mkdirSync } from 'fs';
 import type { Response } from 'express';
+
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
   CurrentUser,
@@ -122,7 +124,13 @@ export class OrganizadorController {
   @UseInterceptors(
     FileInterceptor('foto', {
       storage: diskStorage({
-        destination: './uploads/documentos',
+        destination: (_req, _file, callback) => {
+          const dest = './uploads/documentos';
+          if (!existsSync(dest)) {
+            mkdirSync(dest, { recursive: true });
+          }
+          callback(null, dest);
+        },
         filename: (_req, file, callback) => {
           const sufixo = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
           callback(null, `selfie-${sufixo}${extname(file.originalname)}`);
@@ -158,7 +166,13 @@ export class OrganizadorController {
   @UseInterceptors(
     FileInterceptor('documento', {
       storage: diskStorage({
-        destination: './uploads/documentos',
+        destination: (_req, _file, callback) => {
+          const dest = './uploads/documentos';
+          if (!existsSync(dest)) {
+            mkdirSync(dest, { recursive: true });
+          }
+          callback(null, dest);
+        },
         filename: (_req, file, callback) => {
           const sufixo = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
           callback(null, `${sufixo}${extname(file.originalname)}`);
@@ -177,6 +191,7 @@ export class OrganizadorController {
       },
     }),
   )
+
   uploadDocumentoIdentidade(
     @CurrentUser() user: AuthenticatedUser,
     @UploadedFile() file?: Express.Multer.File,

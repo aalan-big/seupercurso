@@ -5,7 +5,15 @@ const config = useRuntimeConfig()
 
 const organizerBase = config.public.organizerBase as string
 
+const organizerLink = computed(() => {
+  if (token.value) {
+    return `${organizerBase}/onboarding?token=${encodeURIComponent(token.value)}`
+  }
+  return `${organizerBase}/cadastro`
+})
+
 const menuAberto = ref(false)
+
 const menuRef = ref<HTMLElement | null>(null)
 const menuMobileAberto = ref(false)
 
@@ -78,67 +86,79 @@ async function onLogout() {
         <NuxtLink to="/contato" class="hover:text-secondary">Contato</NuxtLink>
       </nav>
 
-      <button
-        type="button"
-        class="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 sm:hidden"
-        aria-label="Menu"
-        @click="menuMobileAberto = !menuMobileAberto"
-      >
-        {{ menuMobileAberto ? '✕' : '☰' }}
-      </button>
-
-      <div v-if="token" ref="menuRef" class="relative hidden sm:block">
-        <button
-          class="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-100"
-          @click="menuAberto = !menuAberto"
-        >
-          <span class="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-secondary text-xs font-bold text-white">
-            <img v-if="fotoUrl" :src="fotoUrl" alt="" class="h-full w-full object-cover" />
-            <template v-else>{{ iniciais }}</template>
-          </span>
-          <span class="hidden max-w-[10rem] truncate text-sm font-medium text-slate-700 sm:inline">
-            {{ nomeExibido }}
-          </span>
-          <span class="text-xs text-slate-400 transition-transform" :class="menuAberto ? 'rotate-180' : ''">▾</span>
-        </button>
-
-        <div
-          v-if="menuAberto"
-          class="absolute right-0 top-full z-20 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
-        >
-          <NuxtLink
-            to="/perfil"
-            class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
-            @click="menuAberto = false"
+      <div class="flex items-center gap-2">
+        <div v-if="token" ref="menuRef" class="relative hidden sm:block">
+          <button
+            class="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-100"
+            @click="menuAberto = !menuAberto"
           >
-            Meu perfil
-          </NuxtLink>
-          <NuxtLink
-            to="/meus-eventos"
-            class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
-            @click="menuAberto = false"
-          >
-            Meus Eventos
-          </NuxtLink>
-          <div class="my-1 border-t border-slate-100"></div>
-          <button class="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50" @click="onLogout">
-            Sair
+            <span class="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-secondary text-xs font-bold text-white">
+              <img v-if="fotoUrl" :src="fotoUrl" alt="" class="h-full w-full object-cover" />
+              <template v-else>{{ iniciais }}</template>
+            </span>
+            <span class="hidden max-w-[10rem] truncate text-sm font-medium text-slate-700 sm:inline">
+              {{ nomeExibido }}
+            </span>
+            <span class="text-xs text-slate-400 transition-transform" :class="menuAberto ? 'rotate-180' : ''">▾</span>
           </button>
+
+          <div
+            v-if="menuAberto"
+            class="absolute right-0 top-full z-20 mt-2 w-60 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
+          >
+            <NuxtLink
+              to="/perfil"
+              class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+              @click="menuAberto = false"
+            >
+              Meu perfil
+            </NuxtLink>
+            <NuxtLink
+              to="/meus-eventos"
+              class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+              @click="menuAberto = false"
+            >
+              Meus Eventos
+            </NuxtLink>
+            <div class="my-1 border-t border-slate-100"></div>
+            <a
+              :href="organizerLink"
+              target="_blank"
+              class="flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 transition"
+              @click="menuAberto = false"
+            >
+              <span>🏆</span> Quero ser Organizador
+            </a>
+            <div class="my-1 border-t border-slate-100"></div>
+            <button class="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50" @click="onLogout">
+              Sair
+            </button>
+          </div>
         </div>
-      </div>
-      <div v-else class="flex items-center gap-2">
-        <NuxtLink to="/login" class="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100">
-          Login Atleta
-        </NuxtLink>
-        <NuxtLink to="/cadastro" class="hidden rounded-lg px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 sm:inline-block">
-          Cadastre-se
-        </NuxtLink>
-        <a
-          :href="organizerBase"
-          class="rounded-lg bg-warning px-4 py-2 text-sm font-bold uppercase tracking-wide text-primary shadow transition hover:brightness-95"
+
+        <div v-else class="flex items-center gap-1.5">
+          <NuxtLink to="/login" class="rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100">
+            Login
+          </NuxtLink>
+          <NuxtLink to="/cadastro" class="hidden rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 sm:inline-block">
+            Cadastre-se
+          </NuxtLink>
+          <a
+            :href="organizerBase"
+            class="hidden sm:inline-block rounded-lg bg-warning px-3.5 py-1.5 text-xs font-black uppercase tracking-wide text-primary shadow transition hover:brightness-95"
+          >
+            Criar evento
+          </a>
+        </div>
+
+        <button
+          type="button"
+          class="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 sm:hidden"
+          aria-label="Menu"
+          @click="menuMobileAberto = !menuMobileAberto"
         >
-          Criar evento
-        </a>
+          <span class="text-lg font-bold">{{ menuMobileAberto ? '✕' : '☰' }}</span>
+        </button>
       </div>
     </div>
 
@@ -156,6 +176,7 @@ async function onLogout() {
       <div v-if="token" class="flex flex-col gap-1 text-sm font-medium text-slate-700">
         <NuxtLink to="/perfil" class="rounded-lg px-2 py-2 hover:bg-slate-100" @click="menuMobileAberto = false">Meu perfil</NuxtLink>
         <NuxtLink to="/meus-eventos" class="rounded-lg px-2 py-2 hover:bg-slate-100" @click="menuMobileAberto = false">Meus Eventos</NuxtLink>
+        <a :href="organizerLink" target="_blank" class="rounded-lg bg-amber-50 px-2 py-2 font-bold text-amber-900 hover:bg-amber-100" @click="menuMobileAberto = false">🏆 Quero ser Organizador</a>
         <button type="button" class="rounded-lg px-2 py-2 text-left text-red-600 hover:bg-red-50" @click="onLogout(); menuMobileAberto = false">Sair</button>
       </div>
       <div v-else class="flex flex-col gap-1 text-sm font-medium text-slate-700">

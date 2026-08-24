@@ -119,8 +119,10 @@ function fechar() {
 
       <div class="relative w-full max-w-md overflow-hidden rounded-3xl bg-slate-900 text-white shadow-2xl z-[301] p-6 space-y-4">
         <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-          <div class="flex items-center gap-2">
-            <span class="text-xl">📷</span>
+          <div class="flex items-center gap-2.5">
+            <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/20 text-warning font-bold">
+              <AppIcon name="camera" size="20" class="text-warning" />
+            </span>
             <div>
               <h3 class="font-bold text-sm">Leitor de QR Code do Atleta</h3>
               <p class="text-[11px] text-slate-400">Aproxime o QR Code do e-mail do atleta</p>
@@ -128,20 +130,20 @@ function fechar() {
           </div>
           <button
             type="button"
-            class="rounded-xl bg-slate-800 p-2 text-xs font-bold text-slate-300 hover:bg-slate-700 transition"
+            class="rounded-xl bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-300 hover:bg-slate-700 transition flex items-center gap-1"
             @click="fechar"
           >
-            ✕ Fechar
+            <AppIcon name="close" size="14" /> Fechar
           </button>
         </div>
 
-        <div v-if="cameraErro" class="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs text-center">
-          ⚠️ {{ cameraErro }}
+        <div v-if="cameraErro" class="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs text-center flex items-center justify-center gap-2">
+          <AppIcon name="warning" size="16" class="text-red-400" /> {{ cameraErro }}
         </div>
 
         <div class="relative min-h-[280px] bg-slate-950 rounded-2xl overflow-hidden flex items-center justify-center border border-slate-800">
           <div v-if="cameraCarregando" class="text-xs text-slate-400 flex flex-col items-center gap-2">
-            <span class="animate-spin text-2xl">⏳</span>
+            <AppIcon name="cronometragem" size="24" class="animate-spin text-warning" />
             Iniciando câmera...
           </div>
           <div id="qr-reader-viewport" class="w-full h-full"></div>
@@ -154,3 +156,4 @@ function fechar() {
     </div>
   </Teleport>
 </template>
+

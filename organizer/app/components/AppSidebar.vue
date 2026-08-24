@@ -41,31 +41,35 @@ const linkClasse = 'flex items-center gap-2 rounded-lg px-3 py-2 text-slate-600 
     </div>
 
     <nav class="flex-1 space-y-1 px-3 py-4 text-sm font-semibold">
-      <NuxtLink to="/dashboard" :class="linkClasse" active-class="bg-accent/10 text-primary" @click="emit('fechar')">
-        <span>📊</span> Dashboard
+      <NuxtLink to="/dashboard" :class="linkClasse" active-class="bg-accent/10 text-primary font-bold" @click="emit('fechar')">
+        <AppIcon name="dashboard" size="18" class="text-slate-500" /> Dashboard
       </NuxtLink>
-      <NuxtLink to="/eventos" :class="linkClasse" active-class="bg-accent/10 text-primary" @click="emit('fechar')">
-        <span>📅</span> Meus eventos
+      <NuxtLink to="/eventos" :class="linkClasse" active-class="bg-accent/10 text-primary font-bold" @click="emit('fechar')">
+        <AppIcon name="eventos" size="18" class="text-slate-500" /> Meus eventos
       </NuxtLink>
-      <NuxtLink to="/inscritos" :class="linkClasse" active-class="bg-accent/10 text-primary" @click="emit('fechar')">
-        <span>🧾</span> Inscritos
+      <NuxtLink to="/inscritos" :class="linkClasse" active-class="bg-accent/10 text-primary font-bold" @click="emit('fechar')">
+        <AppIcon name="inscritos" size="18" class="text-slate-500" /> Inscritos
       </NuxtLink>
-      <NuxtLink to="/kits" :class="linkClasse" active-class="bg-accent/10 text-primary" @click="emit('fechar')">
-        <span>👕</span> Kits
+      <NuxtLink to="/kits" :class="linkClasse" active-class="bg-accent/10 text-primary font-bold" @click="emit('fechar')">
+        <AppIcon name="kits" size="18" class="text-slate-500" /> Kits
       </NuxtLink>
-      <NuxtLink to="/cronometragem" :class="linkClasse" active-class="bg-accent/10 text-primary" @click="emit('fechar')">
-        <span>⏱️</span> Cronometragem
+      <NuxtLink to="/cronometragem" :class="linkClasse" active-class="bg-accent/10 text-primary font-bold" @click="emit('fechar')">
+        <AppIcon name="cronometragem" size="18" class="text-slate-500" /> Cronometragem
       </NuxtLink>
-      <NuxtLink to="/resultados" :class="linkClasse" active-class="bg-accent/10 text-primary" @click="emit('fechar')">
-        <span>🏅</span> Resultados
+      <NuxtLink to="/resultados" :class="linkClasse" active-class="bg-accent/10 text-primary font-bold" @click="emit('fechar')">
+        <AppIcon name="resultados" size="18" class="text-slate-500" /> Resultados
       </NuxtLink>
-      <NuxtLink to="/checkin" :class="linkClasse" active-class="bg-accent/10 text-primary" @click="emit('fechar')">
-        <span>🎽</span> Check-in
+      <NuxtLink to="/checkin" :class="linkClasse" active-class="bg-accent/10 text-primary font-bold" @click="emit('fechar')">
+        <AppIcon name="checkin" size="18" class="text-slate-500" /> Check-in
       </NuxtLink>
-      <NuxtLink to="/financeiro" :class="linkClasse" active-class="bg-accent/10 text-primary" @click="emit('fechar')">
-        <span>💰</span> Financeiro
+      <NuxtLink to="/financeiro" :class="linkClasse" active-class="bg-accent/10 text-primary font-bold" @click="emit('fechar')">
+        <AppIcon name="financeiro" size="18" class="text-slate-500" /> Financeiro
+      </NuxtLink>
+      <NuxtLink to="/verificacao" :class="linkClasse" active-class="bg-accent/10 text-primary font-bold" @click="emit('fechar')">
+        <AppIcon name="verificacao" size="18" class="text-slate-500" /> Verificação (KYC)
       </NuxtLink>
     </nav>
+
 
     <div class="border-t border-slate-200 p-4">
       <div class="flex items-center gap-2">

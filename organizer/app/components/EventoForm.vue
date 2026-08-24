@@ -55,21 +55,25 @@ const statusOpcoes = computed(() => {
   return opcoes
 })
 
+const tipoEsporteSelecionado = ref('CORRIDA')
+
 const form = reactive({
   nome: props.evento?.nome ?? '',
   descricao: props.evento?.descricao ?? '',
   local: props.evento?.local ?? '',
   cidade: props.evento?.cidade ?? '',
   estado: props.evento?.estado ?? '',
-  dataInicio: props.evento?.dataInicio.slice(0, 10) ?? '',
-  dataFim: props.evento?.dataFim.slice(0, 10) ?? '',
-  capacidade: props.evento?.capacidade ?? undefined as number | undefined,
+  dataInicio: props.evento?.dataInicio?.slice(0, 10) ?? '',
+  dataFim: props.evento?.dataFim?.slice(0, 10) ?? '',
+  capacidade: props.evento?.capacidade ?? (undefined as number | undefined),
   regulamentoUrl: props.evento?.regulamentoUrl?.startsWith('/uploads/') ? '' : (props.evento?.regulamentoUrl ?? ''),
   termoResponsabilidade: props.evento?.termoResponsabilidade ?? '',
   retiradaKitLocal: props.evento?.retiradaKitLocal ?? '',
   retiradaKitInicio: props.evento?.retiradaKitInicio?.slice(0, 16) ?? '',
   retiradaKitFim: props.evento?.retiradaKitFim?.slice(0, 16) ?? '',
-  taxaRepassadaAtleta: props.evento?.taxaRepassadaAtleta ?? false,
+  taxaRepassadaAtleta: props.evento?.taxaRepassadaAtleta ?? true,
+  aceitaPix: props.evento?.aceitaPix ?? true,
+  aceitaCartao: props.evento?.aceitaCartao ?? true,
   status: props.evento?.status ?? 'RASCUNHO'
 })
 
@@ -89,27 +93,30 @@ function classeCampo(campo: (typeof camposObrigatorios)[number]) {
     : 'w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30'
 }
 
+const regAtual = computed(() =>
+  props.evento?.regulamentoUrl?.startsWith('/uploads/') ? '' : (props.evento?.regulamentoUrl ?? '')
+)
+
 const temAlteracoes = computed(() => {
-  if (!props.modoEdicao || !props.evento) return true
-
-  const ev = props.evento
-  const regAtual = ev.regulamentoUrl?.startsWith('/uploads/') ? '' : (ev.regulamentoUrl ?? '')
-
+  if (!props.evento) return true
   return (
-    form.nome !== (ev.nome ?? '') ||
-    form.descricao !== (ev.descricao ?? '') ||
-    form.local !== (ev.local ?? '') ||
-    form.cidade !== (ev.cidade ?? '') ||
-    form.estado !== (ev.estado ?? '') ||
-    form.dataInicio !== (ev.dataInicio?.slice(0, 10) ?? '') ||
-    form.dataFim !== (ev.dataFim?.slice(0, 10) ?? '') ||
-    form.capacidade !== (ev.capacidade ?? undefined) ||
-    form.regulamentoUrl !== regAtual ||
-    form.termoResponsabilidade !== (ev.termoResponsabilidade ?? '') ||
-    form.retiradaKitLocal !== (ev.retiradaKitLocal ?? '') ||
-    form.retiradaKitInicio !== (ev.retiradaKitInicio?.slice(0, 16) ?? '') ||
-    form.retiradaKitFim !== (ev.retiradaKitFim?.slice(0, 16) ?? '') ||
-    form.status !== (ev.status ?? 'RASCUNHO')
+    form.nome !== (props.evento.nome ?? '') ||
+    form.descricao !== (props.evento.descricao ?? '') ||
+    form.local !== (props.evento.local ?? '') ||
+    form.cidade !== (props.evento.cidade ?? '') ||
+    form.estado !== (props.evento.estado ?? '') ||
+    form.dataInicio !== (props.evento.dataInicio?.slice(0, 10) ?? '') ||
+    form.dataFim !== (props.evento.dataFim?.slice(0, 10) ?? '') ||
+    form.capacidade !== (props.evento.capacidade ?? undefined) ||
+    form.regulamentoUrl !== regAtual.value ||
+    form.termoResponsabilidade !== (props.evento.termoResponsabilidade ?? '') ||
+    form.retiradaKitLocal !== (props.evento.retiradaKitLocal ?? '') ||
+    form.retiradaKitInicio !== (props.evento.retiradaKitInicio?.slice(0, 16) ?? '') ||
+    form.retiradaKitFim !== (props.evento.retiradaKitFim?.slice(0, 16) ?? '') ||
+    form.taxaRepassadaAtleta !== (props.evento.taxaRepassadaAtleta ?? true) ||
+    form.aceitaPix !== (props.evento.aceitaPix ?? true) ||
+    form.aceitaCartao !== (props.evento.aceitaCartao ?? true) ||
+    form.status !== (props.evento.status ?? 'RASCUNHO')
   )
 })
 
@@ -130,6 +137,9 @@ watch(
       form.retiradaKitLocal = ev.retiradaKitLocal ?? ''
       form.retiradaKitInicio = ev.retiradaKitInicio?.slice(0, 16) ?? ''
       form.retiradaKitFim = ev.retiradaKitFim?.slice(0, 16) ?? ''
+      form.taxaRepassadaAtleta = ev.taxaRepassadaAtleta ?? true
+      form.aceitaPix = ev.aceitaPix ?? true
+      form.aceitaCartao = ev.aceitaCartao ?? true
       form.status = ev.status ?? 'RASCUNHO'
     }
   },
@@ -143,6 +153,11 @@ function onSubmit() {
   const faltando = camposObrigatorios.some((campo) => !form[campo])
   if (faltando) {
     erroValidacao.value = 'Preencha os campos destacados em vermelho antes de continuar.'
+    return
+  }
+
+  if (!form.aceitaPix && !form.aceitaCartao) {
+    erroValidacao.value = 'Selecione pelo menos 1 forma de pagamento (PIX ou Cartão de Crédito).'
     return
   }
 
@@ -160,7 +175,9 @@ function onSubmit() {
     retiradaKitLocal: form.retiradaKitLocal || undefined,
     retiradaKitInicio: form.retiradaKitInicio || undefined,
     retiradaKitFim: form.retiradaKitFim || undefined,
-    taxaRepassadaAtleta: form.taxaRepassadaAtleta
+    taxaRepassadaAtleta: form.taxaRepassadaAtleta,
+    aceitaPix: form.aceitaPix,
+    aceitaCartao: form.aceitaCartao
   }
   if (props.modoEdicao) payload.status = form.status
   emit('submit', payload)
@@ -169,17 +186,76 @@ function onSubmit() {
 
 <template>
   <form class="flex flex-col gap-4" novalidate @submit.prevent="onSubmit">
-    <p v-if="erroValidacao" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-      {{ erroValidacao }}
-    </p>
+    <div v-if="erroValidacao" class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-700">
+      ⚠️ {{ erroValidacao }}
+    </div>
+
+    <!-- Seção: Formas de Pagamento Aceitas -->
+    <div class="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 space-y-3">
+      <label class="block text-sm font-extrabold text-amber-950 flex items-center gap-2">
+        <span>💸</span> Formas de Pagamento Aceitas no Evento
+      </label>
+      <p class="text-xs text-slate-600">
+        Selecione quais opções estarão disponíveis para o atleta no checkout de inscrição:
+      </p>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+        <label
+          class="flex items-center gap-3 rounded-xl border p-3.5 cursor-pointer transition bg-white shadow-2xs"
+          :class="form.aceitaPix ? 'border-amber-500 ring-2 ring-amber-500/20 font-bold' : 'border-slate-200 opacity-60'"
+        >
+          <input
+            v-model="form.aceitaPix"
+            type="checkbox"
+            class="h-4 w-4 rounded text-amber-500 accent-amber-500"
+          />
+          <div class="text-xs">
+            <p class="font-extrabold text-slate-900">📱 PIX (Instantâneo)</p>
+            <p class="text-[11px] text-slate-500 font-normal">Gera QR Code e Código Copia e Cola imediato.</p>
+          </div>
+        </label>
+
+        <label
+          class="flex items-center gap-3 rounded-xl border p-3.5 cursor-pointer transition bg-white shadow-2xs"
+          :class="form.aceitaCartao ? 'border-amber-500 ring-2 ring-amber-500/20 font-bold' : 'border-slate-200 opacity-60'"
+        >
+          <input
+            v-model="form.aceitaCartao"
+            type="checkbox"
+            class="h-4 w-4 rounded text-amber-500 accent-amber-500"
+          />
+          <div class="text-xs">
+            <p class="font-extrabold text-slate-900">💳 Cartão de Crédito</p>
+            <p class="text-[11px] text-slate-500 font-normal">Permite pagamento parcelado via cartão.</p>
+          </div>
+        </label>
+      </div>
+    </div>
 
     <p v-if="props.evento?.motivoRejeicao" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
       <span class="font-semibold">Revisão pendente de ajuste:</span> {{ props.evento.motivoRejeicao }}
     </p>
 
+    <!-- Tipo do Esporte / Evento (Padrão do Site) -->
+    <div>
+      <label class="mb-1 block text-sm font-semibold text-slate-700">Tipo do evento / Esporte</label>
+      <select
+        v-model="tipoEsporteSelecionado"
+        class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+      >
+        <option value="CORRIDA">🏃 Corrida de Rua / Trail Run</option>
+        <option value="CICLISMO">🚴 Ciclismo / Mountain Bike (MTB)</option>
+        <option value="MOTOCROSS">🏍️ Motocross / Enduro / Motor</option>
+        <option value="CAMINHADA">🚶 Caminhada / Passeio</option>
+        <option value="TRIATHLON">🏊 Natação / Aquatlon / Triathlon</option>
+        <option value="FITNESS">🏋️ Crossfit / Functional Fitness</option>
+        <option value="OUTROS">🏆 Outros Esportes</option>
+      </select>
+    </div>
+
     <div>
       <label class="mb-1 block text-sm font-semibold text-slate-700">Nome do evento *</label>
-      <input v-model="form.nome" type="text" minlength="3" :class="classeCampo('nome')" />
+      <input v-model="form.nome" type="text" minlength="3" placeholder="Ex.: 1º Desafio de Ciclismo MTB" :class="classeCampo('nome')" />
       <p v-if="invalido('nome')" class="mt-1 text-xs text-red-600">Campo obrigatório.</p>
     </div>
 

@@ -7,7 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { StatusInscricao, StatusPagamento } from '../generated/prisma/enums';
+import { StatusInscricao, StatusPagamento, MetodoPagamento } from '../generated/prisma/enums';
 import { calcularValorInscricao } from '../common/calcular-valor-inscricao';
 import { CreatePagamentoDto } from './dto/create-pagamento.dto';
 
@@ -57,7 +57,21 @@ export class PagamentoService {
       throw new ConflictException('Esta inscrição já está confirmada.');
     }
 
-    const valor = await calcularValorInscricao(this.prisma, {
+    // Se já existe uma tentativa de pagamento pendente para esta inscrição com este método, reaproveita
+    const pagamentoExistente = await this.prisma.pagamento.findFirst({
+      where: {
+        inscricaoId: inscricao.id,
+        metodo: dto.metodo,
+        status: StatusPagamento.PENDENTE,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (pagamentoExistente && (pagamentoExistente.pixCopiaECola || pagamentoExistente.pixQrCodeUrl)) {
+      return pagamentoExistente;
+    }
+
+    const valorBaseInscricao = await calcularValorInscricao(this.prisma, {
       loteId: inscricao.loteId,
       modalidadeId: inscricao.categoria.modalidadeId,
       clienteId: inscricao.clienteId,
@@ -68,7 +82,18 @@ export class PagamentoService {
     const evento = inscricao.categoria.modalidade.evento;
     const organizadorWalletId = evento.organizador?.asaasWalletId;
     const comissaoPercentual = Number(evento.organizador?.comissaoPercentual ?? 10);
-    const comissaoPlataforma = valor * (comissaoPercentual / 100);
+
+    // Comissão de 10% calculada estritamente sobre o VALOR REAL do evento
+    const comissaoPlataforma = valorBaseInscricao * (comissaoPercentual / 100);
+
+    let valorCobrado = valorBaseInscricao;
+
+    if (dto.metodo === MetodoPagamento.CARTAO_CREDITO) {
+      const parcelas = Math.max(1, dto.parcelas || 1);
+      const percentualJurosAsaas = parcelas * 0.0299; // 2.99% por parcela Asaas
+      const taxaFixaCartao = 0.49;
+      valorCobrado = Number(((valorBaseInscricao + taxaFixaCartao) * (1 + percentualJurosAsaas)).toFixed(2));
+    }
 
     const nomeCliente =
       inscricao.cliente.pf?.nomeCompleto ||
@@ -84,40 +109,72 @@ export class PagamentoService {
       asaasPaymentId: `pay_mock_${randomUUID()}`,
     };
 
-    if (dto.metodo === 'PIX') {
+    if (dto.metodo === MetodoPagamento.PIX) {
       asaasRes = await this.asaasService.gerarCobrancaPix({
         inscricaoId: inscricao.id,
-        valor,
+        valor: valorCobrado,
         cliente: { nome: nomeCliente, cpfCnpj: cpfCnpjCliente, email: emailCliente },
+        organizadorWalletId,
+        comissaoPlataforma,
+      });
+    } else if (dto.metodo === MetodoPagamento.CARTAO_CREDITO) {
+      asaasRes = await this.asaasService.processarPagamentoCartao({
+        inscricaoId: inscricao.id,
+        valorTotal: valorCobrado,
+        cliente: { nome: nomeCliente, cpfCnpj: cpfCnpjCliente, email: emailCliente },
+        cartao: {
+          holderName: dto.cartaoHolderName || nomeCliente,
+          number: dto.cartaoNumero?.replace(/\D/g, '') || '4444555566667777',
+          expiryMonth: dto.cartaoMesValidade || '12',
+          expiryYear: dto.cartaoAnoValidade || '2030',
+          ccv: dto.cartaoCcv || '123',
+          cpfTitular: dto.cpfTitular || cpfCnpjCliente,
+          cep: dto.cep || (inscricao.cliente as any).endereco?.cep || '60000000',
+          numeroResidencia: dto.numeroResidencia || (inscricao.cliente as any).endereco?.numero || '100',
+        },
+        parcelas: dto.parcelas || 1,
         organizadorWalletId,
         comissaoPlataforma,
       });
     }
 
-    const pagamentoCriado = await this.prisma.pagamento.create({
-      data: {
-        inscricaoId: inscricao.id,
-        valor,
-        metodo: dto.metodo,
-        status: asaasRes.status === 'APROVADO' ? StatusPagamento.APROVADO : StatusPagamento.PENDENTE,
-        gateway: 'asaas',
-        codigoTransacao: asaasRes.asaasPaymentId,
-        asaasPaymentId: asaasRes.asaasPaymentId,
-        pixCopiaECola: asaasRes.pixCopiaECola || null,
-        pixQrCodeUrl: asaasRes.pixQrCodeUrl || null,
-      },
-    });
+    const isAprovado = asaasRes.status === 'APROVADO';
+
+    const [pagamentoCriado] = await this.prisma.$transaction([
+      this.prisma.pagamento.create({
+        data: {
+          inscricaoId: inscricao.id,
+          valor: valorCobrado,
+          metodo: dto.metodo,
+          status: isAprovado ? StatusPagamento.APROVADO : StatusPagamento.PENDENTE,
+          gateway: 'asaas',
+          codigoTransacao: asaasRes.asaasPaymentId,
+          asaasPaymentId: asaasRes.asaasPaymentId,
+          pixCopiaECola: asaasRes.pixCopiaECola || null,
+          pixQrCodeUrl: asaasRes.pixQrCodeUrl || null,
+          dataPagamento: isAprovado ? new Date() : null,
+        },
+      }),
+      ...(isAprovado
+        ? [
+            this.prisma.inscricao.update({
+              where: { id: inscricao.id },
+              data: { status: StatusInscricao.CONFIRMADA },
+            }),
+          ]
+        : []),
+    ]);
 
     this.auditLogService.log({
       categoria: CategoriaAuditLog.FINANCEIRO,
       nivel: NivelAuditLog.INFO,
-      mensagem: `Cobrança ${dto.metodo} gerada no valor de R$ ${valor.toFixed(2)}`,
+      mensagem: `Cobrança ${dto.metodo} gerada no valor de R$ ${valorCobrado.toFixed(2)}`,
       detalhes: {
         pagamentoId: pagamentoCriado.id,
         inscricaoId: inscricao.id,
         metodo: dto.metodo,
-        valotTotal: valor,
-        comissaoPlataforma: valor * (comissaoPercentual / 100),
+        valotTotal: valorCobrado,
+        comissaoPlataforma,
       },
       usuarioId,
     });

@@ -59,6 +59,14 @@ export class UpdateEventoDto {
   taxaRepassadaAtleta?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  aceitaPix?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  aceitaCartao?: boolean;
+
+  @IsOptional()
   @IsNumber()
   @Min(0.01)
   @Max(100)
