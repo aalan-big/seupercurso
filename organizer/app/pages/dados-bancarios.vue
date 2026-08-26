@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { CheckCircle, Lock } from 'lucide-vue-next'
+
 const { organizador, fetchMe, atualizarDadosBancarios } = useOrganizador()
 
 const carregando = ref(true)
@@ -53,7 +55,7 @@ async function onSalvar() {
 
     <template v-else>
       <div v-if="organizador?.asaasWalletId" class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-800 flex items-center gap-3">
-        <span class="text-xl">✅</span>
+        <CheckCircle :size="20" class="text-emerald-600" />
         <div>
           <p class="font-bold text-sm">Subconta Asaas Ativa & Verificada</p>
           <p class="text-[11px] text-emerald-700">Sua conta de repasse automático (ID: {{ organizador.asaasWalletId }}) está configurada para receber pagamentos via PIX e Cartão com liberação D+2.</p>
@@ -62,7 +64,7 @@ async function onSalvar() {
 
       <!-- Banner de Trava de Segurança de Titularidade -->
       <div class="mt-4 rounded-2xl border border-blue-200 bg-blue-50/80 p-4 text-xs text-blue-900 flex items-start gap-3 shadow-2xs">
-        <span class="text-xl">🔒</span>
+        <Lock :size="20" class="text-blue-700" />
         <div class="space-y-1">
           <p class="font-black text-sm text-blue-950">Trava de Segurança de Titularidade Ativa (PF / PJ)</p>
           <p class="text-[11px] text-blue-800 leading-relaxed">

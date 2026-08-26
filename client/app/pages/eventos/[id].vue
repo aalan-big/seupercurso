@@ -1,4 +1,23 @@
 <script setup lang="ts">
+import {
+  Flag,
+  MapPin,
+  Calendar,
+  PartyPopper,
+  CreditCard,
+  FileText,
+  Home,
+  Check,
+  Copy,
+  AlertTriangle,
+  Ticket,
+  Footprints,
+  Cake,
+  Shirt,
+  CheckCircle,
+  Clock
+} from 'lucide-vue-next'
+
 const route = useRoute()
 const eventoId = route.params.id as string
 
@@ -459,16 +478,16 @@ const bannerUrlFormatted = computed(() => {
         <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent"></div>
 
         <div class="relative z-10 mx-auto max-w-5xl px-4 w-full">
-          <span class="inline-block rounded-full bg-warning/20 border border-warning/40 px-3 py-1 text-[11px] font-black uppercase tracking-wider text-warning backdrop-blur-md mb-3">
-            🏁 Evento Esportivo Oficial
+          <span class="flex items-center gap-1.5 rounded-full bg-warning/20 border border-warning/40 px-3 py-1 text-[11px] font-black uppercase tracking-wider text-warning backdrop-blur-md mb-3 w-fit">
+            <Flag :size="12" /> Evento Esportivo Oficial
           </span>
           <h1 class="text-3xl font-black uppercase tracking-tight sm:text-5xl drop-shadow-md text-white">{{ eventoSelecionado.nome }}</h1>
           <div class="mt-3 flex flex-wrap items-center gap-4 text-xs sm:text-sm font-bold text-slate-200">
             <span class="flex items-center gap-1.5 bg-black/40 px-3 py-1.5 rounded-xl backdrop-blur-xs border border-white/10">
-              📍 {{ eventoSelecionado.local }}, {{ eventoSelecionado.cidade }}/{{ eventoSelecionado.estado }}
+              <MapPin :size="14" /> {{ eventoSelecionado.local }}, {{ eventoSelecionado.cidade }}/{{ eventoSelecionado.estado }}
             </span>
             <span class="flex items-center gap-1.5 bg-black/40 px-3 py-1.5 rounded-xl backdrop-blur-xs border border-white/10">
-              📅 {{ formatarData(eventoSelecionado.dataInicio) }}
+              <Calendar :size="14" /> {{ formatarData(eventoSelecionado.dataInicio) }}
             </span>
           </div>
         </div>
@@ -485,7 +504,7 @@ const bannerUrlFormatted = computed(() => {
             <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
               <div>
                 <h2 class="text-xl font-black text-slate-900 flex items-center gap-2">
-                  🎉 Inscrição Confirmada & Paga!
+                  <PartyPopper :size="20" /> Inscrição Confirmada & Paga!
                 </h2>
                 <p class="text-xs text-slate-500 mt-1">Seu pagamento via Cartão de Crédito foi aprovado com sucesso. Sua vaga está garantida!</p>
               </div>
@@ -538,7 +557,7 @@ const bannerUrlFormatted = computed(() => {
                   <div class="flex justify-between items-center text-xs border-b border-slate-200/80 pb-2">
                     <span class="text-slate-500 font-bold uppercase text-[10px]">Método</span>
                     <span class="font-extrabold text-slate-800 flex items-center gap-1">
-                      💳 Cartão de Crédito
+                      <CreditCard :size="14" /> Cartão de Crédito
                     </span>
                   </div>
 
@@ -582,15 +601,15 @@ const bannerUrlFormatted = computed(() => {
                 <div class="pt-1 flex flex-wrap gap-3">
                   <NuxtLink
                     to="/meus-eventos"
-                    class="flex-1 text-center rounded-xl bg-slate-900 px-5 py-3 text-xs font-bold text-white shadow-xs hover:bg-slate-800 transition"
+                    class="flex-1 flex items-center justify-center gap-1.5 text-center rounded-xl bg-slate-900 px-5 py-3 text-xs font-bold text-white shadow-xs hover:bg-slate-800 transition"
                   >
-                    📄 Ver Meus Eventos
+                    <FileText :size="14" /> Ver Meus Eventos
                   </NuxtLink>
                   <NuxtLink
                     to="/"
-                    class="rounded-xl border border-slate-300 bg-white px-5 py-3 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+                    class="flex items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-5 py-3 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
                   >
-                    🏠 Início
+                    <Home :size="14" /> Início
                   </NuxtLink>
                 </div>
               </div>
@@ -601,11 +620,13 @@ const bannerUrlFormatted = computed(() => {
           <div v-else class="rounded-3xl border border-amber-200 bg-white p-6 sm:p-8 space-y-6 shadow-md">
             <div class="flex items-center justify-between border-b border-slate-100 pb-4">
               <div>
-                <h2 class="text-xl font-black text-slate-900">🎉 Inscrição Realizada com Sucesso!</h2>
+                <h2 class="text-xl font-black text-slate-900 flex items-center gap-2">
+                  <PartyPopper :size="20" /> Inscrição Realizada com Sucesso!
+                </h2>
                 <p class="text-xs text-slate-500 mt-1">Efetue o pagamento via PIX abaixo para confirmar sua vaga instantaneamente.</p>
               </div>
-              <span class="rounded-full bg-amber-100 border border-amber-300 px-3.5 py-1 text-xs font-black text-amber-950">
-                ⏳ PIX Aguardando Pagamento
+              <span class="flex items-center gap-1.5 rounded-full bg-amber-100 border border-amber-300 px-3.5 py-1 text-xs font-black text-amber-950">
+                <Clock :size="14" /> PIX Aguardando Pagamento
               </span>
             </div>
 
@@ -642,10 +663,11 @@ const bannerUrlFormatted = computed(() => {
                     />
                     <button
                       type="button"
-                      class="rounded-xl bg-amber-500 px-4 py-2 text-xs font-black text-slate-950 shadow hover:bg-amber-400 transition shrink-0"
+                      class="flex items-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-xs font-black text-slate-950 shadow hover:bg-amber-400 transition shrink-0"
                       @click="copiarPixCode(inscricaoCriada.pixCopiaECola)"
                     >
-                      {{ pixCopiado ? '✅ Copiado!' : '📋 Copiar PIX' }}
+                      <template v-if="pixCopiado"><Check :size="14" /> Copiado!</template>
+                      <template v-else><Copy :size="14" /> Copiar PIX</template>
                     </button>
                   </div>
                 </div>
@@ -653,9 +675,9 @@ const bannerUrlFormatted = computed(() => {
                 <div class="pt-2 flex flex-wrap gap-3">
                   <NuxtLink
                     to="/meus-eventos"
-                    class="rounded-xl bg-slate-900 px-5 py-3 text-xs font-bold text-white shadow-xs hover:bg-slate-800 transition"
+                    class="flex items-center gap-1.5 rounded-xl bg-slate-900 px-5 py-3 text-xs font-bold text-white shadow-xs hover:bg-slate-800 transition"
                   >
-                    📄 Ir para Meus Eventos
+                    <FileText :size="14" /> Ir para Meus Eventos
                   </NuxtLink>
                 </div>
               </div>
@@ -689,11 +711,11 @@ const bannerUrlFormatted = computed(() => {
               <section v-if="step === 1" class="space-y-6">
                 <div>
                   <h2 class="text-xl font-black uppercase tracking-tight text-slate-900">Escolha seu Percurso & Categoria</h2>
-                  <p v-if="!loteAtivo" class="mt-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs font-bold text-amber-800">
-                    ⚠️ As inscrições para este evento não estão abertas no momento.
+                  <p v-if="!loteAtivo" class="mt-2 flex items-center gap-1.5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs font-bold text-amber-800">
+                    <AlertTriangle :size="14" /> As inscrições para este evento não estão abertas no momento.
                   </p>
                   <p v-else class="mt-1 text-xs font-bold text-emerald-700 flex items-center gap-1.5">
-                    <template v-if="loteAtivo.vagasRestantes !== null">🎟️ {{ loteAtivo.vagasRestantes }} vagas disponíveis · </template>
+                    <template v-if="loteAtivo.vagasRestantes !== null"><span class="flex items-center gap-1"><Ticket :size="14" /> {{ loteAtivo.vagasRestantes }} vagas disponíveis</span> · </template>
                     Lote encerra em {{ diasRestantesLote }} {{ diasRestantesLote === 1 ? 'dia' : 'dias' }}
                   </p>
                 </div>
@@ -721,14 +743,14 @@ const bannerUrlFormatted = computed(() => {
                       <div class="flex items-start justify-between gap-2">
                         <div>
                           <div class="flex items-center gap-1.5 flex-wrap mb-2">
-                            <span class="inline-block rounded-lg bg-slate-900 px-2.5 py-1 text-[11px] font-black uppercase tracking-wider text-warning">
-                              🏃 {{ Number(modalidade.distanciaKm) }} km
+                            <span class="flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1 text-[11px] font-black uppercase tracking-wider text-warning">
+                              <Footprints :size="12" /> {{ Number(modalidade.distanciaKm) }} km
                             </span>
                             <span
                               v-if="faixaEtariaModalidade(modalidade.idadeMinima, modalidade.idadeMaxima)"
-                              class="inline-block rounded-lg bg-amber-100 border border-amber-300 px-2 py-0.5 text-[10px] font-extrabold text-amber-900"
+                              class="flex items-center gap-1 rounded-lg bg-amber-100 border border-amber-300 px-2 py-0.5 text-[10px] font-extrabold text-amber-900"
                             >
-                              🎂 {{ faixaEtariaModalidade(modalidade.idadeMinima, modalidade.idadeMaxima) }}
+                              <Cake :size="12" /> {{ faixaEtariaModalidade(modalidade.idadeMinima, modalidade.idadeMaxima) }}
                             </span>
                           </div>
                           <h3 class="text-base font-black text-slate-900 group-hover:text-primary transition line-clamp-1">
@@ -739,7 +761,7 @@ const bannerUrlFormatted = computed(() => {
                           class="h-6 w-6 rounded-full border-2 flex items-center justify-center shrink-0 transition"
                           :class="modalidadeSelecionadaId === modalidade.id ? 'border-warning bg-warning text-primary' : 'border-slate-300'"
                         >
-                          <AppIcon v-if="modalidadeSelecionadaId === modalidade.id" name="check" size="14" />
+                          <Check v-if="modalidadeSelecionadaId === modalidade.id" :size="14" />
                         </div>
                       </div>
 
@@ -787,15 +809,15 @@ const bannerUrlFormatted = computed(() => {
                           </template>
                           <template v-if="categoria.pcd"> · PCD</template>
                         </span>
-                        <p v-if="motivoInelegibilidade(categoria)" class="mt-1 text-[11px] font-bold text-red-500">
-                          ⚠️ {{ motivoInelegibilidade(categoria) }}
+                        <p v-if="motivoInelegibilidade(categoria)" class="mt-1 flex items-center gap-1 text-[11px] font-bold text-red-500">
+                          <AlertTriangle :size="12" /> {{ motivoInelegibilidade(categoria) }}
                         </p>
                       </div>
                       <div
                         class="h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0"
                         :class="categoriaSelecionadaId === categoria.id ? 'border-warning bg-warning text-primary' : 'border-slate-300'"
                       >
-                        <AppIcon v-if="categoriaSelecionadaId === categoria.id" name="check" size="12" />
+                        <Check v-if="categoriaSelecionadaId === categoria.id" :size="12" />
                       </div>
                     </button>
                   </div>
@@ -816,7 +838,7 @@ const bannerUrlFormatted = computed(() => {
                       v-for="tam in tamanhos"
                       :key="tam"
                       type="button"
-                      class="rounded-xl border-2 px-5 py-2.5 text-xs font-black transition"
+                      class="flex items-center gap-1.5 rounded-xl border-2 px-5 py-2.5 text-xs font-black transition"
                       :class="
                         tamanhoCamisa === tam
                           ? 'border-warning bg-amber-50 text-amber-950 ring-2 ring-warning/30'
@@ -824,7 +846,7 @@ const bannerUrlFormatted = computed(() => {
                       "
                       @click="tamanhoCamisa = tamanhoCamisa === tam ? '' : tam"
                     >
-                      👕 {{ tam }}
+                      <Shirt :size="14" /> {{ tam }}
                     </button>
                   </div>
                 </div>
@@ -1129,8 +1151,8 @@ const bannerUrlFormatted = computed(() => {
                   </div>
                 </div>
 
-                <p v-if="diasRestantesLote !== null" class="mt-4 text-xs" :class="vagasBadgeClasse">
-                  <template v-if="loteAtivo?.vagasRestantes !== null">🎟️ {{ loteAtivo?.vagasRestantes }} vagas restantes · </template>
+                <p v-if="diasRestantesLote !== null" class="mt-4 flex items-center gap-1 text-xs" :class="vagasBadgeClasse">
+                  <template v-if="loteAtivo?.vagasRestantes !== null"><span class="flex items-center gap-1"><Ticket :size="12" /> {{ loteAtivo?.vagasRestantes }} vagas restantes</span> · </template>
                   Lote encerra em {{ diasRestantesLote }} {{ diasRestantesLote === 1 ? 'dia' : 'dias' }}
                 </p>
               </div>
@@ -1139,7 +1161,7 @@ const bannerUrlFormatted = computed(() => {
               <div class="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm space-y-2">
                 <div class="flex items-center justify-between text-xs font-bold text-slate-700">
                   <span class="flex items-center gap-1.5 text-slate-600">
-                    <span class="text-sm">🎟️</span> Possui cupom?
+                    <Ticket :size="14" /> Possui cupom?
                   </span>
                   <span v-if="cupomAplicadoInfo" class="text-[11px] font-black text-emerald-600 uppercase">
                     {{ cupomAplicadoInfo.percentualDesconto }}% OFF
@@ -1173,9 +1195,9 @@ const bannerUrlFormatted = computed(() => {
                     Remover
                   </button>
                 </div>
-                <p v-if="erroCupom" class="text-[11px] font-bold text-red-600">⚠️ {{ erroCupom }}</p>
-                <p v-if="cupomAplicadoInfo" class="text-[11px] font-bold text-emerald-600">
-                  ✅ Cupom <strong>{{ cupomAplicadoInfo.codigo }}</strong> aplicado!
+                <p v-if="erroCupom" class="flex items-center gap-1 text-[11px] font-bold text-red-600"><AlertTriangle :size="12" /> {{ erroCupom }}</p>
+                <p v-if="cupomAplicadoInfo" class="flex items-center gap-1 text-[11px] font-bold text-emerald-600">
+                  <CheckCircle :size="12" /> Cupom <strong>{{ cupomAplicadoInfo.codigo }}</strong> aplicado!
                 </p>
               </div>
             </aside>

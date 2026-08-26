@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Footprints, Plus, Accessibility } from 'lucide-vue-next'
 import type { ModalidadeOrganizador } from '../composables/useEventoOrganizador'
 
 const props = defineProps<{
@@ -338,8 +339,8 @@ function faixaEtaria(min: number | null, max: number | null) {
         <div v-else class="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div class="space-y-1">
             <div class="flex items-center gap-2">
-              <span class="rounded-lg bg-amber-100 px-2.5 py-1 text-xs font-black text-amber-950 uppercase tracking-wider">
-                🏃 {{ modalidade.distanciaKm }} km
+              <span class="rounded-lg bg-amber-100 px-2.5 py-1 text-xs font-black text-amber-950 uppercase tracking-wider flex items-center gap-1">
+                <Footprints :size="14" class="text-amber-950" /> {{ modalidade.distanciaKm }} km
               </span>
               <h3 class="font-extrabold text-base text-slate-900">{{ modalidade.nome }}</h3>
             </div>
@@ -423,7 +424,7 @@ function faixaEtaria(min: number | null, max: number | null) {
             <div class="rounded-2xl border border-slate-200 bg-white p-4 space-y-3 shadow-xs">
               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <h5 class="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1">
-                  <span>➕ Adicionar Categoria para {{ modalidade.nome }}</span>
+                  <Plus :size="14" class="text-slate-700" /> <span>Adicionar Categoria para {{ modalidade.nome }}</span>
                 </h5>
                 <button
                   type="button"
@@ -431,7 +432,7 @@ function faixaEtaria(min: number | null, max: number | null) {
                   class="rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 text-xs font-extrabold text-indigo-700 transition flex items-center gap-1 self-start sm:self-auto"
                   @click="onCriarCategoriasPcdPadrao(modalidade.id)"
                 >
-                  <span>♿ + Auto-Criar Categorias PCD Padrão</span>
+                  <Accessibility :size="14" class="text-indigo-700" /> <span>+ Auto-Criar Categorias PCD Padrão</span>
                 </button>
               </div>
 
@@ -479,7 +480,7 @@ function faixaEtaria(min: number | null, max: number | null) {
               <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
                 <label class="flex items-center gap-2 text-xs font-extrabold text-indigo-900 bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2 cursor-pointer transition hover:bg-indigo-100">
                   <input v-model="novaCategoria.pcd" type="checkbox" class="h-4 w-4 rounded accent-indigo-600" />
-                  <span>♿ Marcar Categoria PCD (Pessoas com Deficiência)</span>
+                  <Accessibility :size="14" class="text-indigo-700" /> <span>Marcar Categoria PCD (Pessoas com Deficiência)</span>
                 </label>
 
                 <button
@@ -511,7 +512,7 @@ function faixaEtaria(min: number | null, max: number | null) {
       <div v-else class="rounded-3xl border border-slate-200 bg-white p-5 space-y-4 shadow-sm">
         <div class="flex items-center justify-between border-b border-slate-100 pb-3">
           <h4 class="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-2">
-            <span>🏃</span> Cadastrar Novo Percurso / Modalidade da Prova
+            <Footprints :size="16" class="text-slate-800" /> Cadastrar Novo Percurso / Modalidade da Prova
           </h4>
         </div>
 

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { CheckCircle, ChevronLeft, ChevronRight, Smile } from 'lucide-vue-next'
+
 const emit = defineEmits<{
   capturado: [file: File]
   fechar: []
@@ -245,7 +247,7 @@ function concluirValida() {
         :class="{
           'border-warning animate-pulse': stepAtual === 'CENTRALIZAR',
           'border-amber-400': stepAtual === 'ESQUERDA' || stepAtual === 'DIREITA',
-          'border-yellow-300': stepAtual === 'SORRISO',
+          'border-warning': stepAtual === 'SORRISO',
           'border-emerald-400 shadow-emerald-500/50': stepAtual === 'CONCLUIDO'
         }"
       >
@@ -265,7 +267,7 @@ function concluirValida() {
 
         <!-- Badge de Concluído -->
         <div v-if="stepAtual === 'CONCLUIDO'" class="absolute inset-0 flex flex-col items-center justify-center bg-emerald-950/80 backdrop-blur-xs text-white space-y-2">
-          <span class="text-5xl animate-bounce">✅</span>
+          <CheckCircle :size="48" class="animate-bounce text-emerald-400" />
           <span class="text-xs font-black uppercase tracking-wider text-emerald-300">Face Validada com Sucesso!</span>
         </div>
       </div>
@@ -274,9 +276,9 @@ function concluirValida() {
       <div class="rounded-2xl border border-slate-800 bg-slate-800/50 p-4 space-y-1">
         <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Instrução Atual</p>
         <p class="text-sm font-black text-white flex items-center justify-center gap-2">
-          <span v-if="stepAtual === 'ESQUERDA'" class="animate-ping">👈</span>
-          <span v-if="stepAtual === 'DIREITA'" class="animate-ping">👉</span>
-          <span v-if="stepAtual === 'SORRISO'" class="animate-bounce">😊</span>
+          <ChevronLeft v-if="stepAtual === 'ESQUERDA'" :size="18" class="animate-ping text-white" />
+          <ChevronRight v-if="stepAtual === 'DIREITA'" :size="18" class="animate-ping text-white" />
+          <Smile v-if="stepAtual === 'SORRISO'" :size="18" class="animate-bounce text-white" />
           {{ instrucao }}
         </p>
       </div>

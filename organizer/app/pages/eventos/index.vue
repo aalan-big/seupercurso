@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { Plus, AlertTriangle, Flag, Footprints, MapPin, Pencil, Users } from 'lucide-vue-next'
+
 const { eventos, fetchMeusEventos } = useEventoOrganizador()
 
 const carregando = ref(true)
@@ -47,18 +49,18 @@ const statusInfo: Record<string, { texto: string; classe: string }> = {
         to="/eventos/novo"
         class="inline-flex items-center gap-2 rounded-xl bg-warning px-5 py-3 text-xs font-black uppercase tracking-wider text-primary shadow hover:brightness-95 transition"
       >
-        <span>➕ Criar Novo Evento</span>
+        <Plus :size="16" /> <span>Criar Novo Evento</span>
       </NuxtLink>
     </div>
 
     <p v-if="carregando" class="text-xs text-slate-400 py-8 text-center">Carregando seus eventos...</p>
 
-    <p v-else-if="erro" class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-700">
-      ⚠️ {{ erro }}
+    <p v-else-if="erro" class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-700 flex items-center gap-2">
+      <AlertTriangle :size="16" class="text-red-600" /> {{ erro }}
     </p>
 
     <div v-else-if="eventos.length === 0" class="rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center space-y-4">
-      <span class="text-4xl block">🏁</span>
+      <Flag :size="36" class="mx-auto text-slate-400" />
       <p class="font-bold text-sm text-slate-700">Você ainda não criou nenhum evento esportivo.</p>
       <NuxtLink
         to="/eventos/novo"
@@ -85,9 +87,9 @@ const statusInfo: Record<string, { texto: string; classe: string }> = {
           />
           <div
             v-else
-            :class="['h-full w-full flex items-center justify-center bg-gradient-to-br text-4xl', gradientePorId(evento.id)]"
+            :class="['h-full w-full flex items-center justify-center bg-gradient-to-br', gradientePorId(evento.id)]"
           >
-            🏃
+            <Footprints :size="40" class="text-white/80" />
           </div>
 
           <!-- Status Badge Flutuante -->
@@ -110,7 +112,7 @@ const statusInfo: Record<string, { texto: string; classe: string }> = {
               {{ evento.nome }}
             </h3>
             <p class="mt-1 text-xs text-slate-500 flex items-center gap-1">
-              <span>📍</span> {{ evento.cidade }}/{{ evento.estado }} · {{ evento.local }}
+              <MapPin :size="14" class="text-slate-500" /> {{ evento.cidade }}/{{ evento.estado }} · {{ evento.local }}
             </p>
           </div>
 
@@ -129,16 +131,16 @@ const statusInfo: Record<string, { texto: string; classe: string }> = {
           <div class="pt-2 flex items-center gap-2 border-t border-slate-100">
             <NuxtLink
               :to="`/eventos/${evento.id}/editar`"
-              class="flex-1 text-center rounded-xl bg-slate-900 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-primary transition"
+              class="flex-1 text-center rounded-xl bg-slate-900 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-primary transition flex items-center justify-center gap-1.5"
             >
-              ✏️ Editar Evento
+              <Pencil :size="14" /> Editar Evento
             </NuxtLink>
             <NuxtLink
               to="/inscritos"
-              class="rounded-xl bg-slate-100 p-2.5 text-xs font-bold text-slate-700 hover:bg-slate-200 transition"
+              class="rounded-xl bg-slate-100 p-2.5 text-xs font-bold text-slate-700 hover:bg-slate-200 transition flex items-center justify-center"
               title="Ver inscritos"
             >
-              👥
+              <Users :size="16" />
             </NuxtLink>
           </div>
         </div>

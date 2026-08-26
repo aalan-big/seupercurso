@@ -26,3 +26,11 @@ html, body {
     font-size: 16px !important;
   }
 }
+
+/* input[type=date] tem largura intrínseca própria no Android/iOS que não respeita
+   width:100% dentro de grid/flex — sem min-width:0 ele estoura a coluna e é cortado
+   pelo overflow-x:hidden do body, parecendo "maior que a tela" */
+input[type="date"] {
+  min-width: 0;
+  max-width: 100%;
+}

@@ -26,35 +26,36 @@ const linkClasse = 'flex items-center gap-2 rounded-lg px-3 py-2 text-slate-600 
     :class="props.aberto ? 'translate-x-0' : '-translate-x-full'"
   >
     <div class="flex items-center justify-between gap-2 border-b border-slate-200 px-6 py-5">
-      <div class="flex items-center gap-2">
-        <span class="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-base text-white">🛡️</span>
-        <div class="leading-tight">
-          <p class="text-lg font-extrabold tracking-tight text-primary">
-            Seu<span class="text-warning">Percurso</span>
-          </p>
-          <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Admin</p>
-        </div>
+      <div class="leading-tight">
+        <img src="/logo-header.png" alt="SeuPercurso" class="h-8 w-auto" />
+        <p class="mt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Admin</p>
       </div>
       <button type="button" class="rounded-lg p-1 text-slate-400 hover:bg-slate-100 md:hidden" @click="emit('fechar')">
-        ✕
+        <AppIcon name="close" size="18" />
       </button>
     </div>
 
     <nav class="flex-1 space-y-1 px-3 py-4 text-sm font-semibold">
-      <NuxtLink to="/dashboard" :class="linkClasse" active-class="bg-accent/10 text-primary" @click="emit('fechar')">
-        <span>📊</span> Dashboard
+      <NuxtLink to="/dashboard" :class="linkClasse" active-class="bg-warning/10 text-primary font-bold" @click="emit('fechar')">
+        <AppIcon name="dashboard" size="18" class="text-slate-500" /> Dashboard
       </NuxtLink>
-      <NuxtLink to="/organizadores" :class="linkClasse" active-class="bg-accent/10 text-primary" @click="emit('fechar')">
-        <span>🧑‍💼</span> Organizadores
+      <NuxtLink to="/organizadores" :class="linkClasse" active-class="bg-warning/10 text-primary font-bold" @click="emit('fechar')">
+        <AppIcon name="organizadores" size="18" class="text-slate-500" /> Organizadores
       </NuxtLink>
-      <NuxtLink to="/eventos" :class="linkClasse" active-class="bg-accent/10 text-primary" @click="emit('fechar')">
-        <span>📅</span> Eventos
+      <NuxtLink to="/eventos" :class="linkClasse" active-class="bg-warning/10 text-primary font-bold" @click="emit('fechar')">
+        <AppIcon name="eventos" size="18" class="text-slate-500" /> Eventos
       </NuxtLink>
-      <NuxtLink to="/financeiro" :class="linkClasse" active-class="bg-accent/10 text-primary" @click="emit('fechar')">
-        <span>💰</span> Financeiro
+      <NuxtLink to="/financeiro" :class="linkClasse" active-class="bg-warning/10 text-primary font-bold" @click="emit('fechar')">
+        <AppIcon name="financeiro" size="18" class="text-slate-500" /> Financeiro
       </NuxtLink>
-      <NuxtLink to="/logs" :class="linkClasse" active-class="bg-accent/10 text-primary" @click="emit('fechar')">
-        <span>📜</span> Logs do Sistema
+      <NuxtLink to="/arte" :class="linkClasse" active-class="bg-warning/10 text-primary font-bold" @click="emit('fechar')">
+        <AppIcon name="palette" size="18" class="text-slate-500" /> Arte de Eventos
+      </NuxtLink>
+      <NuxtLink to="/logs" :class="linkClasse" active-class="bg-warning/10 text-primary font-bold" @click="emit('fechar')">
+        <AppIcon name="logs" size="18" class="text-slate-500" /> Logs do Sistema
+      </NuxtLink>
+      <NuxtLink to="/precificacao" :class="linkClasse" active-class="bg-warning/10 text-primary font-bold" @click="emit('fechar')">
+        <AppIcon name="tag" size="18" class="text-slate-500" /> Precificação
       </NuxtLink>
     </nav>
   </aside>

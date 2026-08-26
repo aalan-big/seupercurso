@@ -56,9 +56,7 @@ onUnmounted(() => {
           <button type="button" class="rounded-lg p-1 text-slate-600 hover:bg-slate-100 transition" @click="menuAberto = true">
             <AppIcon name="menu" size="22" class="text-slate-700" />
           </button>
-          <span class="text-base font-extrabold tracking-tight text-primary">
-            Seu<span class="text-warning">Percurso</span>
-          </span>
+          <img src="/logo-header.png" alt="SeuPercurso" class="h-7 w-auto" />
         </div>
         <div class="hidden md:block"></div>
         <AppTopbarMenu />

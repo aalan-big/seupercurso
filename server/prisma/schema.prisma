@@ -82,6 +82,14 @@ enum StatusResultado {
   DESCLASSIFICADO
 }
 
+enum StatusSolicitacaoArte {
+  PENDENTE_PAGAMENTO
+  PAGO
+  EM_PRODUCAO
+  ENTREGUE
+  CANCELADO
+}
+
 // ---------------------------------------------------------------------------
 // Identidade e perfil
 // ---------------------------------------------------------------------------
@@ -116,16 +124,16 @@ model Cliente {
 }
 
 model ClientePf {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  clienteId      String   @unique @db.Uuid
-  nomeCompleto   String
-  cpf            String   @unique
-  dataNascimento DateTime @db.Date
-  genero         Genero
-  pcd            Boolean  @default(false)
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clienteId       String   @unique @db.Uuid
+  nomeCompleto    String
+  cpf             String   @unique
+  dataNascimento  DateTime @db.Date
+  genero          Genero
+  pcd             Boolean  @default(false)
   documentoPcdUrl String?
-  celular        String
-  nacionalidade  String   @default("Brasileira")
+  celular         String
+  nacionalidade   String   @default("Brasileira")
 
   cliente Cliente @relation(fields: [clienteId], references: [id])
 }
@@ -162,27 +170,28 @@ model Endereco {
 }
 
 model Organizador {
-  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  clienteId          String            @unique @db.Uuid
-  status             StatusOrganizador @default(PENDENTE)
-  plano              String?
-  comissaoPercentual Decimal           @db.Decimal(5, 2)
-  chavePix           String?
-  banco              String?
-  agencia            String?
-  conta              String?
-  fotoRostoUrl       String?
+  id                     String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clienteId              String            @unique @db.Uuid
+  status                 StatusOrganizador @default(PENDENTE)
+  plano                  String?
+  comissaoPercentual     Decimal           @db.Decimal(5, 2)
+  chavePix               String?
+  banco                  String?
+  agencia                String?
+  conta                  String?
+  fotoRostoUrl           String?
   documentoIdentidadeUrl String?
-  motivoRevisao      String?
-  asaasAccountId     String?           @unique
-  asaasWalletId      String?
-  asaasApiKey        String?
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
+  motivoRevisao          String?
+  asaasAccountId         String?           @unique
+  asaasWalletId          String?
+  asaasApiKey            String?
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
 
-  cliente Cliente  @relation(fields: [clienteId], references: [id])
-  eventos Evento[]
-  staff   Staff[]
+  cliente          Cliente           @relation(fields: [clienteId], references: [id])
+  eventos          Evento[]
+  staff            Staff[]
+  solicitacoesArte SolicitacaoArte[]
 }
 
 model Admin {
@@ -199,45 +208,46 @@ model Admin {
 // ---------------------------------------------------------------------------
 
 model Evento {
-  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizadorId  String       @db.Uuid
-  nome                String
-  descricao           String?
-  regulamentoUrl      String?
-  bannerUrl           String?
-  mapaPercursoUrl     String?
-  mapaEmbedUrl        String?
-  gpxUrl              String?
-  rotaGeoJson         String?
-  termoResponsabilidade String?
-  retiradaKitLocal    String?
-  retiradaKitInicio   DateTime?
-  retiradaKitFim      DateTime?
-  limiteTrocaCamisaAté DateTime?
-  camisasBloqueadas    Boolean  @default(false)
-  permiteTransferencia Boolean  @default(true)
-  apiKeyCronometragem  String?  @unique
-  aplicaDescontoIdoso    Boolean  @default(false)
-  percentualDescontoIdoso Decimal? @db.Decimal(5, 2)
-  taxaRepassadaAtleta    Boolean  @default(false)
-  aceitaPix              Boolean  @default(true)
-  aceitaCartao           Boolean  @default(true)
-  dataInicio          DateTime
-  dataFim             DateTime
-  local               String
-  cidade              String
-  estado              String
-  capacidade          Int?
-  status              StatusEvento @default(RASCUNHO)
-  motivoRejeicao      String?
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
+  id                      String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizadorId           String       @db.Uuid
+  nome                    String
+  descricao               String?
+  regulamentoUrl          String?
+  bannerUrl               String?
+  mapaPercursoUrl         String?
+  mapaEmbedUrl            String?
+  gpxUrl                  String?
+  rotaGeoJson             String?
+  termoResponsabilidade   String?
+  retiradaKitLocal        String?
+  retiradaKitInicio       DateTime?
+  retiradaKitFim          DateTime?
+  limiteTrocaCamisaAté   DateTime?
+  camisasBloqueadas       Boolean      @default(false)
+  permiteTransferencia    Boolean      @default(true)
+  apiKeyCronometragem     String?      @unique
+  aplicaDescontoIdoso     Boolean      @default(false)
+  percentualDescontoIdoso Decimal?     @db.Decimal(5, 2)
+  taxaRepassadaAtleta     Boolean      @default(false)
+  aceitaPix               Boolean      @default(true)
+  aceitaCartao            Boolean      @default(true)
+  dataInicio              DateTime
+  dataFim                 DateTime
+  local                   String
+  cidade                  String
+  estado                  String
+  capacidade              Int?
+  status                  StatusEvento @default(RASCUNHO)
+  motivoRejeicao          String?
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
 
-  organizador    Organizador    @relation(fields: [organizadorId], references: [id])
-  patrocinadores Patrocinador[]
-  modalidades    Modalidade[]
-  lotes          Lote[]
-  cupons         Cupom[]
+  organizador      Organizador       @relation(fields: [organizadorId], references: [id])
+  patrocinadores   Patrocinador[]
+  modalidades      Modalidade[]
+  lotes            Lote[]
+  cupons           Cupom[]
+  solicitacoesArte SolicitacaoArte[]
 
   @@index([status, dataInicio])
 }
@@ -390,6 +400,41 @@ model Pagamento {
   @@index([inscricaoId, status])
 }
 
+// ---------------------------------------------------------------------------
+// Solicitação de Arte / Configuração da Plataforma
+// ---------------------------------------------------------------------------
+
+model SolicitacaoArte {
+  id                 String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventoId           String                @db.Uuid
+  organizadorId      String                @db.Uuid
+  status             StatusSolicitacaoArte @default(PENDENTE_PAGAMENTO)
+  valor              Decimal               @db.Decimal(10, 2)
+  observacoes        String?
+  asaasPaymentId     String?               @unique
+  pixQrCodeUrl       String?
+  pixCopiaECola      String?
+  dataPagamento      DateTime?
+  arquivoEntregueUrl String?
+  motivoCancelamento String?
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  evento      Evento      @relation(fields: [eventoId], references: [id])
+  organizador Organizador @relation(fields: [organizadorId], references: [id])
+
+  @@index([organizadorId, status])
+  @@index([status])
+}
+
+// Config global da plataforma — 1 linha só (id fixo "default"), pra caber
+// outros preços/parâmetros configuráveis no futuro sem criar tabela nova.
+model ConfiguracaoPlataforma {
+  id              String   @id @default("default")
+  precoArteEvento Decimal  @default(150.00) @db.Decimal(10, 2)
+  updatedAt       DateTime @updatedAt
+}
+
 model Certificado {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   inscricaoId String   @unique @db.Uuid
@@ -400,14 +445,14 @@ model Certificado {
 }
 
 model Resultado {
-  id                 String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  inscricaoId        String          @unique @db.Uuid
+  id                   String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  inscricaoId          String          @unique @db.Uuid
   tempoBrutoSegundos   Int?
   tempoLiquidoSegundos Int?
-  colocacaoGeral     Int?
-  colocacaoCategoria Int?
-  colocacaoGenero    Int?
-  status             StatusResultado @default(FINALIZADO)
+  colocacaoGeral       Int?
+  colocacaoCategoria   Int?
+  colocacaoGenero      Int?
+  status               StatusResultado @default(FINALIZADO)
 
   inscricao Inscricao @relation(fields: [inscricaoId], references: [id])
 }

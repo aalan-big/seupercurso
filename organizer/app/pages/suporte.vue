@@ -1,4 +1,6 @@
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import { Mail } from 'lucide-vue-next'
+</script>
 
 <template>
   <div>
@@ -7,8 +9,8 @@
 
     <div class="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <h2 class="text-sm font-bold uppercase tracking-wide text-slate-500">Fale com a gente</h2>
-      <a href="mailto:suporte@seupercurso.com" class="mt-2 inline-block text-sm font-semibold text-secondary hover:underline">
-        ✉️ suporte@seupercurso.com
+      <a href="mailto:suporte@seupercurso.com" class="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-secondary hover:underline">
+        <Mail :size="15" /> suporte@seupercurso.com
       </a>
       <p class="mt-1 text-xs text-slate-400">Troque esse contato pelo canal de suporte real da plataforma.</p>
     </div>

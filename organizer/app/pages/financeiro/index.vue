@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { BarChart2, CheckCircle, PartyPopper, Settings, AlertTriangle, DollarSign, Tag, Lock, Banknote, Ticket, Circle, X, Zap } from 'lucide-vue-next'
 import type { FinanceiroOrganizador } from '../../composables/useFinanceiroOrganizador'
 
 const { buscar } = useFinanceiroOrganizador()
@@ -92,7 +93,7 @@ function exportarRelatorioCSV() {
           class="inline-flex items-center gap-2 rounded-xl bg-slate-800 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-slate-900 transition disabled:opacity-40"
           @click="exportarRelatorioCSV"
         >
-          📊 Exportar Relatório (CSV)
+          <BarChart2 :size="16" /> Exportar Relatório (CSV)
         </button>
       </div>
     </div>
@@ -100,7 +101,7 @@ function exportarRelatorioCSV() {
     <!-- Banner da Subconta Asaas -->
     <div v-if="organizador?.asaasWalletId" class="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-5 text-xs text-emerald-900 flex flex-wrap items-center justify-between gap-4 shadow-xs">
       <div class="flex items-center gap-3">
-        <span class="text-3xl">✅</span>
+        <CheckCircle :size="28" class="text-emerald-600" />
         <div>
           <p class="font-bold text-sm text-emerald-950">Subconta Asaas Ativa & Verificada</p>
           <p class="text-[11px] text-emerald-800 mt-0.5">
@@ -108,13 +109,13 @@ function exportarRelatorioCSV() {
           </p>
         </div>
       </div>
-      <NuxtLink to="/dados-bancarios" class="rounded-xl bg-white/90 px-3 py-1.5 text-xs font-bold text-emerald-800 border border-emerald-200 hover:bg-white transition">
-        ⚙️ Ver Dados Bancários
+      <NuxtLink to="/dados-bancarios" class="rounded-xl bg-white/90 px-3 py-1.5 text-xs font-bold text-emerald-800 border border-emerald-200 hover:bg-white transition inline-flex items-center gap-1.5">
+        <Settings :size="14" /> Ver Dados Bancários
       </NuxtLink>
     </div>
 
-    <p v-if="erro" class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-700">
-      ⚠️ {{ erro }}
+    <p v-if="erro" class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-700 flex items-center gap-2">
+      <AlertTriangle :size="16" class="text-red-600" /> {{ erro }}
     </p>
 
     <div v-if="carregando" class="py-12 text-center text-xs text-slate-400">
@@ -128,7 +129,7 @@ function exportarRelatorioCSV() {
         <div class="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-xs transition hover:shadow-md">
           <div class="flex items-center justify-between">
             <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Total Arrecadado (Bruto)</span>
-            <span class="rounded-lg bg-blue-50 p-2 text-blue-600">💵</span>
+            <span class="rounded-lg bg-blue-50 p-2 text-blue-600"><DollarSign :size="16" /></span>
           </div>
           <p class="mt-3 text-2xl font-black text-slate-900">{{ formatarValor(financeiro.totalArrecadado) }}</p>
           <p class="mt-1 text-[11px] text-slate-500">Valor bruto de todas as inscrições</p>
@@ -138,7 +139,7 @@ function exportarRelatorioCSV() {
         <div class="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-xs transition hover:shadow-md">
           <div class="flex items-center justify-between">
             <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Comissão Plataforma ({{ financeiro.comissaoPercentual }}%)</span>
-            <span class="rounded-lg bg-amber-50 p-2 text-amber-600">🏷️</span>
+            <span class="rounded-lg bg-amber-50 p-2 text-amber-600"><Tag :size="16" /></span>
           </div>
           <p class="mt-3 text-2xl font-black text-slate-700">{{ formatarValor(financeiro.comissaoPlataforma) }}</p>
           <p class="mt-1 text-[11px] text-slate-500">Taxa de intermediação do sistema</p>
@@ -149,11 +150,11 @@ function exportarRelatorioCSV() {
           <div>
             <div class="flex items-center justify-between">
               <span class="text-xs font-bold uppercase tracking-wider text-emerald-100">Saldo Líquido Disponível</span>
-              <span class="rounded-lg bg-white/20 p-2 text-white">✨</span>
+              <span class="rounded-lg bg-white/20 p-2 text-white"><Lock :size="16" /></span>
             </div>
             <p class="mt-2 text-3xl font-black text-white">{{ formatarValor(financeiro.totalRepasse) }}</p>
-            <p class="mt-1 text-[11px] text-emerald-100">
-              🔒 Trava de Titularidade Ativa: Repasse restrito ao mesmo CPF/CNPJ
+            <p class="mt-1 text-[11px] text-emerald-100 flex items-center gap-1.5">
+              <Lock :size="12" /> Trava de Titularidade Ativa: Repasse restrito ao mesmo CPF/CNPJ
             </p>
           </div>
 
@@ -164,7 +165,7 @@ function exportarRelatorioCSV() {
             class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-white py-3 text-xs font-black uppercase tracking-wider text-emerald-950 shadow hover:bg-emerald-50 transition active:scale-[0.99] disabled:opacity-50"
             @click="modalSaqueAberto = true"
           >
-            <span>💸 Solicitar Saque via PIX</span>
+            <Banknote :size="16" /> <span>Solicitar Saque via PIX</span>
           </button>
         </div>
       </div>
@@ -177,7 +178,7 @@ function exportarRelatorioCSV() {
         </div>
 
         <div v-if="financeiro.porEvento.length === 0" class="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center space-y-2">
-          <span class="text-4xl block">📊</span>
+          <BarChart2 :size="36" class="mx-auto text-slate-400" />
           <p class="font-bold text-sm text-slate-700">Nenhum pagamento aprovado até o momento.</p>
           <p class="text-xs text-slate-400">Assim que as inscrições forem confirmadas pelo atleta via PIX ou Cartão, os repasses aparecerão aqui.</p>
         </div>
@@ -206,8 +207,8 @@ function exportarRelatorioCSV() {
                   </NuxtLink>
                 </td>
                 <td class="px-5 py-4 text-center">
-                  <span class="inline-block rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
-                    🎟️ {{ evento.quantidadePagamentos }}
+                  <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
+                    <Ticket :size="13" /> {{ evento.quantidadePagamentos }}
                   </span>
                 </td>
                 <td class="px-5 py-4 font-semibold text-slate-800">{{ formatarValor(evento.totalArrecadado) }}</td>
@@ -215,7 +216,7 @@ function exportarRelatorioCSV() {
                 <td class="px-5 py-4 font-black text-emerald-600">{{ formatarValor(evento.repasse) }}</td>
                 <td class="px-5 py-4 text-center">
                   <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-bold text-emerald-800">
-                    🟢 D+0 PIX / D+2 Cartão
+                    <Circle :size="10" class="fill-emerald-500 text-emerald-500" /> D+0 PIX / D+2 Cartão
                   </span>
                 </td>
               </tr>
@@ -233,7 +234,7 @@ function exportarRelatorioCSV() {
         <div class="relative w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl z-[301] p-6 space-y-5">
           <div class="flex items-center justify-between border-b border-slate-100 pb-3">
             <div class="flex items-center gap-2">
-              <span class="text-2xl">💸</span>
+              <Banknote :size="22" class="text-emerald-600" />
               <div>
                 <h3 class="font-black text-sm text-slate-900">Solicitar Saque do Saldo Líquido</h3>
                 <p class="text-[11px] text-slate-500">Transferência via PIX da Subconta Asaas</p>
@@ -241,20 +242,20 @@ function exportarRelatorioCSV() {
             </div>
             <button
               type="button"
-              class="rounded-xl bg-slate-100 p-2 text-xs font-bold text-slate-500 hover:bg-slate-200 transition"
+              class="rounded-xl bg-slate-100 p-2 text-xs font-bold text-slate-500 hover:bg-slate-200 transition inline-flex items-center gap-1"
               @click="modalSaqueAberto = false"
             >
-              ✕ Fechar
+              <X :size="13" /> Fechar
             </button>
           </div>
 
-          <div v-if="erroSaque" class="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-700">
-            ⚠️ {{ erroSaque }}
+          <div v-if="erroSaque" class="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-700 flex items-center gap-2">
+            <AlertTriangle :size="14" class="text-red-600" /> {{ erroSaque }}
           </div>
 
           <!-- Comprovante de Sucesso -->
           <div v-if="comprovanteSaque" class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-900 space-y-2 text-center">
-            <span class="text-4xl block">🎉</span>
+            <PartyPopper :size="36" class="mx-auto text-emerald-600" />
             <p class="font-black text-sm text-emerald-950">Saque Solicitado com Sucesso!</p>
             <p class="text-[11px] text-emerald-800">
               O valor de <strong>{{ formatarValor(comprovanteSaque.valor) }}</strong> foi enviado para processamento no Asaas e cairá na sua chave PIX:
@@ -309,7 +310,7 @@ function exportarRelatorioCSV() {
               class="rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-xs hover:bg-emerald-700 transition disabled:opacity-40"
               @click="realizarSaquePix"
             >
-              🚀 {{ solicitandoSaque ? 'Processando Saque...' : 'Confirmar Transferência PIX' }}
+              <Zap :size="14" /> {{ solicitandoSaque ? 'Processando Saque...' : 'Confirmar Transferência PIX' }}
             </button>
           </div>
         </div>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { Plug, FolderOpen, BarChart2, Key, Check, RefreshCw, Download, CheckCircle, AlertTriangle, Zap } from 'lucide-vue-next'
 import { useEventoOrganizador } from '~/composables/useEventoOrganizador'
 import { useCronometragem, type InscricaoComResultado } from '~/composables/useCronometragem'
 
@@ -250,7 +251,7 @@ const resultadosFiltrados = computed(() => {
           :class="abaAtiva === 'api' ? 'bg-primary text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'"
           @click="abaAtiva = 'api'"
         >
-          <span>🔌</span> API Ao Vivo (Webhook)
+          <Plug :size="15" /> API Ao Vivo (Webhook)
         </button>
 
         <button
@@ -259,7 +260,7 @@ const resultadosFiltrados = computed(() => {
           :class="abaAtiva === 'csv' ? 'bg-primary text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'"
           @click="abaAtiva = 'csv'"
         >
-          <span>📂</span> Importar Planilha (CSV)
+          <FolderOpen :size="15" /> Importar Planilha (CSV)
         </button>
 
         <button
@@ -268,7 +269,7 @@ const resultadosFiltrados = computed(() => {
           :class="abaAtiva === 'resultados' ? 'bg-primary text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'"
           @click="abaAtiva = 'resultados'"
         >
-          <span>📊</span> Tabela de Resultados ({{ listaResultados.length }})
+          <BarChart2 :size="15" /> Tabela de Resultados ({{ listaResultados.length }})
         </button>
       </div>
 
@@ -277,7 +278,7 @@ const resultadosFiltrados = computed(() => {
         <div class="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs space-y-6">
           <div>
             <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <span>🔑</span> Chave de API de Cronometragem (Ao Vivo)
+              <Key :size="18" /> Chave de API de Cronometragem (Ao Vivo)
             </h2>
             <p class="text-xs text-slate-500 mt-1">
               Forneça essa chave para a empresa de cronometragem enviar os tempos dos chips em tempo real.
@@ -300,7 +301,8 @@ const resultadosFiltrados = computed(() => {
                   class="rounded-xl bg-slate-800 px-4 py-2 text-xs font-bold text-white hover:bg-slate-700 transition"
                   @click="copiarTexto(apiKeyAtual, 'key')"
                 >
-                  {{ copiadoKey ? '✓ Copiado!' : 'Copiar' }}
+                  <span v-if="copiadoKey" class="inline-flex items-center gap-1"><Check :size="13" /> Copiado!</span>
+                  <span v-else>Copiar</span>
                 </button>
               </div>
             </div>
@@ -319,7 +321,8 @@ const resultadosFiltrados = computed(() => {
                   class="rounded-xl bg-slate-800 px-4 py-2 text-xs font-bold text-white hover:bg-slate-700 transition"
                   @click="copiarTexto(webhookUrl, 'url')"
                 >
-                  {{ copiadoUrl ? '✓ Copiado!' : 'Copiar' }}
+                  <span v-if="copiadoUrl" class="inline-flex items-center gap-1"><Check :size="13" /> Copiado!</span>
+                  <span v-else>Copiar</span>
                 </button>
               </div>
             </div>
@@ -328,10 +331,10 @@ const resultadosFiltrados = computed(() => {
               <button
                 type="button"
                 :disabled="gerandoKey"
-                class="text-xs font-bold text-red-600 hover:underline"
+                class="text-xs font-bold text-red-600 hover:underline inline-flex items-center gap-1"
                 @click="onGerarApiKey"
               >
-                🔄 Gerar nova chave (revogar anterior)
+                <RefreshCw :size="13" /> Gerar nova chave (revogar anterior)
               </button>
             </div>
           </div>
@@ -345,7 +348,8 @@ const resultadosFiltrados = computed(() => {
               class="rounded-xl bg-secondary px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:brightness-95 disabled:opacity-50"
               @click="onGerarApiKey"
             >
-              {{ gerandoKey ? 'Gerando...' : '🔑 Gerar Chave de API de Cronometragem' }}
+              <span v-if="gerandoKey">Gerando...</span>
+              <span v-else class="inline-flex items-center gap-1.5"><Key :size="14" /> Gerar Chave de API de Cronometragem</span>
             </button>
           </div>
 
@@ -372,7 +376,7 @@ const resultadosFiltrados = computed(() => {
           <div class="flex items-center justify-between gap-4">
             <div>
               <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <span>📂</span> Importação de Resultados em Lote (CSV / TXT)
+                <FolderOpen :size="18" /> Importação de Resultados em Lote (CSV / TXT)
               </h2>
               <p class="text-xs text-slate-500 mt-1">
                 Suba o arquivo texto/CSV de tempos exportado pelo seu software de cronometragem.
@@ -383,16 +387,16 @@ const resultadosFiltrados = computed(() => {
               class="rounded-xl border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition flex items-center gap-1.5"
               @click="baixarModeloCsv"
             >
-              <span>⬇️</span> Modelo CSV de Exemplo
+              <Download :size="14" /> Modelo CSV de Exemplo
             </button>
           </div>
 
-          <div v-if="sucessoCsv" class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-bold text-emerald-800">
-            ✅ {{ sucessoCsv }}
+          <div v-if="sucessoCsv" class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-bold text-emerald-800 flex items-center gap-2">
+            <CheckCircle :size="14" class="text-emerald-600" /> {{ sucessoCsv }}
           </div>
 
-          <div v-if="erroCsv" class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-800">
-            ⚠️ {{ erroCsv }}
+          <div v-if="erroCsv" class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-800 flex items-center gap-2">
+            <AlertTriangle :size="14" class="text-red-600" /> {{ erroCsv }}
           </div>
 
           <!-- Upload por arquivo -->
@@ -423,7 +427,8 @@ const resultadosFiltrados = computed(() => {
             class="w-full sm:w-auto rounded-xl bg-primary px-6 py-3 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:brightness-95 disabled:opacity-50"
             @click="submeterCsv"
           >
-            {{ processandoCsv ? 'Processando...' : '🚀 Processar e Atualizar Resultados' }}
+            <span v-if="processandoCsv">Processando...</span>
+            <span v-else class="inline-flex items-center gap-1.5"><Zap :size="14" /> Processar e Atualizar Resultados</span>
           </button>
         </div>
       </div>
@@ -434,7 +439,7 @@ const resultadosFiltrados = computed(() => {
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <span>📊</span> Resultados do Evento
+                <BarChart2 :size="18" /> Resultados do Evento
               </h2>
               <p class="text-xs text-slate-500">
                 Lista de atletas finalizados com posições calculadas automaticamente.

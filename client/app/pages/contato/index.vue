@@ -1,4 +1,6 @@
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import { Mail, MapPin } from 'lucide-vue-next'
+</script>
 
 <template>
   <div>
@@ -18,12 +20,12 @@
           href="mailto:contato@seupercurso.com.br"
           class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
         >
-          <div class="text-3xl">✉️</div>
+          <Mail :size="32" class="text-primary" />
           <h3 class="mt-3 font-bold text-slate-800">E-mail</h3>
           <p class="mt-1 text-sm text-secondary">contato@seupercurso.com.br</p>
         </a>
         <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div class="text-3xl">📍</div>
+          <MapPin :size="32" class="text-primary" />
           <h3 class="mt-3 font-bold text-slate-800">Organizadores</h3>
           <p class="mt-1 text-sm text-slate-500">
             Quer cadastrar um evento? Envie um e-mail contando os detalhes e retornamos em breve.

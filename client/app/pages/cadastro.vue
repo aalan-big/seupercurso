@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { Footprints } from 'lucide-vue-next'
+
 const { token, register } = useAuth()
 const { createPessoaFisica, createEndereco, uploadDocumentoPcd, fetchMe } = useCliente()
 const route = useRoute()
@@ -232,8 +234,8 @@ async function onSubmitEndereco() {
       ></div>
       <div class="absolute inset-0 bg-gradient-to-br from-primary/90 via-primary/80 to-secondary/70"></div>
       <div class="relative flex h-full flex-col justify-center px-12">
-        <span class="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-2xl backdrop-blur">
-          🏃
+        <span class="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur">
+          <Footprints :size="24" />
         </span>
         <h2 class="mt-6 text-3xl font-extrabold uppercase leading-tight tracking-tight text-white">
           Junte-se aos<br />atletas do SeuPercurso

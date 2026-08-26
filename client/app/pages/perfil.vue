@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { Camera, Trophy } from 'lucide-vue-next'
+
 const { token, user } = useAuth()
 const { cliente, fetchMe, updatePessoaFisica, updateEndereco, uploadFoto, uploadDocumentoPcd } = useCliente()
 const config = useRuntimeConfig()
@@ -275,7 +277,7 @@ async function salvarEndereco() {
       <div class="mt-8 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-6 shadow-sm flex flex-wrap items-center justify-between gap-4">
         <div>
           <p class="font-black text-base text-amber-950 flex items-center gap-2">
-            <span>🏆</span> Quer organizar seus próprios eventos esportivos?
+            <Trophy :size="18" /> Quer organizar seus próprios eventos esportivos?
           </p>
           <p class="text-xs text-amber-800 mt-1">
             Crie corridas e campeonatos, gerencie inscrições e receba via PIX e Cartão com repasses automáticos Asaas.
@@ -308,7 +310,8 @@ async function salvarEndereco() {
                 class="absolute inset-0 flex items-center justify-center bg-black/50 text-xs opacity-0 transition-opacity group-hover:opacity-100"
                 :class="{ 'opacity-100': enviandoFoto }"
               >
-                {{ enviandoFoto ? '...' : '📷' }}
+                <template v-if="enviandoFoto">...</template>
+                <Camera v-else :size="18" />
               </span>
             </button>
             <input ref="fotoInputRef" type="file" accept="image/*" class="hidden" @change="onFotoSelecionada" />

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { Ban } from 'lucide-vue-next'
+
 const { eventos, fetchLista } = useAdminEventos()
 
 const filtro = ref<'AGUARDANDO_APROVACAO' | 'PUBLICADO' | 'RASCUNHO' | 'SUSPENSO' | ''>('AGUARDANDO_APROVACAO')
@@ -8,7 +10,7 @@ const erro = ref('')
 const abas = [
   { valor: 'AGUARDANDO_APROVACAO' as const, label: 'Aguardando revisão' },
   { valor: 'PUBLICADO' as const, label: 'Publicados' },
-  { valor: 'SUSPENSO' as const, label: '🛑 Barrados / Suspensos' },
+  { valor: 'SUSPENSO' as const, label: 'Barrados / Suspensos' },
   { valor: 'RASCUNHO' as const, label: 'Rascunho' },
   { valor: '' as const, label: 'Todos' }
 ]
@@ -58,10 +60,11 @@ function formatarData(iso: string) {
         v-for="aba in abas"
         :key="aba.valor"
         type="button"
-        class="shrink-0 whitespace-nowrap rounded-xl border px-4 py-2 text-sm font-bold uppercase tracking-wide transition"
+        class="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-xl border px-4 py-2 text-sm font-bold uppercase tracking-wide transition"
         :class="filtro === aba.valor ? 'border-primary bg-primary text-white' : 'border-slate-300 text-slate-600 hover:bg-slate-100'"
         @click="filtro = aba.valor"
       >
+        <Ban v-if="aba.valor === 'SUSPENSO'" :size="14" />
         {{ aba.label }}
       </button>
     </div>

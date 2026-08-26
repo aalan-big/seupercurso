@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden !important;
+  position: relative;
+  margin: 0;
+  padding: 0;
+  -webkit-text-size-adjust: 100%;
+}
+
+#__nuxt {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Evita o auto-zoom do Safari/Chrome no celular ao focar inputs */
+@media screen and (max-width: 768px) {
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  input[type="password"],
+  input[type="tel"],
+  input[type="date"],
+  input[type="time"],
+  input[type="search"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* No Chrome/Android o input[type=date] usa uma largura intrínseca própria do
+   controle nativo e ignora width/max-width normais, estourando a tela dentro
+   de grid/flex. "width:1px" força o navegador a abandonar essa largura
+   intrínseca e "min-width:100%" faz o campo voltar a ocupar o container —
+   sem remover a aparência nativa (mantém o ícone do calendário). */
+input[type="date"] {
+  width: 1px;
+  min-width: 100%;
+  box-sizing: border-box;
+}
+
+/* input[type=file] tem o mesmo problema quando fica ao lado de outro elemento
+   num flex/grid: sem min-width:0 ele não encolhe e estoura a tela no celular. */
+input[type="file"] {
+  min-width: 0;
+  max-width: 100%;
+}

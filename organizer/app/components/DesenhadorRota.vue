@@ -51,6 +51,19 @@ async function buscarCoordenadasCidade() {
   }
 }
 
+// SVGs inline (mesmos paths do lucide-vue-next) usados no HTML cru dos marcadores do Leaflet,
+// já que o mapa não roda dentro da árvore de render do Vue e não pode receber componentes.
+const ICONE_SVG_MARCADOR: Record<string, string> = {
+  LARGADA:
+    '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>',
+  HIDRATACAO:
+    '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg>',
+  RETORNO:
+    '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>',
+  CHEGADA:
+    '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528"/></svg>'
+}
+
 let leafletMap: any = null
 let polylineLayer: any = null
 let markersLayerGroup: any = null
@@ -141,10 +154,10 @@ function inicializarMapaLeaflet() {
       pontos.value.push({ lat, lng })
     } else {
       let titulo = 'Ponto de Apoio'
-      if (modoAtual.value === 'largada') titulo = '🟢 Largada'
-      if (modoAtual.value === 'hidratacao') titulo = '💧 Hidratação'
-      if (modoAtual.value === 'retorno') titulo = '🔄 Retorno'
-      if (modoAtual.value === 'chegada') titulo = '🏁 Chegada'
+      if (modoAtual.value === 'largada') titulo = 'Largada'
+      if (modoAtual.value === 'hidratacao') titulo = 'Hidratação'
+      if (modoAtual.value === 'retorno') titulo = 'Retorno'
+      if (modoAtual.value === 'chegada') titulo = 'Chegada'
 
       marcadores.value.push({
         id: Date.now().toString(),
@@ -193,7 +206,7 @@ function atualizarDesenhoMapaLeaflet() {
 
   marcadores.value.forEach((m) => {
     const iconHtml = `<div class="rounded-full bg-slate-900 border-2 border-amber-400 text-white font-black text-xs px-2.5 py-1 shadow-2xl flex items-center gap-1 whitespace-nowrap">
-      <span>${m.tipo === 'LARGADA' ? '🟢' : m.tipo === 'HIDRATACAO' ? '💧' : m.tipo === 'RETORNO' ? '🔄' : '🏁'}</span>
+      <span class="text-amber-400">${ICONE_SVG_MARCADOR[m.tipo] || ICONE_SVG_MARCADOR.CHEGADA}</span>
       <span>${m.titulo}</span>
     </div>`
     const customIcon = L.divIcon({

@@ -13,8 +13,8 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     public: {
-      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://192.168.1.5:3000',
-      organizerBase: process.env.NUXT_PUBLIC_ORGANIZER_BASE || 'http://192.168.1.5:3002'
+      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:3000',
+      organizerBase: process.env.NUXT_PUBLIC_ORGANIZER_BASE || 'http://localhost:3002'
     }
   }
 })

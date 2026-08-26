@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import { ArrowLeft, Search, Camera, ZoomIn, FileText, Percent } from 'lucide-vue-next'
 import type { OrganizadorAdmin } from '../../composables/useAdminOrganizadores'
 
 const route = useRoute()
 const config = useRuntimeConfig()
-const { buscar, aprovar, rejeitar, suspender } = useAdminOrganizadores()
+const { buscar, aprovar, rejeitar, suspender, atualizarComissao } = useAdminOrganizadores()
 
 const organizador = ref<OrganizadorAdmin | null>(null)
 const carregando = ref(true)
@@ -13,6 +14,36 @@ const sucesso = ref('')
 
 const mostrarMotivo = ref<'rejeitar' | 'suspender' | null>(null)
 const motivo = ref('')
+
+const editandoComissao = ref(false)
+const novaComissao = ref(10)
+const salvandoComissao = ref(false)
+
+function abrirEdicaoComissao() {
+  if (!organizador.value) return
+  novaComissao.value = Number(organizador.value.comissaoPercentual)
+  editandoComissao.value = true
+}
+
+async function salvarComissao() {
+  if (!organizador.value) return
+  if (novaComissao.value < 0 || novaComissao.value > 100) {
+    erro.value = 'A comissão deve ser entre 0% e 100%.'
+    return
+  }
+  erro.value = ''
+  sucesso.value = ''
+  salvandoComissao.value = true
+  try {
+    organizador.value = await atualizarComissao(route.params.id as string, novaComissao.value)
+    sucesso.value = `Comissão atualizada para ${novaComissao.value}%.`
+    editandoComissao.value = false
+  } catch (e) {
+    erro.value = extrairErro(e)
+  } finally {
+    salvandoComissao.value = false
+  }
+}
 
 async function carregar() {
   erro.value = ''
@@ -28,15 +59,9 @@ async function carregar() {
 
 onMounted(carregar)
 
-const fotoRostoUrl = computed(() => {
-  if (!organizador.value?.fotoRostoUrl) return null
-  return `${config.public.apiBase}${organizador.value.fotoRostoUrl}`
-})
+const fotoRostoUrl = computed(() => urlFoto(organizador.value?.fotoRostoUrl, config.public.apiBase as string))
 
-const documentoUrl = computed(() => {
-  if (!organizador.value?.documentoIdentidadeUrl) return null
-  return `${config.public.apiBase}${organizador.value.documentoIdentidadeUrl}`
-})
+const documentoUrl = computed(() => urlFoto(organizador.value?.documentoIdentidadeUrl, config.public.apiBase as string))
 
 const ehPdf = computed(() => documentoUrl.value?.toLowerCase().endsWith('.pdf'))
 
@@ -90,7 +115,9 @@ async function confirmarMotivo() {
 
 <template>
   <div>
-    <NuxtLink to="/organizadores" class="text-sm font-semibold text-secondary hover:underline">← Voltar</NuxtLink>
+    <NuxtLink to="/organizadores" class="inline-flex items-center gap-1 text-sm font-semibold text-secondary hover:underline">
+      <ArrowLeft :size="16" /> Voltar
+    </NuxtLink>
 
     <p v-if="erro" class="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ erro }}</p>
     <p v-if="sucesso" class="mt-4 rounded-lg border border-accent/30 bg-accent/10 px-4 py-3 text-sm text-accent">{{ sucesso }}</p>
@@ -99,8 +126,8 @@ async function confirmarMotivo() {
 
     <template v-else-if="organizador">
       <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <h1 class="text-2xl font-extrabold tracking-tight text-primary">{{ nomeExibicao }}</h1>
-        <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-slate-600">
+        <h1 class="min-w-0 break-words text-2xl font-extrabold tracking-tight text-primary">{{ nomeExibicao }}</h1>
+        <span class="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-slate-600">
           {{ organizador.status }}
         </span>
       </div>
@@ -134,37 +161,93 @@ async function confirmarMotivo() {
           <div v-if="endereco" class="mt-4 border-t border-slate-100 pt-4 text-sm text-slate-600">
             {{ endereco.logradouro }}, {{ endereco.numero }} — {{ endereco.bairro }}, {{ endereco.cidade }}/{{ endereco.estado }} — {{ endereco.cep }}
           </div>
+
+          <!-- Comissão da Plataforma (editável) -->
+          <div class="mt-4 border-t border-slate-100 pt-4">
+            <h3 class="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">
+              <Percent :size="14" /> Comissão da Plataforma
+            </h3>
+            <p class="mt-1 text-[11px] text-slate-400">
+              Use uma % menor (ou 0%) pra dar desconto de boas-vindas a um organizador novo, por exemplo no primeiro evento dele.
+            </p>
+
+            <div v-if="!editandoComissao" class="mt-2 flex items-center gap-3">
+              <span class="text-xl font-black text-slate-900">{{ Number(organizador.comissaoPercentual) }}%</span>
+              <button
+                type="button"
+                class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-slate-600 transition hover:bg-slate-100"
+                @click="abrirEdicaoComissao"
+              >
+                Alterar
+              </button>
+            </div>
+
+            <div v-else class="mt-2 flex flex-wrap items-center gap-2">
+              <div class="relative">
+                <input
+                  v-model.number="novaComissao"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.5"
+                  class="w-28 rounded-lg border border-slate-300 py-1.5 pl-3 pr-7 text-sm font-bold focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                />
+                <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
+              </div>
+              <button
+                type="button"
+                :disabled="salvandoComissao"
+                class="rounded-lg bg-accent px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-white transition hover:brightness-95 disabled:opacity-50"
+                @click="salvarComissao"
+              >
+                {{ salvandoComissao ? 'Salvando...' : 'Salvar' }}
+              </button>
+              <button
+                type="button"
+                class="rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-slate-500 hover:bg-slate-100"
+                @click="editandoComissao = false"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- Verificação KYC (Selfie vs Documento Oficial) -->
         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
-          <h2 class="text-sm font-bold uppercase tracking-wide text-slate-500">🔍 Verificação de Identidade (KYC)</h2>
+          <h2 class="inline-flex items-center gap-1.5 text-sm font-bold uppercase tracking-wide text-slate-500">
+            <Search :size="16" /> Verificação de Identidade (KYC)
+          </h2>
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <!-- 1. Selfie / Foto do Rosto -->
             <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 flex flex-col justify-between">
-              <span class="text-xs font-bold uppercase text-slate-600 mb-2 block">📸 Foto do Rosto (Selfie)</span>
+              <span class="mb-2 inline-flex items-center gap-1 text-xs font-bold uppercase text-slate-600">
+                <Camera :size="14" /> Foto do Rosto (Selfie)
+              </span>
               <div v-if="!fotoRostoUrl" class="rounded-lg border border-dashed border-slate-300 p-6 text-center text-xs text-slate-400">
                 Foto do rosto não enviada.
               </div>
               <a v-else :href="fotoRostoUrl" target="_blank" rel="noopener" class="block text-center">
                 <img :src="fotoRostoUrl" alt="Foto do Rosto (Selfie)" class="max-h-56 w-full rounded-lg border border-slate-200 object-cover" />
-                <span class="mt-2 inline-block text-[11px] font-bold text-blue-600 hover:underline">🔍 Ampliar Selfie</span>
+                <span class="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:underline"><ZoomIn :size="12" /> Ampliar Selfie</span>
               </a>
             </div>
 
             <!-- 2. Documento de Identidade -->
             <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 flex flex-col justify-between">
-              <span class="text-xs font-bold uppercase text-slate-600 mb-2 block">📄 Documento Oficial (RG/CNH)</span>
+              <span class="mb-2 inline-flex items-center gap-1 text-xs font-bold uppercase text-slate-600">
+                <FileText :size="14" /> Documento Oficial (RG/CNH)
+              </span>
               <div v-if="!documentoUrl" class="rounded-lg border border-dashed border-slate-300 p-6 text-center text-xs text-slate-400">
                 Documento oficial não enviado.
               </div>
-              <a v-else-if="ehPdf" :href="documentoUrl" target="_blank" rel="noopener" class="inline-block text-xs font-bold text-blue-600 hover:underline p-4 text-center">
-                📄 Abrir Documento em PDF
+              <a v-else-if="ehPdf" :href="documentoUrl" target="_blank" rel="noopener" class="inline-flex items-center gap-1 p-4 text-center text-xs font-bold text-blue-600 hover:underline">
+                <FileText :size="14" /> Abrir Documento em PDF
               </a>
               <a v-else :href="documentoUrl" target="_blank" rel="noopener" class="block text-center">
                 <img :src="documentoUrl" alt="Documento de Identidade" class="max-h-56 w-full rounded-lg border border-slate-200 object-contain" />
-                <span class="mt-2 inline-block text-[11px] font-bold text-blue-600 hover:underline">🔍 Ampliar Documento</span>
+                <span class="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:underline"><ZoomIn :size="12" /> Ampliar Documento</span>
               </a>
             </div>
           </div>

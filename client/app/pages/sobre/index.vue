@@ -1,4 +1,6 @@
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import { Target, Zap, Trophy } from 'lucide-vue-next'
+</script>
 
 <template>
   <div>
@@ -21,17 +23,17 @@
 
       <div class="mt-12 grid gap-6 sm:grid-cols-3">
         <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div class="text-3xl">🎯</div>
+          <Target :size="32" class="text-primary" />
           <h3 class="mt-3 font-bold text-slate-800">Eventos verificados</h3>
           <p class="mt-1 text-sm text-slate-500">Organizadores reais, informações claras e sem surpresas na hora da inscrição.</p>
         </div>
         <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div class="text-3xl">⚡</div>
+          <Zap :size="32" class="text-primary" />
           <h3 class="mt-3 font-bold text-slate-800">Inscrição simples</h3>
           <p class="mt-1 text-sm text-slate-500">Poucos passos entre encontrar o evento ideal e garantir sua vaga.</p>
         </div>
         <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div class="text-3xl">🏆</div>
+          <Trophy :size="32" class="text-primary" />
           <h3 class="mt-3 font-bold text-slate-800">Comunidade ativa</h3>
           <p class="mt-1 text-sm text-slate-500">Cada percurso é uma conquista — celebramos cada atleta que cruza a linha.</p>
         </div>

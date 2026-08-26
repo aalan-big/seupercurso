@@ -1,16 +1,40 @@
 <script setup lang="ts">
+import { BarChart2, Trophy, X, Menu } from 'lucide-vue-next'
+
 const { token, user, fetchMe, logout } = useAuth()
 const { cliente, fetchMe: fetchClienteMe } = useCliente()
+const { organizador, fetchMe: fetchOrganizadorMe } = useOrganizador()
 const config = useRuntimeConfig()
 
-const organizerBase = config.public.organizerBase as string
+const organizerBase = computed(() => {
+  let base = config.public.organizerBase as string
+  if (import.meta.client && window.location.hostname && base.includes('localhost')) {
+    base = base.replace('localhost', window.location.hostname)
+  }
+  return base
+})
 
 const organizerLink = computed(() => {
-  if (token.value) {
-    return `${organizerBase}/onboarding?token=${encodeURIComponent(token.value)}`
+  const tokenParam = token.value ? `?token=${encodeURIComponent(token.value)}` : ''
+  if (organizador.value?.status === 'APROVADO') {
+    return `${organizerBase.value}/dashboard${tokenParam}`
   }
-  return `${organizerBase}/cadastro`
+  if (token.value) {
+    return `${organizerBase.value}/onboarding${tokenParam}`
+  }
+  return `${organizerBase.value}/cadastro`
 })
+
+const verificandoOrganizador = ref(true)
+
+const organizerMenuLabel = computed(() => {
+  if (verificandoOrganizador.value) return '...'
+  if (organizador.value?.status === 'APROVADO') return 'Painel do Organizador'
+  if (organizador.value) return 'Status do Cadastro de Organizador'
+  return 'Quero ser Organizador'
+})
+
+const organizerMenuIcon = computed(() => (organizador.value ? BarChart2 : Trophy))
 
 const menuAberto = ref(false)
 
@@ -36,20 +60,34 @@ const iniciais = computed(() => {
 })
 
 onMounted(async () => {
-  if (token.value && !user.value) {
-    try {
-      await fetchMe()
-    } catch {
-      logout()
-    }
+  if (!token.value) {
+    verificandoOrganizador.value = false
+    document.addEventListener('click', onClickFora)
+    return
   }
-  if (token.value && !cliente.value) {
-    try {
-      await fetchClienteMe()
-    } catch {
-      // perfil de atleta ainda não completado — mantém o e-mail como fallback
-    }
+
+  const tarefas: Promise<unknown>[] = []
+
+  if (!user.value) {
+    tarefas.push(fetchMe().catch(() => logout()))
   }
+  if (!cliente.value) {
+    tarefas.push(
+      fetchClienteMe().catch(() => {
+        // perfil de atleta ainda não completado — mantém o e-mail como fallback
+      })
+    )
+  }
+  if (!organizador.value) {
+    tarefas.push(
+      fetchOrganizadorMe().catch(() => {
+        // conta ainda não solicitou cadastro de organizador
+      })
+    )
+  }
+
+  await Promise.all(tarefas)
+  verificandoOrganizador.value = false
   document.addEventListener('click', onClickFora)
 })
 
@@ -73,9 +111,8 @@ async function onLogout() {
 <template>
   <header class="sticky top-0 z-50 border-b border-slate-200 bg-white">
     <div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-      <NuxtLink to="/" class="flex items-center gap-2 text-xl font-extrabold tracking-tight">
-        <span class="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-base text-white">🏃</span>
-        <span class="text-primary">Seu<span class="text-warning">Percurso</span></span>
+      <NuxtLink to="/" class="flex items-center gap-2">
+        <img src="/logo-header.png" alt="SeuPercurso" class="h-8 w-auto sm:h-9" />
       </NuxtLink>
 
       <nav class="hidden gap-6 text-sm font-semibold uppercase tracking-wide text-slate-600 sm:flex">
@@ -127,7 +164,7 @@ async function onLogout() {
               class="flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 transition"
               @click="menuAberto = false"
             >
-              <span>🏆</span> Quero ser Organizador
+              <component :is="organizerMenuIcon" :size="14" /> {{ organizerMenuLabel }}
             </a>
             <div class="my-1 border-t border-slate-100"></div>
             <button class="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50" @click="onLogout">
@@ -157,7 +194,8 @@ async function onLogout() {
           aria-label="Menu"
           @click="menuMobileAberto = !menuMobileAberto"
         >
-          <span class="text-lg font-bold">{{ menuMobileAberto ? '✕' : '☰' }}</span>
+          <X v-if="menuMobileAberto" :size="20" />
+          <Menu v-else :size="20" />
         </button>
       </div>
     </div>
@@ -176,7 +214,7 @@ async function onLogout() {
       <div v-if="token" class="flex flex-col gap-1 text-sm font-medium text-slate-700">
         <NuxtLink to="/perfil" class="rounded-lg px-2 py-2 hover:bg-slate-100" @click="menuMobileAberto = false">Meu perfil</NuxtLink>
         <NuxtLink to="/meus-eventos" class="rounded-lg px-2 py-2 hover:bg-slate-100" @click="menuMobileAberto = false">Meus Eventos</NuxtLink>
-        <a :href="organizerLink" target="_blank" class="rounded-lg bg-amber-50 px-2 py-2 font-bold text-amber-900 hover:bg-amber-100" @click="menuMobileAberto = false">🏆 Quero ser Organizador</a>
+        <a :href="organizerLink" target="_blank" class="flex items-center gap-2 rounded-lg bg-amber-50 px-2 py-2 font-bold text-amber-900 hover:bg-amber-100" @click="menuMobileAberto = false"><component :is="organizerMenuIcon" :size="14" /> {{ organizerMenuLabel }}</a>
         <button type="button" class="rounded-lg px-2 py-2 text-left text-red-600 hover:bg-red-50" @click="onLogout(); menuMobileAberto = false">Sair</button>
       </div>
       <div v-else class="flex flex-col gap-1 text-sm font-medium text-slate-700">

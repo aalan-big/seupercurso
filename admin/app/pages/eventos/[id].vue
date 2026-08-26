@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ArrowLeft, Ban, FileText, CheckCircle } from 'lucide-vue-next'
 import type { EventoAdmin } from '../../composables/useAdminEventos'
 
 const route = useRoute()
@@ -30,7 +31,7 @@ async function carregar() {
 onMounted(carregar)
 
 function urlMidia(caminho: string | null) {
-  return caminho ? `${config.public.apiBase}${caminho}` : null
+  return urlFoto(caminho, config.public.apiBase as string)
 }
 
 function formatarData(iso: string) {
@@ -90,7 +91,9 @@ async function confirmarSuspensao() {
 
 <template>
   <div>
-    <NuxtLink to="/eventos" class="text-sm font-semibold text-secondary hover:underline">← Voltar</NuxtLink>
+    <NuxtLink to="/eventos" class="inline-flex items-center gap-1 text-sm font-semibold text-secondary hover:underline">
+      <ArrowLeft :size="16" /> Voltar
+    </NuxtLink>
 
     <p v-if="erro" class="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{{ erro }}</p>
     <p v-if="sucesso" class="mt-4 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{{ sucesso }}</p>
@@ -99,12 +102,13 @@ async function confirmarSuspensao() {
 
     <template v-else-if="evento">
       <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <h1 class="text-2xl font-extrabold tracking-tight text-primary">{{ evento.nome }}</h1>
+        <h1 class="min-w-0 break-words text-2xl font-extrabold tracking-tight text-primary">{{ evento.nome }}</h1>
         <span
-          class="rounded-full px-3 py-1 text-xs font-black uppercase tracking-wide"
+          class="inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-xs font-black uppercase tracking-wide"
           :class="evento.status === 'SUSPENSO' ? 'bg-red-500 text-white' : 'bg-slate-100 text-slate-600'"
         >
-          {{ evento.status === 'SUSPENSO' ? '🛑 BARRADO / SUSPENSO' : evento.status }}
+          <Ban v-if="evento.status === 'SUSPENSO'" :size="14" />
+          {{ evento.status === 'SUSPENSO' ? 'BARRADO / SUSPENSO' : evento.status }}
         </span>
       </div>
       <p class="text-sm text-slate-500">Organizador: {{ nomeOrganizador() }}</p>
@@ -133,9 +137,9 @@ async function confirmarSuspensao() {
           :href="urlMidia(evento.regulamentoUrl)!"
           target="_blank"
           rel="noopener"
-          class="mt-4 inline-block text-sm font-semibold text-secondary hover:underline"
+          class="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-secondary hover:underline"
         >
-          📄 Ver regulamento
+          <FileText :size="16" /> Ver regulamento
         </a>
       </div>
 
@@ -145,20 +149,20 @@ async function confirmarSuspensao() {
           v-if="evento.status !== 'PUBLICADO'"
           type="button"
           :disabled="processando"
-          class="rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-black uppercase tracking-wide text-white transition hover:bg-emerald-700 disabled:opacity-50 shadow-xs"
+          class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-black uppercase tracking-wide text-white transition hover:bg-emerald-700 disabled:opacity-50 shadow-xs"
           @click="onAprovar"
         >
-          🟢 {{ evento.status === 'SUSPENSO' ? 'Desbloquear & Publicar' : 'Aprovar & Publicar' }}
+          <CheckCircle :size="16" /> {{ evento.status === 'SUSPENSO' ? 'Desbloquear & Publicar' : 'Aprovar & Publicar' }}
         </button>
 
         <button
           v-if="evento.status !== 'SUSPENSO'"
           type="button"
           :disabled="processando"
-          class="rounded-xl bg-red-600 px-4 py-2.5 text-xs font-black uppercase tracking-wide text-white transition hover:bg-red-700 disabled:opacity-50 shadow-xs"
+          class="inline-flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2.5 text-xs font-black uppercase tracking-wide text-white transition hover:bg-red-700 disabled:opacity-50 shadow-xs"
           @click="mostrarMotivoSuspensao = true; mostrarMotivoRejeicao = false; motivo = ''"
         >
-          🛑 Barrar / Suspender Evento
+          <Ban :size="16" /> Barrar / Suspender Evento
         </button>
 
         <button

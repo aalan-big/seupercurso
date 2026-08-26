@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { Flag } from 'lucide-vue-next'
+
 const fotos = ['/hero-corrida.jpg', '/hero-moto.jpg', '/hero-ciclismo.jpg']
 const fotoAtual = ref(0)
 let intervaloFotos: ReturnType<typeof setInterval> | undefined
@@ -24,8 +26,8 @@ onUnmounted(() => clearInterval(intervaloFotos))
       ></div>
       <div class="absolute inset-0 bg-gradient-to-br from-primary/90 via-primary/80 to-secondary/70"></div>
       <div class="relative flex h-full flex-col justify-center px-12">
-        <span class="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-2xl backdrop-blur">
-          🏁
+        <span class="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 backdrop-blur">
+          <Flag :size="22" class="text-white" />
         </span>
         <h2 class="mt-6 text-3xl font-extrabold uppercase leading-tight tracking-tight text-white">
           Organize eventos<br />com o SeuPercurso

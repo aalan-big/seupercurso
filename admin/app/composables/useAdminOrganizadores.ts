@@ -78,5 +78,12 @@ export function useAdminOrganizadores() {
     })
   }
 
-  return { organizadores, fetchLista, buscar, aprovar, rejeitar, suspender }
+  async function atualizarComissao(id: string, comissaoPercentual: number) {
+    return api<OrganizadorAdmin>(`/admin/organizadores/${id}/comissao`, {
+      method: 'POST',
+      body: { comissaoPercentual }
+    })
+  }
+
+  return { organizadores, fetchLista, buscar, aprovar, rejeitar, suspender, atualizarComissao }
 }

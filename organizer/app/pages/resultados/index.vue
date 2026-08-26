@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { Download, Medal, GraduationCap, AlertTriangle, CheckCircle, BarChart2, Flag, Zap } from 'lucide-vue-next'
+
 const { eventos, fetchMeusEventos } = useEventoOrganizador()
 const { resultados, fetchResultados, importarResultados, gerarCertificados } = useResultadosOrganizador()
 
@@ -131,7 +133,7 @@ const melhorTempo = computed(() => {
           class="inline-flex items-center gap-2 rounded-xl bg-slate-800 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-slate-900 transition"
           @click="baixarPlanilhaModeloCSV"
         >
-          📥 Baixar Planilha Modelo (.CSV)
+          <Download :size="16" /> Baixar Planilha Modelo (.CSV)
         </button>
       </div>
     </div>
@@ -140,7 +142,7 @@ const melhorTempo = computed(() => {
 
     <template v-else-if="eventos.length === 0">
       <div class="rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center space-y-3">
-        <span class="text-4xl block">🏅</span>
+        <Medal :size="36" class="mx-auto text-slate-400" />
         <p class="font-bold text-sm text-slate-700">Você ainda não possui eventos cadastrados.</p>
       </div>
     </template>
@@ -164,7 +166,7 @@ const melhorTempo = computed(() => {
             <label
               class="inline-flex items-center gap-2 cursor-pointer rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-white shadow hover:bg-slate-800 transition"
             >
-              <span>📥 {{ importando ? 'Importando Planilha...' : 'Importar Resultados (CSV)' }}</span>
+              <Download :size="14" /> <span>{{ importando ? 'Importando Planilha...' : 'Importar Resultados (CSV)' }}</span>
               <input type="file" accept=".csv,text/csv" class="hidden" :disabled="importando" @change="onImportar" />
             </label>
 
@@ -174,7 +176,7 @@ const melhorTempo = computed(() => {
               class="inline-flex items-center gap-2 rounded-xl bg-warning px-4 py-2.5 text-xs font-black uppercase tracking-wider text-primary shadow hover:brightness-95 transition disabled:opacity-40"
               @click="onGerarCertificados"
             >
-              <span>🎓 {{ gerando ? 'Gerando Certificados...' : 'Gerar Certificados em Massa' }}</span>
+              <GraduationCap :size="14" /> <span>{{ gerando ? 'Gerando Certificados...' : 'Gerar Certificados em Massa' }}</span>
             </button>
           </div>
         </div>
@@ -185,20 +187,20 @@ const melhorTempo = computed(() => {
       </div>
 
       <!-- Alertas de Feedback -->
-      <p v-if="erro" class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-700">
-        ⚠️ {{ erro }}
+      <p v-if="erro" class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-700 flex items-center gap-2">
+        <AlertTriangle :size="16" class="text-red-600" /> {{ erro }}
       </p>
-      <p v-if="sucesso" class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-bold text-emerald-800">
-        ✅ {{ sucesso }}
+      <p v-if="sucesso" class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-bold text-emerald-800 flex items-center gap-2">
+        <CheckCircle :size="16" class="text-emerald-600" /> {{ sucesso }}
       </p>
 
       <div
         v-if="relatorioImportacao"
         class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-900 space-y-1"
       >
-        <p class="font-bold">📊 Importação Concluída: {{ relatorioImportacao.processados }} de {{ relatorioImportacao.totalLinhas }} atletas processados com sucesso.</p>
+        <p class="font-bold flex items-center gap-1.5"><BarChart2 :size="14" /> Importação Concluída: {{ relatorioImportacao.processados }} de {{ relatorioImportacao.totalLinhas }} atletas processados com sucesso.</p>
         <div v-if="relatorioImportacao.erros.length > 0" class="mt-2 text-red-700 space-y-0.5">
-          <p v-for="e in relatorioImportacao.erros" :key="e.linha">⚠️ Linha {{ e.linha }}: {{ e.motivo }}</p>
+          <p v-for="e in relatorioImportacao.erros" :key="e.linha" class="flex items-center gap-1.5"><AlertTriangle :size="12" class="text-red-600 shrink-0" /> Linha {{ e.linha }}: {{ e.motivo }}</p>
         </div>
       </div>
 
@@ -207,7 +209,7 @@ const melhorTempo = computed(() => {
         <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs flex items-center justify-between">
           <div>
             <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Atletas Concluintes</span>
-            <p class="text-2xl font-black text-slate-900 mt-1">🏁 {{ concluintes }}</p>
+            <p class="text-2xl font-black text-slate-900 mt-1 flex items-center gap-1.5"><Flag :size="20" /> {{ concluintes }}</p>
           </div>
           <span class="text-xs font-bold bg-slate-100 px-2.5 py-1 rounded-full text-slate-600">Finishers</span>
         </div>
@@ -215,7 +217,7 @@ const melhorTempo = computed(() => {
         <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs flex items-center justify-between">
           <div>
             <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Melhor Tempo Geral</span>
-            <p class="text-2xl font-black text-amber-600 mt-1">⚡ {{ melhorTempo }}</p>
+            <p class="text-2xl font-black text-amber-600 mt-1 flex items-center gap-1.5"><Zap :size="20" /> {{ melhorTempo }}</p>
           </div>
           <span class="text-xs font-bold bg-amber-50 px-2.5 py-1 rounded-full text-amber-700">Pace Ouro</span>
         </div>
@@ -223,7 +225,7 @@ const melhorTempo = computed(() => {
         <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs flex items-center justify-between">
           <div>
             <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Certificados Emitidos</span>
-            <p class="text-2xl font-black text-emerald-600 mt-1">🎓 {{ certificadosEmitidos }}</p>
+            <p class="text-2xl font-black text-emerald-600 mt-1 flex items-center gap-1.5"><GraduationCap :size="20" /> {{ certificadosEmitidos }}</p>
           </div>
           <span class="text-xs font-bold bg-emerald-50 px-2.5 py-1 rounded-full text-emerald-700">Disponíveis</span>
         </div>
@@ -235,7 +237,7 @@ const melhorTempo = computed(() => {
       </div>
 
       <div v-else-if="resultados.length === 0" class="rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center space-y-2">
-        <span class="text-4xl block">🏅</span>
+        <Medal :size="36" class="mx-auto text-slate-400" />
         <p class="font-bold text-sm text-slate-700">Nenhum resultado lançado ainda para este evento.</p>
         <p class="text-xs text-slate-400">Clique no botão "Importar Resultados (CSV)" para carregar os tempos da cronometragem.</p>
       </div>
@@ -261,9 +263,9 @@ const melhorTempo = computed(() => {
               :class="resultado.colocacaoGeral === 1 ? 'bg-amber-50/40' : resultado.colocacaoGeral === 2 ? 'bg-slate-50/80' : resultado.colocacaoGeral === 3 ? 'bg-amber-900/5' : ''"
             >
               <td class="px-4 py-3.5 text-center font-bold">
-                <span v-if="resultado.colocacaoGeral === 1" class="text-base" title="1º Lugar Geral">🥇</span>
-                <span v-else-if="resultado.colocacaoGeral === 2" class="text-base" title="2º Lugar Geral">🥈</span>
-                <span v-else-if="resultado.colocacaoGeral === 3" class="text-base" title="3º Lugar Geral">🥉</span>
+                <Medal v-if="resultado.colocacaoGeral === 1" :size="18" class="inline text-yellow-500" title="1º Lugar Geral" />
+                <Medal v-else-if="resultado.colocacaoGeral === 2" :size="18" class="inline text-slate-400" title="2º Lugar Geral" />
+                <Medal v-else-if="resultado.colocacaoGeral === 3" :size="18" class="inline text-amber-700" title="3º Lugar Geral" />
                 <span v-else class="text-slate-600">{{ resultado.colocacaoGeral ?? '—' }}º</span>
               </td>
               <td class="px-4 py-3.5 font-mono font-bold text-slate-700">#{{ resultado.inscricao.numeroPeito || '—' }}</td>
@@ -280,7 +282,7 @@ const melhorTempo = computed(() => {
               </td>
               <td class="px-4 py-3.5 text-center">
                 <span v-if="resultado.inscricao.certificado" class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-bold text-emerald-800">
-                  ✅ Emitido
+                  <CheckCircle :size="12" /> Emitido
                 </span>
                 <span v-else class="text-slate-400">—</span>
               </td>

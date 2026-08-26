@@ -1,5 +1,31 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import {
+  CheckCircle,
+  XCircle,
+  Clock,
+  Timer,
+  Search,
+  Loader2,
+  AlertTriangle,
+  Footprints,
+  Calendar,
+  MapPin,
+  Users,
+  Shirt,
+  Tag,
+  Package,
+  Check,
+  CreditCard,
+  FileText,
+  Handshake,
+  Info,
+  Medal,
+  Award,
+  X,
+  Smartphone,
+  Copy
+} from 'lucide-vue-next'
 import type { InscricaoComEvento } from '~/composables/useInscricao'
 
 const { token } = useAuth()
@@ -253,11 +279,11 @@ const eventosHistorico = computed(() => {
   })
 })
 
-const statusInfo: Record<string, { texto: string; classe: string; icone: string }> = {
-  PENDENTE_PAGAMENTO: { texto: 'Aguardando Pagamento', classe: 'bg-amber-100 text-amber-900 border-amber-300 font-extrabold', icone: '⏳' },
-  CONFIRMADA: { texto: 'Inscrição Confirmada', classe: 'bg-emerald-100 text-emerald-900 border-emerald-300 font-extrabold', icone: '✅' },
-  CANCELADA: { texto: 'Inscrição Cancelada', classe: 'bg-red-100 text-red-800 border-red-200 font-extrabold', icone: '❌' },
-  EXPIRADA: { texto: 'Inscrição Expirada', classe: 'bg-slate-100 text-slate-600 border-slate-200 font-bold', icone: '🕒' }
+const statusInfo: Record<string, { texto: string; classe: string; icone: typeof Clock }> = {
+  PENDENTE_PAGAMENTO: { texto: 'Aguardando Pagamento', classe: 'bg-amber-100 text-amber-900 border-amber-300 font-extrabold', icone: Clock },
+  CONFIRMADA: { texto: 'Inscrição Confirmada', classe: 'bg-emerald-100 text-emerald-900 border-emerald-300 font-extrabold', icone: CheckCircle },
+  CANCELADA: { texto: 'Inscrição Cancelada', classe: 'bg-red-100 text-red-800 border-red-200 font-extrabold', icone: XCircle },
+  EXPIRADA: { texto: 'Inscrição Expirada', classe: 'bg-slate-100 text-slate-600 border-slate-200 font-bold', icone: Clock }
 }
 
 async function confirmarCancelamento(id: string) {
@@ -291,7 +317,7 @@ async function confirmarCancelamento(id: string) {
           to="/#eventos"
           class="inline-flex items-center justify-center gap-2 rounded-2xl bg-amber-500 px-5 py-3 text-xs font-black uppercase tracking-wider text-slate-950 shadow-sm transition hover:bg-amber-400 self-start sm:self-auto"
         >
-          🔍 Explorar Provas
+          <Search :size="14" /> Explorar Provas
         </NuxtLink>
       </div>
 
@@ -337,13 +363,13 @@ async function confirmarCancelamento(id: string) {
 
       <!-- Estado de Carregamento -->
       <div v-if="carregando" class="mt-12 text-center py-12 bg-white rounded-3xl border border-slate-200 shadow-sm">
-        <div class="inline-block animate-spin text-3xl text-amber-500">🌀</div>
+        <Loader2 :size="32" class="mx-auto animate-spin text-amber-500" />
         <p class="mt-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Carregando suas inscrições...</p>
       </div>
 
       <!-- Mensagem de Erro -->
-      <div v-else-if="erro" class="mt-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-700 shadow-sm">
-        ⚠️ {{ erro }}
+      <div v-else-if="erro" class="mt-6 flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-700 shadow-sm">
+        <AlertTriangle :size="14" /> {{ erro }}
       </div>
 
       <!-- Conteúdo da Aba: PRÓXIMOS & RECENTES -->
@@ -353,7 +379,7 @@ async function confirmarCancelamento(id: string) {
           v-if="eventosProximos.length === 0"
           class="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm"
         >
-          <div class="text-5xl">👟</div>
+          <Footprints :size="48" class="mx-auto text-slate-300" />
           <h3 class="mt-4 text-base font-black text-slate-800">Você não possui eventos futuros ou recentes inscritos</h3>
           <p class="mt-2 text-xs text-slate-500 max-w-md mx-auto">
             Que tal escolher o seu próximo desafio? Explore as provas disponíveis e garanta sua vaga.
@@ -390,7 +416,7 @@ async function confirmarCancelamento(id: string) {
                   class="inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1 text-xs shadow-xs"
                   :class="statusInfo[inscricao.status]?.classe || 'bg-slate-100 text-slate-600 border-slate-200'"
                 >
-                  <span>{{ statusInfo[inscricao.status]?.icone }}</span>
+                  <component :is="statusInfo[inscricao.status]?.icone" :size="14" v-if="statusInfo[inscricao.status]?.icone" />
                   <span>{{ statusInfo[inscricao.status]?.texto || inscricao.status }}</span>
                 </span>
               </div>
@@ -402,7 +428,7 @@ async function confirmarCancelamento(id: string) {
               <div class="space-y-3 md:col-span-2">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   <div class="flex items-start gap-2.5">
-                    <span class="text-base">📅</span>
+                    <Calendar :size="16" class="text-slate-500 shrink-0 mt-0.5" />
                     <div>
                       <p class="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Data da Prova</p>
                       <p class="font-black text-slate-800">
@@ -412,7 +438,7 @@ async function confirmarCancelamento(id: string) {
                   </div>
 
                   <div class="flex items-start gap-2.5">
-                    <span class="text-base">📍</span>
+                    <MapPin :size="16" class="text-slate-500 shrink-0 mt-0.5" />
                     <div>
                       <p class="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Local</p>
                       <p class="font-black text-slate-800">
@@ -424,17 +450,17 @@ async function confirmarCancelamento(id: string) {
                 </div>
 
                 <div class="mt-4 pt-4 border-t border-slate-100 flex flex-wrap items-center gap-2">
-                  <span class="rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-black uppercase tracking-wider text-amber-400">
-                    🏃 {{ inscricao.categoria.modalidade.nome }}
+                  <span class="flex items-center gap-1 rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-black uppercase tracking-wider text-amber-400">
+                    <Footprints :size="14" /> {{ inscricao.categoria.modalidade.nome }}
                   </span>
-                  <span class="rounded-xl bg-slate-100 border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-800">
-                    👥 {{ inscricao.categoria.nome }}
+                  <span class="flex items-center gap-1 rounded-xl bg-slate-100 border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-800">
+                    <Users :size="14" /> {{ inscricao.categoria.nome }}
                   </span>
-                  <span v-if="inscricao.tamanhoCamisa" class="rounded-xl bg-slate-100 border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-800">
-                    👕 Camisa: <strong>{{ inscricao.tamanhoCamisa }}</strong>
+                  <span v-if="inscricao.tamanhoCamisa" class="flex items-center gap-1 rounded-xl bg-slate-100 border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-800">
+                    <Shirt :size="14" /> Camisa: <strong>{{ inscricao.tamanhoCamisa }}</strong>
                   </span>
-                  <span v-if="inscricao.lote" class="rounded-xl bg-slate-100 border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-800">
-                    🏷️ Lote: {{ inscricao.lote.nome }}
+                  <span v-if="inscricao.lote" class="flex items-center gap-1 rounded-xl bg-slate-100 border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-800">
+                    <Tag :size="14" /> Lote: {{ inscricao.lote.nome }}
                   </span>
                 </div>
 
@@ -444,7 +470,7 @@ async function confirmarCancelamento(id: string) {
                   class="mt-4 rounded-2xl border border-amber-200/80 bg-amber-50/50 p-3.5 text-xs text-amber-950"
                 >
                   <p class="font-black flex items-center gap-1.5 text-amber-900 uppercase tracking-wider text-[11px]">
-                    📦 Retirada do Kit de Atleta:
+                    <Package :size="14" /> Retirada do Kit de Atleta:
                   </p>
                   <p class="mt-1 text-slate-700 font-semibold">
                     {{ inscricao.categoria.modalidade.evento.retiradaKitLocal }}
@@ -453,7 +479,7 @@ async function confirmarCancelamento(id: string) {
                     </span>
                   </p>
                   <p v-if="inscricao.kitEntregueEm" class="mt-1.5 font-extrabold text-emerald-700 flex items-center gap-1">
-                    ✓ Kit entregue em {{ formatarData(inscricao.kitEntregueEm) }}
+                    <Check :size="14" /> Kit entregue em {{ formatarData(inscricao.kitEntregueEm) }}
                   </p>
                 </div>
               </div>
@@ -505,17 +531,17 @@ async function confirmarCancelamento(id: string) {
                     <div v-else class="space-y-2">
                       <button
                         type="button"
-                        class="block w-full text-center rounded-xl bg-amber-500 py-3 text-xs font-black uppercase tracking-wider text-slate-950 shadow-xs hover:bg-amber-400 transition"
+                        class="flex w-full items-center justify-center gap-1.5 text-center rounded-xl bg-amber-500 py-3 text-xs font-black uppercase tracking-wider text-slate-950 shadow-xs hover:bg-amber-400 transition"
                         @click="abrirModalPagamento(inscricao)"
                       >
-                        💳 Efetuar Pagamento
+                        <CreditCard :size="14" /> Efetuar Pagamento
                       </button>
                       <button
                         type="button"
-                        class="block w-full text-center rounded-xl bg-slate-900 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:bg-slate-800 transition"
+                        class="flex w-full items-center justify-center gap-1.5 text-center rounded-xl bg-slate-900 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:bg-slate-800 transition"
                         @click="abrirModal360(inscricao)"
                       >
-                        📄 Detalhes do Evento
+                        <FileText :size="14" /> Detalhes do Evento
                       </button>
                       <button
                         type="button"
@@ -530,20 +556,20 @@ async function confirmarCancelamento(id: string) {
                   <div v-else-if="inscricao.status === 'CONFIRMADA'" class="space-y-2">
                     <button
                       type="button"
-                      class="block w-full text-center rounded-xl bg-slate-900 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:bg-slate-800 transition"
+                      class="flex w-full items-center justify-center gap-1.5 text-center rounded-xl bg-slate-900 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:bg-slate-800 transition"
                       @click="abrirModal360(inscricao)"
                     >
-                      📄 Ver Kit & Percurso
+                      <FileText :size="14" /> Ver Kit & Percurso
                     </button>
                     <button
                       type="button"
-                      class="block w-full text-center rounded-xl border border-indigo-200 bg-indigo-50 py-2.5 text-xs font-bold uppercase tracking-wider text-indigo-900 shadow-xs hover:bg-indigo-100 transition"
+                      class="flex w-full items-center justify-center gap-1.5 text-center rounded-xl border border-indigo-200 bg-indigo-50 py-2.5 text-xs font-bold uppercase tracking-wider text-indigo-900 shadow-xs hover:bg-indigo-100 transition"
                       @click="abrirModal360(inscricao)"
                     >
-                      🤝 Transferir Vaga (E-mail)
+                      <Handshake :size="14" /> Transferir Vaga (E-mail)
                     </button>
-                    <p class="text-[10px] text-slate-400 text-center font-medium leading-tight pt-1">
-                      ℹ️ Inscrição paga não pode ser cancelada. Você pode transferi-la para o e-mail de outro atleta cadastrado.
+                    <p class="flex items-center justify-center gap-1 text-[10px] text-slate-400 text-center font-medium leading-tight pt-1">
+                      <Info :size="12" class="shrink-0" /> Inscrição paga não pode ser cancelada. Você pode transferi-la para o e-mail de outro atleta cadastrado.
                     </p>
                   </div>
                 </div>
@@ -560,7 +586,7 @@ async function confirmarCancelamento(id: string) {
           v-if="eventosHistorico.length === 0"
           class="rounded-2xl border border-slate-200 bg-white p-10 text-center shadow-sm"
         >
-          <div class="text-5xl">🎖️</div>
+          <Medal :size="48" class="mx-auto text-slate-300" />
           <h3 class="mt-4 text-lg font-bold text-slate-800">Seu histórico de provas está vazio</h3>
           <p class="mt-2 text-sm text-slate-500 max-w-md mx-auto">
             Assim que você concluir provas e eventos passados, seus tempos, colocações e certificados aparecerão aqui.
@@ -591,11 +617,11 @@ async function confirmarCancelamento(id: string) {
 
             <div class="p-5 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
               <div class="md:col-span-2 space-y-2">
-                <p class="text-sm font-semibold text-slate-700">
-                  📅 Prova realizada em {{ formatarData(inscricao.categoria.modalidade.evento.dataInicio) }}
+                <p class="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+                  <Calendar :size="14" /> Prova realizada em {{ formatarData(inscricao.categoria.modalidade.evento.dataInicio) }}
                 </p>
-                <p class="text-sm text-slate-500">
-                  📍 {{ inscricao.categoria.modalidade.evento.cidade }}/{{ inscricao.categoria.modalidade.evento.estado }}
+                <p class="flex items-center gap-1.5 text-sm text-slate-500">
+                  <MapPin :size="14" /> {{ inscricao.categoria.modalidade.evento.cidade }}/{{ inscricao.categoria.modalidade.evento.estado }}
                 </p>
                 <div class="flex gap-2 mt-2">
                   <span class="rounded bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">
@@ -608,7 +634,7 @@ async function confirmarCancelamento(id: string) {
 
                 <!-- Resultado de Performance se existir -->
                 <div v-if="inscricao.resultado" class="mt-4 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3">
-                  <p class="text-xs font-bold text-emerald-800 uppercase tracking-wider">⏱️ Seu Resultado:</p>
+                  <p class="flex items-center gap-1.5 text-xs font-bold text-emerald-800 uppercase tracking-wider"><Timer :size="14" /> Seu Resultado:</p>
                   <div class="mt-2 grid grid-cols-3 gap-2 text-center text-xs">
                     <div class="rounded-lg bg-white p-2 border border-emerald-200">
                       <p class="text-slate-400">Tempo Líquido</p>
@@ -638,9 +664,9 @@ async function confirmarCancelamento(id: string) {
                   v-if="inscricao.certificado"
                   :href="inscricao.certificado.urlPdf"
                   target="_blank"
-                  class="block w-full text-center rounded-xl bg-emerald-600 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow hover:bg-emerald-700 transition"
+                  class="flex w-full items-center justify-center gap-1.5 text-center rounded-xl bg-emerald-600 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow hover:bg-emerald-700 transition"
                 >
-                  📜 Baixar Certificado (PDF)
+                  <Award :size="14" /> Baixar Certificado (PDF)
                 </a>
               </div>
             </div>
@@ -660,10 +686,10 @@ async function confirmarCancelamento(id: string) {
         <div class="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl space-y-4 border border-amber-200 animate-in fade-in zoom-in-95">
           <div class="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
-              <h3 class="text-base font-black text-slate-900">💳 Efetuar Pagamento</h3>
+              <h3 class="flex items-center gap-2 text-base font-black text-slate-900"><CreditCard :size="18" /> Efetuar Pagamento</h3>
               <p class="text-xs font-semibold text-slate-500">{{ dadosPix?.eventoNome || inscricaoAtualPagamento?.categoria?.modalidade?.evento?.nome || 'Inscrição' }}</p>
             </div>
-            <button type="button" class="text-slate-400 hover:text-slate-600 font-black text-lg p-1" @click="modalPixAberto = false">✕</button>
+            <button type="button" class="text-slate-400 hover:text-slate-600 p-1" @click="modalPixAberto = false"><X :size="18" /></button>
           </div>
 
           <!-- Seleção de Abas PIX vs CARTÃO DE CRÉDITO -->
@@ -675,7 +701,7 @@ async function confirmarCancelamento(id: string) {
               :class="abaPagamento === 'PIX' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'"
               @click="abaPagamento = 'PIX'"
             >
-              📱 PIX Instantâneo
+              <span class="inline-flex items-center gap-1.5"><Smartphone :size="14" /> PIX Instantâneo</span>
             </button>
             <button
               v-if="inscricaoAtualPagamento?.categoria?.modalidade?.evento?.aceitaCartao !== false"
@@ -684,18 +710,18 @@ async function confirmarCancelamento(id: string) {
               :class="abaPagamento === 'CREDITO' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'"
               @click="abaPagamento = 'CREDITO'"
             >
-              💳 Cartão de Crédito
+              <span class="inline-flex items-center gap-1.5"><CreditCard :size="14" /> Cartão de Crédito</span>
             </button>
           </div>
 
-          <div v-if="erroPixModal" class="rounded-2xl bg-red-50 p-4 border border-red-200 text-xs font-bold text-red-700">
-            ⚠️ {{ erroPixModal }}
+          <div v-if="erroPixModal" class="flex items-center gap-2 rounded-2xl bg-red-50 p-4 border border-red-200 text-xs font-bold text-red-700">
+            <AlertTriangle :size="14" /> {{ erroPixModal }}
           </div>
 
           <!-- Conteúdo da Aba PIX -->
           <div v-if="abaPagamento === 'PIX'" class="space-y-4">
             <div v-if="gerandoPix" class="text-center py-8 space-y-3">
-              <div class="inline-block animate-spin text-3xl text-amber-500">🌀</div>
+              <Loader2 :size="32" class="mx-auto animate-spin text-amber-500" />
               <p class="text-xs font-bold text-slate-600 uppercase tracking-wider">Gerando seu QR Code PIX...</p>
             </div>
 
@@ -724,10 +750,11 @@ async function confirmarCancelamento(id: string) {
                   />
                   <button
                     type="button"
-                    class="rounded-xl bg-amber-500 px-4 py-2 text-xs font-black text-slate-950 shadow hover:bg-amber-400 transition shrink-0"
+                    class="flex items-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-xs font-black text-slate-950 shadow hover:bg-amber-400 transition shrink-0"
                     @click="copiarPix"
                   >
-                    {{ pixCopiado ? '✅ Copiado!' : '📋 Copiar PIX' }}
+                    <template v-if="pixCopiado"><Check :size="14" /> Copiado!</template>
+                    <template v-else><Copy :size="14" /> Copiar PIX</template>
                   </button>
                 </div>
               </div>
@@ -737,7 +764,7 @@ async function confirmarCancelamento(id: string) {
           <!-- Conteúdo da Aba CARTÃO DE CRÉDITO -->
           <div v-else-if="abaPagamento === 'CREDITO'" class="space-y-4">
             <div v-if="sucessoCartao" class="text-center py-8 space-y-3 bg-emerald-50 rounded-2xl border border-emerald-200 p-6">
-              <span class="text-4xl">✅</span>
+              <CheckCircle :size="40" class="mx-auto text-emerald-600" />
               <h4 class="text-base font-black text-emerald-900">Pagamento Aprovado com Sucesso!</h4>
               <p class="text-xs text-emerald-700">Sua inscrição foi confirmada e os comprovantes estão disponíveis em Meus Eventos.</p>
             </div>
@@ -818,9 +845,10 @@ async function confirmarCancelamento(id: string) {
               <button
                 type="submit"
                 :disabled="processandoCartao"
-                class="w-full rounded-xl bg-amber-500 py-3 text-xs font-black uppercase tracking-wider text-slate-950 shadow hover:bg-amber-400 transition disabled:opacity-50 mt-2"
+                class="flex w-full items-center justify-center gap-1.5 rounded-xl bg-amber-500 py-3 text-xs font-black uppercase tracking-wider text-slate-950 shadow hover:bg-amber-400 transition disabled:opacity-50 mt-2"
               >
-                {{ processandoCartao ? 'Processando Pagamento...' : '💳 Confirmar Pagamento no Cartão' }}
+                <template v-if="processandoCartao">Processando Pagamento...</template>
+                <template v-else><CreditCard :size="14" /> Confirmar Pagamento no Cartão</template>
               </button>
             </form>
           </div>

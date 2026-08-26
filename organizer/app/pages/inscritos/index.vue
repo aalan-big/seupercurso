@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { BarChart2, AlertTriangle, Footprints, X, CheckCircle, Hash, Shirt, CreditCard, Save } from 'lucide-vue-next'
+
 const { inscritos, fetchInscritos, exportarCsv, atualizarInscricao } = useInscritosOrganizador()
 const { eventos, fetchMeusEventos, fetchEvento } = useEventoOrganizador()
 
@@ -164,7 +166,7 @@ function formatarData(iso: string) {
         class="inline-flex items-center gap-2 rounded-xl bg-slate-800 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-slate-900 transition disabled:opacity-40"
         @click="onExportar"
       >
-        📊 Exportar Tabela em CSV
+        <BarChart2 :size="16" /> Exportar Tabela em CSV
       </button>
     </div>
 
@@ -196,8 +198,8 @@ function formatarData(iso: string) {
       />
     </div>
 
-    <p v-if="erro" class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-700">
-      ⚠️ {{ erro }}
+    <p v-if="erro" class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-700 flex items-center gap-2">
+      <AlertTriangle :size="16" class="text-red-600" /> {{ erro }}
     </p>
 
     <div v-if="carregando" class="py-12 text-center text-xs text-slate-400">
@@ -265,7 +267,7 @@ function formatarData(iso: string) {
           <div class="flex items-center justify-between border-b border-slate-100 pb-4">
             <div class="flex items-center gap-3">
               <div class="h-10 w-10 rounded-2xl bg-primary/10 text-primary font-black flex items-center justify-center text-lg">
-                🏃
+                <Footprints :size="20" />
               </div>
               <div>
                 <h3 class="font-black text-base text-slate-900">{{ nomeCliente(atletaSelecionado) }}</h3>
@@ -276,16 +278,16 @@ function formatarData(iso: string) {
             </div>
             <button
               type="button"
-              class="rounded-xl bg-slate-100 p-2 text-xs font-bold text-slate-500 hover:bg-slate-200 transition"
+              class="rounded-xl bg-slate-100 p-2 text-xs font-bold text-slate-500 hover:bg-slate-200 transition inline-flex items-center gap-1"
               @click="modalAberto = false"
             >
-              ✕ Fechar
+              <X :size="13" /> Fechar
             </button>
           </div>
 
           <!-- Alerta de Sucesso -->
-          <p v-if="sucessoModal" class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-800">
-            ✅ {{ sucessoModal }}
+          <p v-if="sucessoModal" class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-800 flex items-center gap-2">
+            <CheckCircle :size="14" class="text-emerald-600" /> {{ sucessoModal }}
           </p>
 
           <!-- Dados do Evento e Edição -->
@@ -305,7 +307,7 @@ function formatarData(iso: string) {
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <!-- Alterar Modalidade & Categoria -->
               <div class="sm:col-span-2">
-                <label class="block font-black text-slate-700 mb-1">🏃 Alterar Modalidade & Categoria</label>
+                <label class="font-black text-slate-700 mb-1 flex items-center gap-1"><Footprints :size="14" /> Alterar Modalidade & Categoria</label>
                 <div v-if="carregandoCategorias" class="text-slate-400 text-xs">Carregando modalidades do evento...</div>
                 <select
                   v-else
@@ -320,7 +322,7 @@ function formatarData(iso: string) {
 
               <!-- Editar Número do Peito -->
               <div>
-                <label class="block font-black text-slate-700 mb-1">🔢 Número do Peito</label>
+                <label class="font-black text-slate-700 mb-1 flex items-center gap-1"><Hash :size="14" /> Número do Peito</label>
                 <input
                   v-model="formInscrito.numeroPeito"
                   type="text"
@@ -331,7 +333,7 @@ function formatarData(iso: string) {
 
               <!-- Editar Tamanho da Camisa -->
               <div>
-                <label class="block font-black text-slate-700 mb-1">👕 Tamanho da Camisa</label>
+                <label class="font-black text-slate-700 mb-1 flex items-center gap-1"><Shirt :size="14" /> Tamanho da Camisa</label>
                 <select
                   v-model="formInscrito.tamanhoCamisa"
                   class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
@@ -341,14 +343,14 @@ function formatarData(iso: string) {
                   <option value="M">M</option>
                   <option value="G">G</option>
                   <option value="GG">GG</option>
-                  <option value="XG">XG</option>
+                  <option value="XGG">XGG</option>
                   <option value="Não informado">Não informado</option>
                 </select>
               </div>
 
               <!-- Editar Status da Inscrição -->
               <div class="sm:col-span-2">
-                <label class="block font-black text-slate-700 mb-1">💳 Status da Inscrição</label>
+                <label class="font-black text-slate-700 mb-1 flex items-center gap-1"><CreditCard :size="14" /> Status da Inscrição</label>
                 <select
                   v-model="formInscrito.status"
                   class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
@@ -374,10 +376,10 @@ function formatarData(iso: string) {
             <button
               type="button"
               :disabled="salvandoModal"
-              class="rounded-xl bg-accent px-5 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-xs hover:brightness-95 transition disabled:opacity-40"
+              class="inline-flex items-center justify-center gap-1.5 rounded-xl bg-accent px-5 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-xs hover:brightness-95 transition disabled:opacity-40"
               @click="salvarEdicao360"
             >
-              💾 {{ salvandoModal ? 'Salvando...' : 'Salvar Alterações' }}
+              <Save :size="14" /> {{ salvandoModal ? 'Salvando...' : 'Salvar Alterações' }}
             </button>
           </div>
         </div>

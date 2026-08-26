@@ -1,4 +1,6 @@
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import { FileText } from 'lucide-vue-next'
+</script>
 
 <template>
   <div>
@@ -13,7 +15,7 @@
     </section>
 
     <section class="mx-auto max-w-3xl px-4 py-20 text-center">
-      <div class="mb-4 text-5xl">📝</div>
+      <FileText :size="48" class="mx-auto mb-4 text-slate-400" />
       <h2 class="text-2xl font-extrabold uppercase tracking-tight text-primary">Em breve</h2>
       <p class="mx-auto mt-3 max-w-md text-slate-500">
         Estamos preparando conteúdos para ajudar você a treinar melhor e escolher seu próximo desafio. Volte em

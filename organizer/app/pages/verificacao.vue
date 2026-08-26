@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { CheckCircle, XCircle, Circle, Clock, Lock } from 'lucide-vue-next'
+
 const { organizador, fetchMe, uploadFotoRosto, uploadDocumentoIdentidade } = useOrganizador()
 const config = useRuntimeConfig()
 
@@ -22,11 +24,11 @@ onMounted(async () => {
   }
 })
 
-const statusInfo: Record<string, { texto: string; classe: string; icone: string }> = {
-  PENDENTE: { texto: 'Em Análise', classe: 'bg-amber-50 text-amber-800 border-amber-200', icone: '⏳' },
-  APROVADO: { texto: 'Perfil Aprovado', classe: 'bg-emerald-50 text-emerald-800 border-emerald-200', icone: '✅' },
-  REJEITADO: { texto: 'Documentos Rejeitados', classe: 'bg-red-50 text-red-800 border-red-200', icone: '🔴' },
-  SUSPENSO: { texto: 'Perfil Suspenso', classe: 'bg-slate-100 text-slate-700 border-slate-200', icone: '⚪' }
+const statusInfo: Record<string, { texto: string; classe: string; icone: any }> = {
+  PENDENTE: { texto: 'Em Análise', classe: 'bg-amber-50 text-amber-800 border-amber-200', icone: Clock },
+  APROVADO: { texto: 'Perfil Aprovado', classe: 'bg-emerald-50 text-emerald-800 border-emerald-200', icone: CheckCircle },
+  REJEITADO: { texto: 'Documentos Rejeitados', classe: 'bg-red-50 text-red-800 border-red-200', icone: XCircle },
+  SUSPENSO: { texto: 'Perfil Suspenso', classe: 'bg-slate-100 text-slate-700 border-slate-200', icone: Circle }
 }
 
 const fotoRostoUrlFormatted = computed(() => {
@@ -118,7 +120,8 @@ async function onEnviarDocumento() {
       >
         <div class="flex items-center gap-3">
           <div class="h-10 w-10 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-700 font-bold shrink-0">
-            <AppIcon name="verificacao" size="20" class="text-slate-700" />
+            <component :is="statusInfo[organizador.status]?.icone" v-if="statusInfo[organizador.status]?.icone" :size="20" />
+            <AppIcon v-else name="verificacao" size="20" class="text-slate-700" />
           </div>
           <div>
             <p class="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">Status do Cadastro</p>
@@ -232,8 +235,8 @@ async function onEnviarDocumento() {
               {{ enviandoFoto ? 'Enviando Selfie...' : 'Enviar Selfie para Análise' }}
             </button>
 
-            <div v-if="bloqueadoParaEnvio" class="text-center py-2 text-xs font-bold text-slate-500 bg-slate-100 rounded-xl">
-              🔒 Envio bloqueado (em análise)
+            <div v-if="bloqueadoParaEnvio" class="text-center py-2 text-xs font-bold text-slate-500 bg-slate-100 rounded-xl flex items-center justify-center gap-1.5">
+              <Lock :size="14" class="text-slate-500" /> Envio bloqueado (em análise)
             </div>
           </div>
         </div>
@@ -281,7 +284,7 @@ async function onEnviarDocumento() {
 
           <!-- Input Upload Documento -->
           <div class="space-y-2 pt-3 border-t border-slate-100">
-            <label v-if="!bloqueadoParaEnvio" class="block w-full cursor-pointer rounded-2xl bg-slate-100 py-3 text-center text-xs font-bold text-slate-700 hover:bg-slate-200 transition flex items-center justify-center gap-2">
+            <label v-if="!bloqueadoParaEnvio" class="w-full cursor-pointer rounded-2xl bg-slate-100 py-3 text-center text-xs font-bold text-slate-700 hover:bg-slate-200 transition flex items-center justify-center gap-2">
               <AppIcon name="documento" size="16" /> {{ documentoArquivo ? 'Alterar Documento' : 'Selecionar Foto ou PDF' }}
               <input
                 type="file"
@@ -301,8 +304,8 @@ async function onEnviarDocumento() {
               {{ enviandoDoc ? 'Enviando Documento...' : 'Enviar Documento Oficial' }}
             </button>
 
-            <div v-if="bloqueadoParaEnvio" class="text-center py-2 text-xs font-bold text-slate-500 bg-slate-100 rounded-xl">
-              🔒 Envio bloqueado (em análise)
+            <div v-if="bloqueadoParaEnvio" class="text-center py-2 text-xs font-bold text-slate-500 bg-slate-100 rounded-xl flex items-center justify-center gap-1.5">
+              <Lock :size="14" class="text-slate-500" /> Envio bloqueado (em análise)
             </div>
           </div>
         </div>

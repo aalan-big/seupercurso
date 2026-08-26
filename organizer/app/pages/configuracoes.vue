@@ -315,7 +315,7 @@ function formatarData(iso: string) {
               <label class="mb-1 block text-sm font-semibold text-slate-700">CPF</label>
               <input :value="pfForm.cpf" @input="formatarCpf" type="text" inputmode="numeric" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" />
             </div>
-            <div>
+            <div class="min-w-0">
               <label class="mb-1 block text-sm font-semibold text-slate-700">Nascimento</label>
               <input v-model="pfForm.dataNascimento" type="date" :max="hoje" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" />
             </div>

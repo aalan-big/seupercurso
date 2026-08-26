@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { AlertTriangle, Banknote, Smartphone, CreditCard } from 'lucide-vue-next'
 import type { EventoOrganizador } from '../composables/useEventoOrganizador'
 
 const props = defineProps<{
@@ -186,14 +187,14 @@ function onSubmit() {
 
 <template>
   <form class="flex flex-col gap-4" novalidate @submit.prevent="onSubmit">
-    <div v-if="erroValidacao" class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-700">
-      ⚠️ {{ erroValidacao }}
+    <div v-if="erroValidacao" class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-700 flex items-center gap-2">
+      <AlertTriangle :size="16" class="text-red-600" /> {{ erroValidacao }}
     </div>
 
     <!-- Seção: Formas de Pagamento Aceitas -->
     <div class="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 space-y-3">
-      <label class="block text-sm font-extrabold text-amber-950 flex items-center gap-2">
-        <span>💸</span> Formas de Pagamento Aceitas no Evento
+      <label class="text-sm font-extrabold text-amber-950 flex items-center gap-2">
+        <Banknote :size="18" class="text-amber-700" /> Formas de Pagamento Aceitas no Evento
       </label>
       <p class="text-xs text-slate-600">
         Selecione quais opções estarão disponíveis para o atleta no checkout de inscrição:
@@ -210,7 +211,7 @@ function onSubmit() {
             class="h-4 w-4 rounded text-amber-500 accent-amber-500"
           />
           <div class="text-xs">
-            <p class="font-extrabold text-slate-900">📱 PIX (Instantâneo)</p>
+            <p class="font-extrabold text-slate-900 flex items-center gap-1.5"><Smartphone :size="15" class="text-amber-700" /> PIX (Instantâneo)</p>
             <p class="text-[11px] text-slate-500 font-normal">Gera QR Code e Código Copia e Cola imediato.</p>
           </div>
         </label>
@@ -225,7 +226,7 @@ function onSubmit() {
             class="h-4 w-4 rounded text-amber-500 accent-amber-500"
           />
           <div class="text-xs">
-            <p class="font-extrabold text-slate-900">💳 Cartão de Crédito</p>
+            <p class="font-extrabold text-slate-900 flex items-center gap-1.5"><CreditCard :size="15" class="text-amber-700" /> Cartão de Crédito</p>
             <p class="text-[11px] text-slate-500 font-normal">Permite pagamento parcelado via cartão.</p>
           </div>
         </label>
@@ -269,12 +270,12 @@ function onSubmit() {
     </div>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <div>
+      <div class="min-w-0">
         <label class="mb-1 block text-sm font-semibold text-slate-700">Data de início *</label>
         <input v-model="form.dataInicio" type="date" :class="classeCampo('dataInicio')" />
         <p v-if="invalido('dataInicio')" class="mt-1 text-xs text-red-600">Campo obrigatório.</p>
       </div>
-      <div>
+      <div class="min-w-0">
         <label class="mb-1 block text-sm font-semibold text-slate-700">Data de fim *</label>
         <input v-model="form.dataFim" type="date" :class="classeCampo('dataFim')" />
         <p v-if="invalido('dataFim')" class="mt-1 text-xs text-red-600">Campo obrigatório.</p>
@@ -379,8 +380,8 @@ function onSubmit() {
     </div>
 
     <div class="rounded-2xl border border-blue-200 bg-blue-50/50 p-4 space-y-3">
-      <label class="block text-sm font-extrabold text-blue-950 flex items-center gap-2">
-        <span>💳</span> Taxa de Conveniência da Plataforma
+      <label class="text-sm font-extrabold text-blue-950 flex items-center gap-2">
+        <CreditCard :size="18" class="text-blue-700" /> Taxa de Conveniência da Plataforma
       </label>
       <p class="text-xs text-slate-600">
         A taxa fixa da plataforma é calculada sempre em cima do valor cheio do lote/evento (ex: 10% de R$ 70,00 = R$ 7,00). Escolha como a taxa será tratada:

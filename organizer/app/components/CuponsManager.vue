@@ -200,7 +200,7 @@ function formatarData(iso: string | null) {
             <input
               v-model="novoCupom.validoAte"
               type="date"
-              class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="min-w-0 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
             />
           </div>
           <div class="mt-3 flex gap-2">

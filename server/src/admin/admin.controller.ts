@@ -12,6 +12,7 @@ import {
 import { AdminJwtGuard } from '../admin-auth/guards/admin-jwt.guard';
 import { AdminService } from './admin.service';
 import { MotivoDto } from './dto/motivo.dto';
+import { ComissaoDto } from './dto/comissao.dto';
 
 @UseGuards(AdminJwtGuard)
 @Controller('admin')
@@ -54,6 +55,12 @@ export class AdminController {
   @Post('organizadores/:id/suspender')
   suspenderOrganizador(@Param('id') id: string, @Body() dto: MotivoDto) {
     return this.adminService.suspenderOrganizador(id, dto.motivo);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('organizadores/:id/comissao')
+  atualizarComissaoOrganizador(@Param('id') id: string, @Body() dto: ComissaoDto) {
+    return this.adminService.atualizarComissaoOrganizador(id, dto.comissaoPercentual);
   }
 
   @Get('eventos')

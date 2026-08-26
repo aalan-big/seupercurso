@@ -98,6 +98,16 @@ export class AdminService {
     });
   }
 
+  async atualizarComissaoOrganizador(id: string, comissaoPercentual: number) {
+    await this.getOrganizadorOuFalhar(id);
+
+    return this.prisma.organizador.update({
+      where: { id },
+      data: { comissaoPercentual },
+      include: ORGANIZADOR_INCLUDE,
+    });
+  }
+
   async listarEventos(status?: string) {
     return this.prisma.evento.findMany({
       where: status ? { status: status as StatusEvento } : undefined,

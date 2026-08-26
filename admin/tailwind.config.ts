@@ -13,7 +13,7 @@ export default <Partial<Config>>{
           hover: '#1D4ED8'
         },
         accent: '#10B981',
-        warning: '#F59E0B',
+        warning: '#ff7202',
         danger: '#EF4444'
       }
     }

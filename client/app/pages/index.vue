@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { Footprints, Bike, Waves, Mountain, Search } from 'lucide-vue-next'
+
 const { eventos, fetchEventos } = useEvento()
 const busca = ref('')
 const carregando = ref(false)
@@ -45,8 +47,8 @@ onMounted(async () => {
       </svg>
 
       <div class="relative mx-auto max-w-6xl px-4 text-center">
-        <div class="mb-6 flex items-center justify-center gap-5 text-2xl sm:text-3xl" aria-hidden="true">
-          <span>🏃</span><span>🚴</span><span>🏊</span><span>🥾</span>
+        <div class="mb-6 flex items-center justify-center gap-5" aria-hidden="true">
+          <Footprints :size="28" /><Bike :size="28" /><Waves :size="28" /><Mountain :size="28" />
         </div>
         <h1 class="text-4xl font-extrabold uppercase leading-tight tracking-tight sm:text-6xl">
           Sua próxima conquista<br class="hidden sm:block" /> começa aqui
@@ -65,7 +67,7 @@ onMounted(async () => {
 
     <div class="relative z-10 mx-auto -mt-8 max-w-3xl px-4">
       <div class="relative rounded-2xl bg-white shadow-xl">
-        <span class="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+        <Search :size="18" class="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" />
         <input
           v-model="busca"
           type="text"

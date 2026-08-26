@@ -26,3 +26,15 @@ html, body {
     font-size: 16px !important;
   }
 }
+
+/* No Chrome/Android o input[type=date] usa uma largura intrínseca própria do
+   controle nativo e ignora width/max-width normais, estourando a tela dentro
+   de grid/flex. "width:1px" força o navegador a abandonar essa largura
+   intrínseca e "min-width:100%" faz o campo voltar a ocupar o container —
+   sem remover a aparência nativa (mantém o ícone do calendário e evita
+   inconsistências de layout que appearance:none causava nesse WebView). */
+input[type="date"] {
+  width: 1px;
+  min-width: 100%;
+  box-sizing: border-box;
+}

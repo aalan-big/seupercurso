@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Crown, BarChart2, Landmark, Zap, AlertTriangle, Gem, Trophy, RefreshCw, Ticket } from 'lucide-vue-next'
 import type { FinanceiroAdmin } from '../../composables/useAdminFinanceiro'
 
 const { buscar } = useAdminFinanceiro()
@@ -49,11 +50,11 @@ function exportarRelatorioGlobalCSV() {
   <div class="space-y-6">
     <!-- Cabeçalho Principal do Admin Financeiro -->
     <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-5">
-      <div>
-        <div class="flex items-center gap-2">
+      <div class="min-w-0">
+        <div class="flex flex-wrap items-center gap-2">
           <h1 class="text-2xl font-black uppercase tracking-tight text-primary">Gestão Financeira & Conta Master CNPJ</h1>
-          <span class="rounded-full bg-emerald-100 px-3 py-0.5 text-xs font-bold text-emerald-800 border border-emerald-200">
-            👑 Conta Master Asaas Conectada
+          <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-0.5 text-xs font-bold text-emerald-800 border border-emerald-200">
+            <Crown :size="14" /> Conta Master Asaas Conectada
           </span>
         </div>
         <p class="mt-1 text-xs text-slate-500">
@@ -68,16 +69,16 @@ function exportarRelatorioGlobalCSV() {
           class="inline-flex items-center gap-2 rounded-xl bg-slate-800 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-slate-900 transition disabled:opacity-40"
           @click="exportarRelatorioGlobalCSV"
         >
-          📊 Exportar Relatório Global (CSV)
+          <BarChart2 :size="16" /> Exportar Relatório Global (CSV)
         </button>
       </div>
     </div>
 
     <!-- Card da Conta Master CNPJ Principal -->
     <div class="rounded-2xl border border-blue-200 bg-blue-50/70 p-5 text-xs text-blue-900 flex flex-wrap items-center justify-between gap-4 shadow-xs">
-      <div class="flex items-center gap-3">
-        <span class="text-3xl">🏦</span>
-        <div>
+      <div class="flex min-w-0 items-center gap-3">
+        <Landmark :size="28" class="shrink-0 text-blue-700" />
+        <div class="min-w-0">
           <p class="font-bold text-sm text-blue-950">Conta Master CNPJ — SeuPercurso Plataforma</p>
           <p class="text-[11px] text-blue-800 mt-0.5">
             Sua conta principal gerencia a chave de API Master. Todas as comissões de intermediação (ex: 10%) caem automaticamente no seu saldo Master via Split Asaas.
@@ -85,12 +86,12 @@ function exportarRelatorioGlobalCSV() {
         </div>
       </div>
       <div class="flex items-center gap-2 bg-white/90 px-3.5 py-2 rounded-xl border border-blue-200 text-blue-900 font-bold">
-        <span>⚡ Asaas Split Engine Active</span>
+        <span class="inline-flex items-center gap-1"><Zap :size="14" class="text-amber-500" /> Asaas Split Engine Active</span>
       </div>
     </div>
 
-    <p v-if="erro" class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-700">
-      ⚠️ {{ erro }}
+    <p v-if="erro" class="flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-700">
+      <AlertTriangle :size="14" class="text-amber-500" /> {{ erro }}
     </p>
 
     <div v-if="carregando" class="py-12 text-center text-xs text-slate-400">
@@ -104,7 +105,7 @@ function exportarRelatorioGlobalCSV() {
         <div class="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-xs transition hover:shadow-md">
           <div class="flex items-center justify-between">
             <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Volume Bruto Global</span>
-            <span class="rounded-lg bg-blue-50 p-2 text-blue-600">💎</span>
+            <span class="rounded-lg bg-blue-50 p-2 text-blue-600"><Gem :size="16" /></span>
           </div>
           <p class="mt-3 text-2xl font-black text-slate-900">{{ formatarValor(financeiro.totalArrecadado) }}</p>
           <p class="mt-1 text-[11px] text-slate-500">Total transacionado em toda a plataforma</p>
@@ -114,7 +115,7 @@ function exportarRelatorioGlobalCSV() {
         <div class="relative overflow-hidden rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-500 to-emerald-600 p-5 text-white shadow-sm transition hover:shadow-md">
           <div class="flex items-center justify-between">
             <span class="text-xs font-bold uppercase tracking-wider text-emerald-100">Comissão Retida (Conta Master CNPJ)</span>
-            <span class="rounded-lg bg-white/20 p-2 text-white">🏆</span>
+            <span class="rounded-lg bg-white/20 p-2 text-white"><Trophy :size="16" /></span>
           </div>
           <p class="mt-3 text-2xl font-black text-white">{{ formatarValor(financeiro.comissaoPlataforma) }}</p>
           <p class="mt-1 text-[11px] text-emerald-100">Lucro líquido creditado no seu CNPJ</p>
@@ -124,7 +125,7 @@ function exportarRelatorioGlobalCSV() {
         <div class="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-xs transition hover:shadow-md">
           <div class="flex items-center justify-between">
             <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Repasses para Subcontas</span>
-            <span class="rounded-lg bg-indigo-50 p-2 text-indigo-600">🔄</span>
+            <span class="rounded-lg bg-indigo-50 p-2 text-indigo-600"><RefreshCw :size="16" /></span>
           </div>
           <p class="mt-3 text-2xl font-black text-slate-700">{{ formatarValor(financeiro.totalRepasse) }}</p>
           <p class="mt-1 text-[11px] text-slate-500">Valor transferido direto para organizadores</p>
@@ -149,10 +150,10 @@ function exportarRelatorioGlobalCSV() {
             class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs"
           >
             <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/80 px-5 py-4">
-              <div>
-                <p class="font-black text-sm text-slate-900">{{ org.nome }}</p>
-                <p class="text-xs text-slate-500 mt-0.5">
-                  🎟️ {{ org.quantidadePagamentos }} inscrição(ões) paga(s) · {{ org.eventos.length }} evento(s)
+              <div class="min-w-0">
+                <p class="truncate font-black text-sm text-slate-900">{{ org.nome }}</p>
+                <p class="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
+                  <Ticket :size="14" class="shrink-0" /> {{ org.quantidadePagamentos }} inscrição(ões) paga(s) · {{ org.eventos.length }} evento(s)
                 </p>
               </div>
 

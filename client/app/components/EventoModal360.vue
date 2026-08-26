@@ -1,5 +1,26 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import {
+  X,
+  Calendar,
+  MapPin,
+  ClipboardList,
+  Map,
+  Package,
+  FileText,
+  CheckCircle,
+  PartyPopper,
+  Footprints,
+  Printer,
+  RefreshCw,
+  Shirt,
+  Pencil,
+  Settings,
+  Handshake,
+  AlertTriangle,
+  Maximize,
+  Download
+} from 'lucide-vue-next'
 import type { InscricaoComEvento } from '~/composables/useInscricao'
 
 const props = defineProps<{
@@ -243,7 +264,7 @@ async function submeterTransferencia() {
             class="absolute top-4 right-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white transition hover:bg-black/60"
             @click="fechar"
           >
-            ✕
+            <X :size="18" />
           </button>
 
           <div class="relative z-10 space-y-1.5">
@@ -262,9 +283,9 @@ async function submeterTransferencia() {
               {{ inscricao.categoria.modalidade.evento.nome }}
             </h2>
             <p class="text-xs sm:text-sm text-slate-200 flex items-center gap-2">
-              <span>📅 {{ formatarDataHora(inscricao.categoria.modalidade.evento.dataInicio) }}</span>
+              <span class="flex items-center gap-1"><Calendar :size="14" /> {{ formatarDataHora(inscricao.categoria.modalidade.evento.dataInicio) }}</span>
               <span>•</span>
-              <span>📍 {{ inscricao.categoria.modalidade.evento.cidade }}/{{ inscricao.categoria.modalidade.evento.estado }}</span>
+              <span class="flex items-center gap-1"><MapPin :size="14" /> {{ inscricao.categoria.modalidade.evento.cidade }}/{{ inscricao.categoria.modalidade.evento.estado }}</span>
             </p>
           </div>
         </div>
@@ -277,7 +298,7 @@ async function submeterTransferencia() {
             :class="abaAtiva === 'geral' ? 'border-secondary text-secondary' : 'border-transparent text-slate-500 hover:text-slate-700'"
             @click="abaAtiva = 'geral'"
           >
-            <span>📋</span> Visão Geral
+            <ClipboardList :size="16" /> Visão Geral
           </button>
           <button
             type="button"
@@ -285,7 +306,7 @@ async function submeterTransferencia() {
             :class="abaAtiva === 'mapa' ? 'border-secondary text-secondary' : 'border-transparent text-slate-500 hover:text-slate-700'"
             @click="abaAtiva = 'mapa'"
           >
-            <span>🗺️</span> Mapa do Percurso
+            <Map :size="16" /> Mapa do Percurso
           </button>
           <button
             type="button"
@@ -293,7 +314,7 @@ async function submeterTransferencia() {
             :class="abaAtiva === 'kit' ? 'border-secondary text-secondary' : 'border-transparent text-slate-500 hover:text-slate-700'"
             @click="abaAtiva = 'kit'"
           >
-            <span>📦</span> Retirada de Kit
+            <Package :size="16" /> Retirada de Kit
           </button>
           <button
             type="button"
@@ -301,7 +322,7 @@ async function submeterTransferencia() {
             :class="abaAtiva === 'regulamento' ? 'border-secondary text-secondary' : 'border-transparent text-slate-500 hover:text-slate-700'"
             @click="abaAtiva = 'regulamento'"
           >
-            <span>📜</span> Regulamento
+            <FileText :size="16" /> Regulamento
           </button>
         </div>
 
@@ -312,14 +333,14 @@ async function submeterTransferencia() {
           <div v-if="abaAtiva === 'geral'" class="space-y-6">
             
             <!-- Alertas de erro/sucesso globais na aba -->
-            <div v-if="sucessoCamisa" class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-800">
-              ✅ {{ sucessoCamisa }}
+            <div v-if="sucessoCamisa" class="flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-800">
+              <CheckCircle :size="14" /> {{ sucessoCamisa }}
             </div>
-            <div v-if="sucessoCategoria" class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-800">
-              ✅ {{ sucessoCategoria }}
+            <div v-if="sucessoCategoria" class="flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-800">
+              <CheckCircle :size="14" /> {{ sucessoCategoria }}
             </div>
-            <div v-if="sucessoTransferencia" class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-800">
-              🎉 {{ sucessoTransferencia }}
+            <div v-if="sucessoTransferencia" class="flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-800">
+              <PartyPopper :size="14" /> {{ sucessoTransferencia }}
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -338,8 +359,8 @@ async function submeterTransferencia() {
               <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center flex flex-col justify-between">
                 <div>
                   <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Modalidade & Distância</p>
-                  <p class="mt-1 text-lg font-black text-slate-800">
-                    🏃 {{ inscricao.categoria.modalidade.nome }}
+                  <p class="mt-1 flex items-center justify-center gap-1.5 text-lg font-black text-slate-800">
+                    <Footprints :size="18" /> {{ inscricao.categoria.modalidade.nome }}
                   </p>
                   <p class="text-xs font-semibold text-secondary">
                     Categoria: {{ inscricao.categoria.nome }}
@@ -350,16 +371,16 @@ async function submeterTransferencia() {
                   <div v-if="inscricao.kitEntregueEm" class="text-[11px] text-slate-400 italic">
                     Kit entregue
                   </div>
-                  <div v-else-if="camisasBloqueadasPelaGrafica" class="text-[11px] font-semibold text-amber-700 bg-amber-50 rounded p-1.5 border border-amber-200">
-                    🏭 Alteração encerrada
+                  <div v-else-if="camisasBloqueadasPelaGrafica" class="flex items-center justify-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 rounded p-1.5 border border-amber-200">
+                    <Printer :size="12" /> Alteração encerrada
                   </div>
                   <div v-else-if="!editandoCategoria">
                     <button
                       type="button"
-                      class="text-xs font-bold text-secondary hover:underline"
+                      class="inline-flex items-center gap-1 text-xs font-bold text-secondary hover:underline"
                       @click="editandoCategoria = true"
                     >
-                      🔄 Trocar modalidade
+                      <RefreshCw :size="12" /> Trocar modalidade
                     </button>
                   </div>
                 </div>
@@ -369,8 +390,8 @@ async function submeterTransferencia() {
               <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center flex flex-col justify-between">
                 <div>
                   <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Tamanho da Camisa</p>
-                  <p class="mt-1 text-xl font-black text-slate-800">
-                    👕 {{ inscricao.tamanhoCamisa || 'Não informada' }}
+                  <p class="mt-1 flex items-center justify-center gap-1.5 text-xl font-black text-slate-800">
+                    <Shirt :size="18" /> {{ inscricao.tamanhoCamisa || 'Não informada' }}
                   </p>
                 </div>
 
@@ -379,17 +400,17 @@ async function submeterTransferencia() {
                   <div v-if="inscricao.kitEntregueEm" class="text-[11px] text-slate-400 italic">
                     Kit entregue (Tamanho final)
                   </div>
-                  <div v-else-if="camisasBloqueadasPelaGrafica" class="text-[11px] font-semibold text-amber-700 bg-amber-50 rounded p-1.5 border border-amber-200">
-                    🏭 Enviado para a gráfica
+                  <div v-else-if="camisasBloqueadasPelaGrafica" class="flex items-center justify-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 rounded p-1.5 border border-amber-200">
+                    <Printer :size="12" /> Enviado para a gráfica
                   </div>
                   <!-- Se puder editar -->
                   <div v-else-if="!editandoCamisa">
                     <button
                       type="button"
-                      class="text-xs font-bold text-secondary hover:underline"
+                      class="inline-flex items-center gap-1 text-xs font-bold text-secondary hover:underline"
                       @click="editandoCamisa = true"
                     >
-                      ✏️ Alterar tamanho
+                      <Pencil :size="12" /> Alterar tamanho
                     </button>
                   </div>
                 </div>
@@ -445,7 +466,7 @@ async function submeterTransferencia() {
                     :class="novaCategoriaId === cat.id ? 'bg-secondary text-white border-secondary shadow' : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-50'"
                     @click="novaCategoriaId = cat.id"
                   >
-                    <p class="font-extrabold text-sm">🏃 {{ mod.nome }} ({{ mod.distanciaKm }} km)</p>
+                    <p class="flex items-center gap-1.5 font-extrabold text-sm"><Footprints :size="14" /> {{ mod.nome }} ({{ mod.distanciaKm }} km)</p>
                     <p class="mt-1 text-[11px] opacity-90">Categoria: {{ cat.nome }}</p>
                   </button>
                 </template>
@@ -466,7 +487,7 @@ async function submeterTransferencia() {
             <!-- Painel de Ações Avançadas: Transferência de Vaga -->
             <div class="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
               <h3 class="font-bold text-slate-900 text-sm flex items-center justify-between">
-                <span>⚙️ Gerenciar Inscrição</span>
+                <span class="flex items-center gap-1.5"><Settings :size="16" /> Gerenciar Inscrição</span>
                 <span v-if="inscricao.status === 'CONFIRMADA'" class="text-xs font-semibold text-emerald-600">Vaga ativa</span>
               </h3>
 
@@ -477,10 +498,10 @@ async function submeterTransferencia() {
                 </div>
                 <button
                   type="button"
-                  class="rounded-xl border border-indigo-200 bg-indigo-50 px-3.5 py-2 text-xs font-bold text-indigo-900 hover:bg-indigo-100 transition self-stretch sm:self-auto text-center"
+                  class="flex items-center justify-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3.5 py-2 text-xs font-bold text-indigo-900 hover:bg-indigo-100 transition self-stretch sm:self-auto text-center"
                   @click="mostrandoTransferencia = !mostrandoTransferencia"
                 >
-                  🤝 Transferir Vaga
+                  <Handshake :size="14" /> Transferir Vaga
                 </button>
               </div>
 
@@ -498,8 +519,8 @@ async function submeterTransferencia() {
                   class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-medium text-slate-800 placeholder-slate-400 focus:border-indigo-500 focus:outline-none"
                 />
 
-                <div class="rounded-xl bg-amber-50 border border-amber-200 p-3 text-[11px] text-amber-800">
-                  ⚠️ <strong>Atenção:</strong> Após a transferência, esta vaga deixará o seu painel e passará a pertencer ao novo atleta. Esta operação não pode ser desfeita.
+                <div class="flex items-start gap-1.5 rounded-xl bg-amber-50 border border-amber-200 p-3 text-[11px] text-amber-800">
+                  <AlertTriangle :size="14" class="shrink-0 mt-0.5" /> <span><strong>Atenção:</strong> Após a transferência, esta vaga deixará o seu painel e passará a pertencer ao novo atleta. Esta operação não pode ser desfeita.</span>
                 </div>
 
                 <p v-if="erroTransferencia" class="text-xs text-red-600 font-bold">{{ erroTransferencia }}</p>
@@ -527,7 +548,7 @@ async function submeterTransferencia() {
             <!-- Detalhes do Local e Data -->
             <div class="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
               <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
-                📍 Endereço & Local da Prova
+                <MapPin :size="16" /> Endereço & Local da Prova
               </h3>
               <p class="text-sm text-slate-600">
                 <strong>Local:</strong> {{ inscricao.categoria.modalidade.evento.local }}
@@ -556,7 +577,7 @@ async function submeterTransferencia() {
           <div v-else-if="abaAtiva === 'kit'" class="space-y-4">
             <div class="rounded-2xl border border-blue-100 bg-blue-50/60 p-5 space-y-3">
               <h3 class="font-bold text-blue-900 text-base flex items-center gap-2">
-                📦 Informações de Retirada do Kit
+                <Package :size="18" /> Informações de Retirada do Kit
               </h3>
               
               <div v-if="inscricao.categoria.modalidade.evento.retiradaKitLocal">
@@ -581,11 +602,11 @@ async function submeterTransferencia() {
                 </div>
               </div>
 
-              <div v-if="inscricao.kitEntregueEm" class="mt-3 rounded-xl bg-emerald-100 p-3 text-xs font-bold text-emerald-800">
-                ✅ Kit já retirado pelo atleta em {{ formatarData(inscricao.kitEntregueEm) }}
+              <div v-if="inscricao.kitEntregueEm" class="mt-3 flex items-center gap-1.5 rounded-xl bg-emerald-100 p-3 text-xs font-bold text-emerald-800">
+                <CheckCircle :size="14" /> Kit já retirado pelo atleta em {{ formatarData(inscricao.kitEntregueEm) }}
               </div>
-              <div v-else class="mt-3 rounded-xl bg-amber-100 p-3 text-xs font-semibold text-amber-900">
-                ⚠️ Lembre-se de apresentar seu documento de identidade com foto para a retirada.
+              <div v-else class="mt-3 flex items-center gap-1.5 rounded-xl bg-amber-100 p-3 text-xs font-semibold text-amber-900">
+                <AlertTriangle :size="14" /> Lembre-se de apresentar seu documento de identidade com foto para a retirada.
               </div>
             </div>
           </div>
@@ -595,7 +616,7 @@ async function submeterTransferencia() {
             <div class="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
               <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h3 class="font-bold text-slate-900 text-base">📜 Regulamento Oficial do Evento</h3>
+                  <h3 class="font-bold text-slate-900 text-base flex items-center gap-2"><FileText :size="18" /> Regulamento Oficial do Evento</h3>
                   <p class="text-xs text-slate-500">
                     Leia o documento oficial abaixo ou abra em tela cheia para maior conforto.
                   </p>
@@ -606,7 +627,7 @@ async function submeterTransferencia() {
                     class="inline-flex items-center gap-1.5 rounded-xl bg-slate-800 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-slate-900 transition"
                     @click="pdfEmTelaCheia = true"
                   >
-                    ⛶ Ler em Tela Cheia
+                    <Maximize :size="14" /> Ler em Tela Cheia
                   </button>
                   <a
                     :href="regulamentoUrlFormatted"
@@ -614,7 +635,7 @@ async function submeterTransferencia() {
                     download
                     class="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-slate-800 transition"
                   >
-                    📄 Baixar PDF
+                    <Download :size="14" /> Baixar PDF
                   </a>
                 </div>
               </div>
@@ -628,7 +649,7 @@ async function submeterTransferencia() {
                 ></iframe>
               </div>
               <div v-else class="p-8 rounded-2xl bg-slate-50 text-xs text-slate-500 text-center">
-                <span class="text-3xl block mb-2">📜</span>
+                <FileText :size="32" class="mx-auto mb-2 text-slate-400" />
                 O regulamento oficial em PDF pode ser solicitado diretamente com o organizador do evento.
               </div>
             </div>
@@ -642,7 +663,7 @@ async function submeterTransferencia() {
             >
               <div class="flex items-center justify-between bg-slate-900 text-white p-4 rounded-t-2xl border-b border-slate-800">
                 <div class="flex items-center gap-2">
-                  <span>📜</span>
+                  <FileText :size="16" />
                   <span class="font-bold text-sm">Leitor de Regulamento PDF — {{ inscricao.categoria.modalidade.evento.nome }}</span>
                 </div>
                 <div class="flex items-center gap-3">
@@ -650,16 +671,16 @@ async function submeterTransferencia() {
                     :href="regulamentoUrlFormatted!"
                     target="_blank"
                     download
-                    class="rounded-xl bg-primary px-3.5 py-1.5 text-xs font-bold text-white hover:bg-slate-800 transition"
+                    class="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-1.5 text-xs font-bold text-white hover:bg-slate-800 transition"
                   >
-                    ⬇️ Baixar PDF
+                    <Download :size="14" /> Baixar PDF
                   </a>
                   <button
                     type="button"
-                    class="rounded-xl bg-slate-800 px-3.5 py-1.5 text-xs font-bold text-slate-200 hover:bg-slate-700 transition"
+                    class="inline-flex items-center gap-1.5 rounded-xl bg-slate-800 px-3.5 py-1.5 text-xs font-bold text-slate-200 hover:bg-slate-700 transition"
                     @click="pdfEmTelaCheia = false"
                   >
-                    ✕ Fechar Tela Cheia
+                    <X :size="14" /> Fechar Tela Cheia
                   </button>
                 </div>
               </div>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { Map, X, Maximize, Footprints, Download, Circle, Droplet, RefreshCw, Flag } from 'lucide-vue-next'
 
 const props = defineProps<{
   mapaPercursoUrl?: string | null
@@ -105,16 +106,22 @@ function initLeafletViewer() {
     leafletMapViewer.fitBounds(polylineViewerLayer.getBounds(), { padding: [40, 40] })
 
     if (rotaDados.value.marcadores) {
-      const emojiMap: Record<string, string> = {
-        LARGADA: '🟢',
-        HIDRATACAO: '💧',
-        RETORNO: '🔄',
-        CHEGADA: '🏁'
+      // Paths extraídos dos ícones lucide-vue-next equivalentes (Circle, Droplet, RefreshCw, Flag, MapPin),
+      // usados aqui como markup SVG cru pois o Leaflet renderiza os marcadores fora da árvore do Vue.
+      const svgIconMap: Record<string, { path: string; color: string }> = {
+        LARGADA: { path: '<circle cx="12" cy="12" r="10"/>', color: '#10b981' },
+        HIDRATACAO: { path: '<path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/>', color: '#22d3ee' },
+        RETORNO: { path: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>', color: '#f59e0b' },
+        CHEGADA: { path: '<path d="M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528"/>', color: '#fb7185' }
+      }
+      const defaultSvgIcon = {
+        path: '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>',
+        color: '#f59e0b'
       }
 
       rotaDados.value.marcadores.forEach((m) => {
-        const emoji = emojiMap[m.tipo] || '📍'
-        const iconHtml = `<div style="font-size: 22px; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">${emoji}</div>`
+        const { path, color } = svgIconMap[m.tipo] || defaultSvgIcon
+        const iconHtml = `<div style="filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5));"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${path}</svg></div>`
         const customIcon = L.divIcon({
           html: iconHtml,
           className: 'custom-leaflet-marker',
@@ -162,7 +169,7 @@ function alternarTelaCheia() {
     <!-- Barra Superior de Controles e Alternância de Visão -->
     <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-900 text-white rounded-2xl p-3 shadow-md">
       <div class="flex items-center gap-2">
-        <span class="text-lg">🗺️</span>
+        <Map :size="20" />
         <div>
           <p class="text-xs font-bold uppercase tracking-wider text-slate-300">Mapa Interativo do Percurso</p>
           <p class="text-[11px] text-slate-400">Navegue no mapa, controle o zoom e veja os pontos de apoio.</p>
@@ -202,10 +209,11 @@ function alternarTelaCheia() {
 
         <button
           type="button"
-          class="rounded-xl bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200 hover:bg-slate-700 transition"
+          class="flex items-center gap-1.5 rounded-xl bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200 hover:bg-slate-700 transition"
           @click="alternarTelaCheia"
         >
-          {{ emTelaCheia ? '✕ Sair da Tela Cheia' : '⛶ Tela Cheia' }}
+          <template v-if="emTelaCheia"><X :size="14" /> Sair da Tela Cheia</template>
+          <template v-else><Maximize :size="14" /> Tela Cheia</template>
         </button>
       </div>
     </div>
@@ -223,7 +231,7 @@ function alternarTelaCheia() {
         <div id="mapaLeafletViewer" class="w-full h-full min-h-[400px] rounded-3xl"></div>
 
         <div class="absolute top-4 left-14 z-[400] bg-slate-900/90 backdrop-blur-md rounded-xl p-3 border border-slate-800 text-white text-xs space-y-0.5 shadow-lg">
-          <p class="font-black text-warning">🏃 Percurso Oficial de {{ rotaDados?.distanciaKm || '5' }} KM</p>
+          <p class="flex items-center gap-1.5 font-black text-warning"><Footprints :size="14" /> Percurso Oficial de {{ rotaDados?.distanciaKm || '5' }} KM</p>
           <p class="text-[11px] text-slate-300">Traçado oficial em ruas reais definido pelo organizador.</p>
         </div>
       </div>
@@ -253,7 +261,7 @@ function alternarTelaCheia() {
 
       <!-- Visão Sem Mapa Cadastrado -->
       <div v-else class="text-center p-8 text-slate-400 space-y-3">
-        <span class="text-4xl">🗺️</span>
+        <Map :size="40" class="mx-auto" />
         <p class="text-sm font-bold text-slate-300">Mapa do percurso em fase de definição pelo organizador.</p>
         <p class="text-xs text-slate-500">O traçado oficial com pontos de hidratação e altimetria será publicado em breve.</p>
       </div>
@@ -262,16 +270,16 @@ function alternarTelaCheia() {
       <div class="absolute bottom-3 left-3 right-3 bg-slate-900/90 backdrop-blur-md rounded-2xl p-3 border border-slate-700/60 text-white flex flex-wrap items-center justify-between gap-3 text-xs">
         <div class="flex items-center gap-4 font-bold overflow-x-auto">
           <span class="flex items-center gap-1.5 text-emerald-400">
-            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span> 🟢 Largada
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span> <Circle :size="12" /> Largada
           </span>
           <span class="flex items-center gap-1.5 text-cyan-300">
-            <span>💧</span> Hidratação (a cada 2,5km)
+            <Droplet :size="12" /> Hidratação (a cada 2,5km)
           </span>
           <span class="flex items-center gap-1.5 text-amber-300">
-            <span>🔄</span> Retorno 5km
+            <RefreshCw :size="12" /> Retorno 5km
           </span>
           <span class="flex items-center gap-1.5 text-rose-400">
-            <span>🏁</span> Chegada
+            <Flag :size="12" /> Chegada
           </span>
         </div>
 
@@ -280,9 +288,9 @@ function alternarTelaCheia() {
           :href="imagemUrlFormatada"
           target="_blank"
           download
-          class="rounded-xl bg-white/10 hover:bg-white/20 px-3 py-1 font-bold text-[11px] transition text-slate-200"
+          class="flex items-center gap-1 rounded-xl bg-white/10 hover:bg-white/20 px-3 py-1 font-bold text-[11px] transition text-slate-200"
         >
-          ⬇️ Baixar Imagem HD
+          <Download :size="12" /> Baixar Imagem HD
         </a>
       </div>
     </div>

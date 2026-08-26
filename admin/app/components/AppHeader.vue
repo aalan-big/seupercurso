@@ -1,4 +1,6 @@
 <script setup lang="ts">
+const emit = defineEmits<{ 'abrir-menu': [] }>()
+
 const { user, logout } = useAuth()
 
 const notificacoesAbertas = ref(false)
@@ -62,22 +64,28 @@ async function onSair() {
     @click="fecharTodos"
   ></div>
 
-  <header class="sticky top-0 z-40 flex h-16 w-full items-center justify-between border-b border-slate-200 bg-white/95 px-6 shadow-2xs backdrop-blur-md">
-    <!-- Esquerda: Título da Plataforma & Indicador Master -->
-    <div class="flex items-center gap-3">
-      <div class="flex items-center gap-2">
-        <span class="text-xl">🏃</span>
-        <span class="text-base font-black tracking-tight text-slate-900">
-          Seu<span class="text-amber-500">Percurso</span>
-        </span>
-        <span class="rounded-full bg-slate-900 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-white shadow-2xs">
-          👑 MASTER ADMIN
+  <header class="sticky top-0 z-40 flex h-16 w-full items-center justify-between gap-2 border-b border-slate-200 bg-white/95 px-3 shadow-2xs backdrop-blur-md sm:px-6">
+    <!-- Esquerda: Menu Mobile, Título da Plataforma & Indicador Master -->
+    <div class="flex min-w-0 items-center gap-3">
+      <button
+        type="button"
+        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition md:hidden"
+        title="Abrir menu"
+        @click="emit('abrir-menu')"
+      >
+        <AppIcon name="menu" size="18" />
+      </button>
+
+      <div class="flex min-w-0 items-center gap-2">
+        <img src="/logo-header.png" alt="SeuPercurso" class="h-7 w-auto shrink-0" />
+        <span class="hidden shrink-0 items-center gap-1 rounded-full bg-slate-900 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-white shadow-2xs sm:flex">
+          <AppIcon name="crown" size="12" /> MASTER ADMIN
         </span>
       </div>
     </div>
 
     <!-- Direita: Sininho, Engrenagem e Avatar -->
-    <div class="flex items-center gap-3">
+    <div class="flex shrink-0 items-center gap-1.5 sm:gap-3">
       <!-- 🔔 1. Sininho de Notificações -->
       <div class="relative">
         <button
@@ -86,17 +94,17 @@ async function onSair() {
           title="Notificações"
           @click="notificacoesAbertas = !notificacoesAbertas; configuracoesAbertas = false; perfilAberto = false"
         >
-          <span class="text-lg">🔔</span>
+          <AppIcon name="bell" size="18" />
           <span v-if="naoLidas > 0" class="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-black text-white shadow-xs">
             {{ naoLidas }}
           </span>
         </button>
 
         <!-- Dropdown de Notificações -->
-        <div v-if="notificacoesAbertas" class="absolute right-0 mt-3 w-80 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl z-50">
+        <div v-if="notificacoesAbertas" class="absolute right-0 mt-3 w-[calc(100vw-1.5rem)] max-w-80 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl z-50">
           <div class="flex items-center justify-between border-b border-slate-100 p-4 bg-slate-50">
             <div class="flex items-center gap-2">
-              <span class="font-black text-xs text-slate-900">🔔 Notificações Master</span>
+              <span class="flex items-center gap-1.5 font-black text-xs text-slate-900"><AppIcon name="bell" size="14" /> Notificações Master</span>
               <span v-if="naoLidas > 0" class="rounded-full bg-red-100 text-red-800 text-[10px] font-bold px-2 py-0.5">
                 {{ naoLidas }} novas
               </span>
@@ -128,7 +136,7 @@ async function onSair() {
                 <span class="text-[10px] font-semibold text-slate-400 whitespace-nowrap">{{ n.hora }}</span>
               </div>
               <p class="mt-1 text-[11px] text-slate-600 leading-relaxed">{{ n.descricao }}</p>
-              <span class="mt-1 inline-block text-[10px] font-bold text-slate-400 group-hover:text-blue-600 transition">Clique para marcar como lida ✓</span>
+              <span class="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-slate-400 group-hover:text-blue-600 transition">Clique para marcar como lida <AppIcon name="check" size="10" /></span>
             </div>
           </div>
         </div>
@@ -142,26 +150,28 @@ async function onSair() {
           title="Configurações Master"
           @click="configuracoesAbertas = !configuracoesAbertas; notificacoesAbertas = false; perfilAberto = false"
         >
-          <span class="text-lg">⚙️</span>
+          <AppIcon name="settings" size="18" />
         </button>
 
         <!-- Dropdown de Configurações Master -->
-        <div v-if="configuracoesAbertas" class="absolute right-0 mt-3 w-72 overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl z-50 space-y-4">
+        <div v-if="configuracoesAbertas" class="absolute right-0 mt-3 w-[calc(100vw-1.5rem)] max-w-72 overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl z-50 space-y-4">
           <div class="border-b border-slate-100 pb-3">
-            <h4 class="font-black text-xs text-slate-900">⚙️ Configurações Master</h4>
+            <h4 class="flex items-center gap-1.5 font-black text-xs text-slate-900"><AppIcon name="settings" size="14" /> Configurações Master</h4>
             <p class="text-[11px] text-slate-500">Parâmetros globais do sistema</p>
           </div>
 
           <div class="space-y-3 text-xs">
             <NuxtLink to="/financeiro" class="flex items-center gap-3 p-2 rounded-xl hover:bg-slate-100 transition text-slate-800 font-bold" @click="configuracoesAbertas = false">
-              <span>💳</span> Taxa de Comissão Asaas (10%)
+              <AppIcon name="card" size="16" class="text-slate-500" /> Taxa de Comissão Asaas (10%)
             </NuxtLink>
             <NuxtLink to="/organizadores" class="flex items-center gap-3 p-2 rounded-xl hover:bg-slate-100 transition text-slate-800 font-bold" @click="configuracoesAbertas = false">
-              <span>🛡️</span> Regras de Verificação KYC
+              <AppIcon name="shield" size="16" class="text-slate-500" /> Regras de Verificação KYC
             </NuxtLink>
             <div class="p-3 rounded-xl bg-slate-50 border border-slate-100 text-[11px] text-slate-600">
               <span class="font-bold block text-slate-800">API Asaas Status:</span>
-              <span class="text-emerald-700 font-bold">🟢 Subconta Master Operacional</span>
+              <span class="flex items-center gap-1.5 text-emerald-700 font-bold">
+                <span class="h-2 w-2 rounded-full bg-emerald-500 inline-block"></span> Subconta Master Operacional
+              </span>
             </div>
           </div>
         </div>
@@ -171,13 +181,13 @@ async function onSair() {
       <div class="relative">
         <button
           type="button"
-          class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-1.5 pr-3.5 hover:bg-slate-100 transition shadow-2xs"
+          class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-1.5 hover:bg-slate-100 transition shadow-2xs sm:pr-3.5"
           @click="perfilAberto = !perfilAberto; notificacoesAbertas = false; configuracoesAbertas = false"
         >
-          <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 font-black text-xs text-white shadow-xs">
+          <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 font-black text-xs text-white shadow-xs">
             {{ iniciais }}
           </div>
-          <div class="text-left leading-tight">
+          <div class="hidden text-left leading-tight sm:block">
             <span class="block text-xs font-black text-slate-900">
               {{ user?.nome || 'Aalan Alves' }}
             </span>
@@ -185,16 +195,16 @@ async function onSair() {
               {{ user?.email || 'aalanallvesgt@gmail.com' }}
             </span>
           </div>
-          <span class="text-xs text-slate-400">▾</span>
+          <span class="hidden text-xs text-slate-400 sm:inline">▾</span>
         </button>
 
         <!-- Dropdown de Ações do Perfil -->
-        <div v-if="perfilAberto" class="absolute right-0 mt-3 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-xl z-50">
+        <div v-if="perfilAberto" class="absolute right-0 mt-3 w-[calc(100vw-1.5rem)] max-w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-xl z-50">
           <div class="p-3 border-b border-slate-100 text-xs">
             <p class="font-black text-slate-900">{{ user?.nome || 'Aalan Alves' }}</p>
             <p class="text-[11px] text-slate-500 font-mono">{{ user?.email || 'aalanallvesgt@gmail.com' }}</p>
-            <span class="mt-1 inline-block rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
-              👑 Administrador Master
+            <span class="mt-1 inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+              <AppIcon name="crown" size="11" /> Administrador Master
             </span>
           </div>
           <button
@@ -202,7 +212,7 @@ async function onSair() {
             class="w-full mt-1 text-left px-3 py-2 text-xs font-bold text-red-600 rounded-xl hover:bg-red-50 transition flex items-center gap-2"
             @click="onSair"
           >
-            <span>🚪</span> Sair da Conta
+            <AppIcon name="logout" size="16" /> Sair da Conta
           </button>
         </div>
       </div>

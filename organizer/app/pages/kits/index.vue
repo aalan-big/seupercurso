@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { FileText, Shirt, Hash, AlertTriangle, CheckCircle } from 'lucide-vue-next'
+
 const { eventos, fetchMeusEventos } = useEventoOrganizador()
 const { kits, fetchKits, gerarNumeracaoPeito } = useKitsOrganizador()
 
@@ -10,7 +12,7 @@ const numeroInicialInput = ref(101)
 const erro = ref('')
 const sucesso = ref('')
 
-const ORDEM_TAMANHOS = ['PP', 'P', 'M', 'G', 'GG', 'XG', 'Não informado']
+const ORDEM_TAMANHOS = ['PP', 'P', 'M', 'G', 'GG', 'XGG', 'Não informado']
 
 function ordenarTamanhos(tamanhos: Record<string, number>) {
   return Object.entries(tamanhos).sort(([a], [b]) => {
@@ -120,7 +122,7 @@ function exportarRelatorioGraficaCSV() {
           class="inline-flex items-center gap-2 rounded-xl bg-slate-800 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-slate-900 transition disabled:opacity-40"
           @click="exportarRelatorioGraficaCSV"
         >
-          📄 Exportar Pedido para Gráfica (CSV)
+          <FileText :size="16" /> Exportar Pedido para Gráfica (CSV)
         </button>
       </div>
     </div>
@@ -128,7 +130,7 @@ function exportarRelatorioGraficaCSV() {
     <!-- Explicação Didática da Numeração -->
     <div class="rounded-2xl border border-blue-200 bg-blue-50/70 p-5 text-xs text-blue-900 flex flex-wrap items-center justify-between gap-4 shadow-xs">
       <div class="flex items-center gap-3">
-        <span class="text-3xl">🎽</span>
+        <Shirt :size="28" class="text-blue-600" />
         <div>
           <p class="font-bold text-sm text-blue-950">Como funciona a Atribuição dos Números de Peito?</p>
           <p class="text-[11px] text-blue-800 mt-0.5">
@@ -143,7 +145,7 @@ function exportarRelatorioGraficaCSV() {
 
     <template v-else-if="eventos.length === 0">
       <div class="rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center space-y-3">
-        <span class="text-4xl block">👕</span>
+        <Shirt :size="36" class="mx-auto text-slate-400" />
         <p class="font-bold text-sm text-slate-700">Você ainda não criou nenhum evento.</p>
       </div>
     </template>
@@ -181,17 +183,17 @@ function exportarRelatorioGraficaCSV() {
               class="mt-3.5 inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-xs font-black uppercase tracking-wider text-white shadow-xs hover:brightness-95 transition disabled:opacity-40"
               @click="onGerarNumeracao"
             >
-              🔢 {{ gerandoNumeros ? 'Gerando Numerais...' : 'Atribuir Números em Lote' }}
+              <Hash :size="14" /> {{ gerandoNumeros ? 'Gerando Numerais...' : 'Atribuir Números em Lote' }}
             </button>
           </div>
         </div>
       </div>
 
-      <p v-if="erro" class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-700">
-        ⚠️ {{ erro }}
+      <p v-if="erro" class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-700 flex items-center gap-2">
+        <AlertTriangle :size="16" class="text-red-600" /> {{ erro }}
       </p>
-      <p v-if="sucesso" class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-bold text-emerald-800">
-        ✅ {{ sucesso }}
+      <p v-if="sucesso" class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-bold text-emerald-800 flex items-center gap-2">
+        <CheckCircle :size="16" class="text-emerald-600" /> {{ sucesso }}
       </p>
 
       <p v-if="carregandoKits" class="py-8 text-center text-xs text-slate-400">Carregando estoque de kits...</p>

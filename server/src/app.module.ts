@@ -15,6 +15,7 @@ import { StaffAuthModule } from './staff-auth/staff-auth.module';
 import { StaffModule } from './staff/staff.module';
 import { CronometragemModule } from './cronometragem/cronometragem.module';
 import { AuditLogModule } from './audit-log/audit-log.module';
+import { ArteModule } from './arte/arte.module';
 import { envValidationSchema } from './config/env.validation';
 
 @Module({
@@ -36,6 +37,7 @@ import { envValidationSchema } from './config/env.validation';
     StaffModule,
     CronometragemModule,
     AuditLogModule,
+    ArteModule,
   ],
   controllers: [AppController],
   providers: [AppService],

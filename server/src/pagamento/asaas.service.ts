@@ -11,7 +11,8 @@ export interface CriarSubcontaParams {
 }
 
 export interface GerarPixParams {
-  inscricaoId: string;
+  /** Obrigatório apenas quando `referenciaExterna`/`descricao` não são informados. */
+  inscricaoId?: string;
   valor: number;
   cliente: {
     nome: string;
@@ -20,6 +21,10 @@ export interface GerarPixParams {
   };
   organizadorWalletId?: string | null;
   comissaoPlataforma?: number;
+  /** Sobrescreve o externalReference enviado ao Asaas (padrão: inscricaoId). */
+  referenciaExterna?: string;
+  /** Sobrescreve a descrição da cobrança (padrão: referência à inscrição). */
+  descricao?: string;
 }
 
 export interface ProcessarCartaoParams {
@@ -123,13 +128,15 @@ export class AsaasService {
         ]
       : undefined;
 
+    const referenciaExterna = params.referenciaExterna ?? params.inscricaoId ?? randomUUID();
+
     const body = {
       customer: await this.obterOuCriarClienteAsaas(params.cliente),
       billingType: 'PIX',
       value: params.valor,
       dueDate: new Date(Date.now() + 86400000).toISOString().slice(0, 10), // Vencimento em 24h
-      description: `Inscrição no Evento (Ref: ${params.inscricaoId.slice(0, 8)})`,
-      externalReference: params.inscricaoId,
+      description: params.descricao ?? `Inscrição no Evento (Ref: ${(params.inscricaoId ?? referenciaExterna).slice(0, 8)})`,
+      externalReference: referenciaExterna,
       ...(split ? { split } : {}),
     };
 
@@ -157,8 +164,8 @@ export class AsaasService {
         pixQrCodeUrl: qrData.encodedImage ? `data:image/png;base64,${qrData.encodedImage}` : null,
       };
     } catch (err) {
-      this.logger.warn(`Simulação PIX Sandbox Asaas ativada para ${params.inscricaoId}: ${err}`);
-      const mockPixCode = `00020126580014br.gov.bcb.pix0136rotapass-sandbox-${params.inscricaoId.slice(0, 8)}5204000053039865405${params.valor.toFixed(2)}5802BR5909SEUPERCURSO6007IGUATU62070503***6304ABCD`;
+      this.logger.warn(`Simulação PIX Sandbox Asaas ativada para ${referenciaExterna}: ${err}`);
+      const mockPixCode = `00020126580014br.gov.bcb.pix0136rotapass-sandbox-${referenciaExterna.slice(0, 8)}5204000053039865405${params.valor.toFixed(2)}5802BR5909SEUPERCURSO6007IGUATU62070503***6304ABCD`;
       return {
         asaasPaymentId: `pay_pix_mock_${Date.now()}`,
         pixCopiaECola: mockPixCode,

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { DollarSign, Footprints, Lightbulb } from 'lucide-vue-next'
 import type { LoteOrganizador, ModalidadeOrganizador } from '../composables/useEventoOrganizador'
 
 const props = defineProps<{
@@ -143,7 +144,7 @@ function formatarData(iso: string) {
                 placeholder="Nome (ex.: 1º Lote)"
                 class="col-span-2 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
               />
-              <div>
+              <div class="min-w-0">
                 <label class="mb-1 block text-xs font-semibold text-slate-500">Início da venda</label>
                 <input
                   v-model="edicaoLote.inicioVenda"
@@ -151,7 +152,7 @@ function formatarData(iso: string) {
                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
                 />
               </div>
-              <div>
+              <div class="min-w-0">
                 <label class="mb-1 block text-xs font-semibold text-slate-500">Fim da venda</label>
                 <input
                   v-model="edicaoLote.fimVenda"
@@ -215,7 +216,7 @@ function formatarData(iso: string) {
           <!-- Tabela/Cards de Preços por Modalidade (Mobile Friendly) -->
           <div class="mt-4 flex flex-col gap-2.5 border-t border-slate-200 pt-3">
             <p class="text-[11px] font-black uppercase tracking-wider text-amber-950 flex items-center gap-1">
-              <span>💰 Preço das Modalidades neste Lote (Digite e troque de campo para salvar):</span>
+              <DollarSign :size="14" class="text-amber-950" /> <span>Preço das Modalidades neste Lote (Digite e troque de campo para salvar):</span>
             </p>
             <div
               v-for="modalidade in modalidades"
@@ -223,7 +224,7 @@ function formatarData(iso: string) {
               class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-2xl border border-amber-200 bg-amber-50/50 p-3 shadow-xs"
             >
               <div class="flex items-center gap-2">
-                <span class="rounded-lg bg-amber-200/60 px-2 py-0.5 text-xs font-black text-amber-950">🏃 {{ modalidade.distanciaKm }} km</span>
+                <span class="rounded-lg bg-amber-200/60 px-2 py-0.5 text-xs font-black text-amber-950 inline-flex items-center gap-1"><Footprints :size="13" class="text-amber-950" /> {{ modalidade.distanciaKm }} km</span>
                 <span class="font-extrabold text-xs text-slate-900">{{ modalidade.nome }}</span>
               </div>
               <div class="flex items-center gap-2 self-end sm:self-auto">
@@ -261,7 +262,7 @@ function formatarData(iso: string) {
               placeholder="Nome (ex.: 1º Lote)"
               class="col-span-2 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
             />
-            <div>
+            <div class="min-w-0">
               <label class="mb-1 block text-xs font-semibold text-slate-500">Início da venda</label>
               <input
                 v-model="novoLote.inicioVenda"
@@ -269,7 +270,7 @@ function formatarData(iso: string) {
                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
               />
             </div>
-            <div>
+            <div class="min-w-0">
               <label class="mb-1 block text-xs font-semibold text-slate-500">Fim da venda</label>
               <input
                 v-model="novoLote.fimVenda"
@@ -286,8 +287,8 @@ function formatarData(iso: string) {
             />
           </div>
 
-          <p class="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-900">
-            💡 <strong>Dica para Celular:</strong> Após clicar em <strong>Salvar Lote</strong>, os campos em destaque amarelo para preencher o preço em R$ de cada modalidade aparecerão no card do lote acima!
+          <p class="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-900 flex items-start gap-1.5">
+            <Lightbulb :size="14" class="text-amber-500 shrink-0 mt-0.5" /> <span><strong>Dica para Celular:</strong> Após clicar em <strong>Salvar Lote</strong>, os campos em destaque amarelo para preencher o preço em R$ de cada modalidade aparecerão no card do lote acima!</span>
           </p>
 
           <div class="mt-3 flex gap-2">

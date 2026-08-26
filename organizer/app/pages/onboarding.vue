@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { Pencil } from 'lucide-vue-next'
+
 definePageMeta({ layout: 'auth' })
 
 const { token } = useAuth()
@@ -372,7 +374,7 @@ function onFotoLivenessCapturada(file: File) {
       class="mt-2 text-xs font-bold text-amber-700 hover:text-amber-900 underline flex items-center gap-1.5 transition"
       @click="step = 1"
     >
-      <span>✏️</span> Deseja cadastrar como Empresa (CNPJ) ou alterar os dados iniciais? Clique aqui
+      <Pencil :size="14" class="text-amber-700" /> Deseja cadastrar como Empresa (CNPJ) ou alterar os dados iniciais? Clique aqui
     </button>
 
 
@@ -490,7 +492,7 @@ function onFotoLivenessCapturada(file: File) {
               class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
             />
           </div>
-          <div>
+          <div class="min-w-0">
             <label class="mb-1 block text-sm font-semibold text-slate-700">Nascimento</label>
             <input
               v-model="pfForm.dataNascimento"
@@ -676,7 +678,7 @@ function onFotoLivenessCapturada(file: File) {
 
       <!-- 1. Foto do Rosto (Selfie) -->
       <div class="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 space-y-3">
-        <label class="block text-sm font-bold text-slate-800 flex items-center gap-2">
+        <label class="text-sm font-bold text-slate-800 flex items-center gap-2">
           <AppIcon name="user" size="16" class="text-indigo-600" /> 1. Foto do Rosto (Prova de Vida Ao Vivo)
         </label>
         <p class="text-xs text-slate-500">A foto do seu rosto deve ser capturada ao vivo pela câmera interativa para validação antifraude.</p>
@@ -696,7 +698,7 @@ function onFotoLivenessCapturada(file: File) {
 
       <!-- 2. Documento Oficial (RG ou CNH) -->
       <div class="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 space-y-2">
-        <label class="block text-sm font-bold text-slate-800 flex items-center gap-2">
+        <label class="text-sm font-bold text-slate-800 flex items-center gap-2">
           <AppIcon name="documento" size="16" class="text-amber-600" /> 2. Documento Oficial (RG ou CNH)
         </label>
         <p class="text-xs text-slate-500">Envie foto legível da frente/verso do RG ou CNH (ou arquivo em PDF).</p>

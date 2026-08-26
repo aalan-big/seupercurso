@@ -27,10 +27,10 @@ const dados = computed(() => ({
   datasets: [
     {
       data: props.serie.map((p) => p.quantidade),
-      borderColor: '#34D9B5',
+      borderColor: '#ff7202',
       borderWidth: 3,
       pointBackgroundColor: '#0F172A',
-      pointBorderColor: '#34D9B5',
+      pointBorderColor: '#ff7202',
       pointBorderWidth: 2,
       pointRadius: 3,
       pointHoverRadius: 6,
@@ -39,10 +39,10 @@ const dados = computed(() => ({
       backgroundColor: (ctx: { chart: { ctx: CanvasRenderingContext2D; chartArea?: { top: number; bottom: number } } }) => {
         const { chart } = ctx
         const { chartArea } = chart
-        if (!chartArea) return 'rgba(52, 217, 181, 0.15)'
+        if (!chartArea) return 'rgba(255, 114, 2, 0.15)'
         const gradiente = chart.ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom)
-        gradiente.addColorStop(0, 'rgba(52, 217, 181, 0.45)')
-        gradiente.addColorStop(1, 'rgba(52, 217, 181, 0)')
+        gradiente.addColorStop(0, 'rgba(255, 114, 2, 0.35)')
+        gradiente.addColorStop(1, 'rgba(255, 114, 2, 0)')
         return gradiente
       }
     }
@@ -57,7 +57,7 @@ const opcoes = {
     tooltip: {
       backgroundColor: '#0F172A',
       titleColor: '#fff',
-      bodyColor: '#34D9B5',
+      bodyColor: '#ff7202',
       padding: 10,
       cornerRadius: 8,
       displayColors: false
@@ -66,21 +66,21 @@ const opcoes = {
   scales: {
     x: {
       grid: { display: false },
-      ticks: { color: 'rgba(255,255,255,0.6)', font: { size: 11 } }
+      ticks: { color: '#64748B', font: { size: 11 } }
     },
     y: {
       beginAtZero: true,
-      grid: { color: 'rgba(255,255,255,0.08)' },
-      ticks: { color: 'rgba(255,255,255,0.5)', font: { size: 11 }, precision: 0 }
+      grid: { color: '#E2E8F0' },
+      ticks: { color: '#94A3B8', font: { size: 11 }, precision: 0 }
     }
   }
 }
 </script>
 
 <template>
-  <div class="overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary to-secondary/80 p-5 shadow-lg">
-    <h2 class="text-sm font-bold uppercase tracking-wide text-white/70">{{ titulo }}</h2>
-    <div class="mt-4 h-56 [filter:drop-shadow(0_0_6px_rgba(52,217,181,0.5))]">
+  <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <h2 class="text-sm font-bold uppercase tracking-wide text-slate-500">{{ titulo }}</h2>
+    <div class="mt-4 h-56">
       <Line :data="dados" :options="opcoes" />
     </div>
   </div>

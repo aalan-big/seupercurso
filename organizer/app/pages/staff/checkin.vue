@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { Shirt, Camera, AlertTriangle, CheckCircle } from 'lucide-vue-next'
+
 definePageMeta({ layout: 'staff' })
 
 const { token } = useStaffAuth()
@@ -100,7 +102,7 @@ function onQrCodeLido(codigo: string) {
 
     <template v-else-if="eventos.length === 0">
       <div class="mt-10 text-center">
-        <div class="text-4xl">🎽</div>
+        <Shirt :size="36" class="mx-auto text-slate-400" />
         <p class="mt-3 text-slate-500">Nenhum evento disponível ainda.</p>
       </div>
     </template>
@@ -120,7 +122,7 @@ function onQrCodeLido(codigo: string) {
         class="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-slate-900 to-primary p-4 text-sm font-extrabold uppercase tracking-wider text-white shadow-md hover:brightness-110 transition active:scale-[0.99]"
         @click="scannerAberto = true"
       >
-        <span class="text-xl">📷</span>
+        <Camera :size="20" />
         <span>Escanear QR Code do E-mail</span>
       </button>
 
@@ -170,12 +172,12 @@ function onQrCodeLido(codigo: string) {
             <template v-if="item.tamanhoCamisa"> · Camisa {{ item.tamanhoCamisa }}</template>
           </p>
 
-          <p v-if="motivoBloqueio(item)" class="mt-3 rounded-lg bg-warning/10 px-3 py-2 text-sm font-semibold text-warning">
-            ⚠️ {{ motivoBloqueio(item) }}
+          <p v-if="motivoBloqueio(item)" class="mt-3 rounded-lg bg-warning/10 px-3 py-2 text-sm font-semibold text-warning flex items-center gap-1.5">
+            <AlertTriangle :size="15" /> {{ motivoBloqueio(item) }}
           </p>
 
           <div v-else-if="item.kitEntregueEm" class="mt-3 flex items-center justify-between rounded-lg bg-accent/10 px-3 py-2">
-            <span class="text-sm font-semibold text-accent">✅ Entregue às {{ formatarHora(item.kitEntregueEm) }}</span>
+            <span class="text-sm font-semibold text-accent flex items-center gap-1.5"><CheckCircle :size="15" /> Entregue às {{ formatarHora(item.kitEntregueEm) }}</span>
             <button
               type="button"
               :disabled="processandoId === item.id"
