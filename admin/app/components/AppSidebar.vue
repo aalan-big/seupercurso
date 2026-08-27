@@ -22,8 +22,8 @@ const linkClasse = 'flex items-center gap-2 rounded-lg px-3 py-2 text-slate-600 
   ></div>
 
   <aside
-    class="fixed inset-y-0 left-0 z-50 flex h-screen w-64 shrink-0 flex-col border-r border-slate-200 bg-white transition-transform duration-200 md:static md:translate-x-0"
-    :class="props.aberto ? 'translate-x-0' : '-translate-x-full'"
+    class="fixed inset-y-0 left-0 z-50 flex h-screen w-64 shrink-0 flex-col border-r border-slate-200 bg-white transition-transform duration-200 md:static md:translate-x-0 md:pointer-events-auto"
+    :class="props.aberto ? 'translate-x-0 pointer-events-auto shadow-2xl' : '-translate-x-full pointer-events-none'"
   >
     <div class="flex items-center justify-between gap-2 border-b border-slate-200 px-6 py-5">
       <div class="leading-tight">

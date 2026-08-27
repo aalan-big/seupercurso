@@ -8,6 +8,7 @@ interface ContextoValor {
   clienteId: string;
   eventoId: string;
   cupomId?: string | null;
+  dataNascimentoAtleta?: Date | null;
 }
 
 export async function calcularValorInscricao(
@@ -30,12 +31,17 @@ export async function calcularValorInscricao(
   });
 
   if (evento?.aplicaDescontoIdoso && evento.percentualDescontoIdoso) {
-    const cliente = await prisma.cliente.findUnique({
-      where: { id: ctx.clienteId },
-      include: { pf: true },
-    });
-    if (cliente?.pf) {
-      const idade = calcularIdade(cliente.pf.dataNascimento, evento.dataInicio);
+    let dataNasc: Date | null = ctx.dataNascimentoAtleta || null;
+    if (!dataNasc) {
+      const cliente = await prisma.cliente.findUnique({
+        where: { id: ctx.clienteId },
+        include: { pf: true },
+      });
+      dataNasc = cliente?.pf?.dataNascimento || null;
+    }
+
+    if (dataNasc) {
+      const idade = calcularIdade(dataNasc, evento.dataInicio);
       if (idade >= 60) {
         valor -= valor * (Number(evento.percentualDescontoIdoso) / 100);
       }

@@ -73,8 +73,8 @@ function formatarHora(iso: string) {
   return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
-function nomeCliente(item: (typeof resultados.value)[number]) {
-  return item.cliente.pf?.nomeCompleto || '—'
+function nomeCliente(item: any) {
+  return item.dependente?.nomeCompleto || item.atletaNome || item.cliente?.pf?.nomeCompleto || '—'
 }
 const scannerAberto = ref(false)
 

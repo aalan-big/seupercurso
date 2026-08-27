@@ -315,7 +315,8 @@ export class AdminService {
 
     for (const pagamento of pagamentos) {
       const valor = Number(pagamento.valor);
-      const evento = pagamento.inscricao.categoria.modalidade.evento;
+      const evento = (pagamento.inscricao as any)?.categoria?.modalidade?.evento || (pagamento as any).pedido?.inscricoes?.[0]?.categoria?.modalidade?.evento;
+      if (!evento) continue;
       const organizador = evento.organizador;
       const percentual = Number(organizador.comissaoPercentual);
       const comissao = valor * (percentual / 100);

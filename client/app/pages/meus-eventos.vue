@@ -450,6 +450,9 @@ async function confirmarCancelamento(id: string) {
                 </div>
 
                 <div class="mt-4 pt-4 border-t border-slate-100 flex flex-wrap items-center gap-2">
+                  <span v-if="inscricao.atletaNome || inscricao.dependente?.nomeCompleto" class="flex items-center gap-1 rounded-xl bg-orange-100 border border-orange-200 px-3 py-1.5 text-xs font-black text-orange-950">
+                    <Users :size="14" class="text-orange-600" /> Atleta: {{ inscricao.atletaNome || inscricao.dependente?.nomeCompleto }}
+                  </span>
                   <span class="flex items-center gap-1 rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-black uppercase tracking-wider text-amber-400">
                     <Footprints :size="14" /> {{ inscricao.categoria.modalidade.nome }}
                   </span>

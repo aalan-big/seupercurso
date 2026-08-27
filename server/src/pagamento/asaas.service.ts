@@ -165,7 +165,7 @@ export class AsaasService {
       };
     } catch (err) {
       this.logger.warn(`Simulação PIX Sandbox Asaas ativada para ${referenciaExterna}: ${err}`);
-      const mockPixCode = `00020126580014br.gov.bcb.pix0136rotapass-sandbox-${referenciaExterna.slice(0, 8)}5204000053039865405${params.valor.toFixed(2)}5802BR5909SEUPERCURSO6007IGUATU62070503***6304ABCD`;
+      const mockPixCode = `00020126580014br.gov.bcb.pix0136seupercurso-sandbox-${referenciaExterna.slice(0, 8)}5204000053039865405${params.valor.toFixed(2)}5802BR5909SEUPERCURSO6007IGUATU62070503***6304ABCD`;
       return {
         asaasPaymentId: `pay_pix_mock_${Date.now()}`,
         pixCopiaECola: mockPixCode,

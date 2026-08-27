@@ -27,9 +27,9 @@ const formInscrito = ref({
 })
 
 const statusOpcoes = [
-  { valor: '', label: 'Todos os status' },
-  { valor: 'PENDENTE_PAGAMENTO', label: 'Pagamento pendente' },
+  { valor: '', label: 'Inscrições Ativas (Exclui canceladas)' },
   { valor: 'CONFIRMADA', label: 'Confirmada' },
+  { valor: 'PENDENTE_PAGAMENTO', label: 'Pagamento pendente' },
   { valor: 'CANCELADA', label: 'Cancelada' },
   { valor: 'EXPIRADA', label: 'Expirada' }
 ]
@@ -136,12 +136,25 @@ async function salvarEdicao360() {
   }
 }
 
-function nomeCliente(inscrito: (typeof inscritos.value)[number]) {
-  return inscrito.cliente.pf?.nomeCompleto || inscrito.cliente.pj?.razaoSocial || inscrito.cliente.usuario.email
+function nomeCliente(inscrito: any) {
+  if (inscrito.dependente?.nomeCompleto) return inscrito.dependente.nomeCompleto
+  if (inscrito.atletaNome) return inscrito.atletaNome
+  return inscrito.cliente?.pf?.nomeCompleto || inscrito.cliente?.pj?.razaoSocial || inscrito.cliente?.usuario?.email || 'Atleta'
 }
 
-function documentoCliente(inscrito: (typeof inscritos.value)[number]) {
-  return inscrito.cliente.pf?.cpf || inscrito.cliente.pj?.cnpj || ''
+function documentoCliente(inscrito: any) {
+  if (inscrito.dependente?.cpf) return inscrito.dependente.cpf
+  if (inscrito.atletaCpf) return inscrito.atletaCpf
+  return inscrito.cliente?.pf?.cpf || inscrito.cliente?.pj?.cnpj || ''
+}
+
+function compradorTitular(inscrito: any) {
+  const nomeTitular = inscrito.cliente?.pf?.nomeCompleto || inscrito.cliente?.usuario?.email
+  const nomeAtletaAtual = nomeCliente(inscrito)
+  if (nomeTitular && nomeTitular !== nomeAtletaAtual) {
+    return `Comprado por ${nomeTitular}`
+  }
+  return null
 }
 
 function formatarData(iso: string) {
@@ -178,7 +191,9 @@ function formatarData(iso: string) {
         @change="carregar"
       >
         <option value="">Todos os eventos</option>
-        <option v-for="evento in eventos" :key="evento.id" :value="evento.id">{{ evento.nome }}</option>
+        <option v-for="ev in eventos" :key="ev.id" :value="ev.id">
+          {{ ev.nome }}
+        </option>
       </select>
 
       <select
@@ -186,14 +201,16 @@ function formatarData(iso: string) {
         class="rounded-xl border border-slate-300 px-4 py-2.5 text-xs font-bold text-slate-800 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
         @change="carregar"
       >
-        <option v-for="opcao in statusOpcoes" :key="opcao.valor" :value="opcao.valor">{{ opcao.label }}</option>
+        <option v-for="st in statusOpcoes" :key="st.valor" :value="st.valor">
+          {{ st.label }}
+        </option>
       </select>
 
       <input
         v-model="filtroBusca"
         type="text"
-        placeholder="Buscar por nome, CPF ou peito..."
-        class="rounded-xl border border-slate-300 px-4 py-2.5 text-xs focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+        placeholder="Buscar por nome, CPF ou nº do peito..."
+        class="rounded-xl border border-slate-300 px-4 py-2.5 text-xs font-medium text-slate-800 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
         @keyup.enter="carregar"
       />
     </div>
@@ -239,7 +256,12 @@ function formatarData(iso: string) {
               <span v-else class="text-slate-400 font-normal">—</span>
             </td>
 
-            <td class="px-4 py-3.5 font-bold text-slate-900 group-hover:text-blue-600 transition">{{ nomeCliente(inscrito) }}</td>
+            <td class="px-4 py-3.5 group-hover:text-blue-600 transition">
+              <div class="font-bold text-slate-900">{{ nomeCliente(inscrito) }}</div>
+              <span v-if="compradorTitular(inscrito)" class="text-[10px] font-semibold text-slate-400 block">
+                {{ compradorTitular(inscrito) }}
+              </span>
+            </td>
             <td class="px-4 py-3.5 text-slate-600 font-mono">{{ documentoCliente(inscrito) }}</td>
             <td class="px-4 py-3.5 font-semibold text-slate-700">{{ inscrito.categoria.modalidade.evento.nome }}</td>
             <td class="px-4 py-3.5 text-slate-600">{{ inscrito.categoria.modalidade.nome }} · {{ inscrito.categoria.nome }}</td>
@@ -273,6 +295,9 @@ function formatarData(iso: string) {
                 <h3 class="font-black text-base text-slate-900">{{ nomeCliente(atletaSelecionado) }}</h3>
                 <p class="text-xs text-slate-500">
                   CPF: {{ documentoCliente(atletaSelecionado) }} · {{ atletaSelecionado.cliente.usuario.email }}
+                  <span v-if="compradorTitular(atletaSelecionado)" class="block text-orange-600 font-bold mt-0.5">
+                    📌 {{ compradorTitular(atletaSelecionado) }}
+                  </span>
                 </p>
               </div>
             </div>

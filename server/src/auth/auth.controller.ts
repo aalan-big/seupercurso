@@ -33,6 +33,24 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
+  @HttpCode(HttpStatus.OK)
+  @Post('verificar-email')
+  verificarEmail(@Body() dto: { token: string }) {
+    return this.authService.verificarEmail(dto.token);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('esqueci-senha')
+  solicitarRecuperacaoSenha(@Body() dto: { email: string }) {
+    return this.authService.solicitarRecuperacaoSenha(dto.email);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('redefinir-senha')
+  redefinirSenha(@Body() dto: { token: string; novaSenha: string }) {
+    return this.authService.redefinirSenha(dto.token, dto.novaSenha);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get('me')
   me(@CurrentUser() user: AuthenticatedUser) {

@@ -95,14 +95,18 @@ enum StatusSolicitacaoArte {
 // ---------------------------------------------------------------------------
 
 model Usuario {
-  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email           String        @unique
-  passwordHash    String
-  emailVerificado Boolean       @default(false)
-  status          StatusUsuario @default(ATIVO)
-  ultimoLogin     DateTime?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id                  String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email               String        @unique
+  passwordHash        String
+  emailVerificado     Boolean       @default(false)
+  emailToken          String?
+  emailTokenExpiraEm  DateTime?
+  resetToken          String?
+  resetTokenExpiraEm  DateTime?
+  status              StatusUsuario @default(ATIVO)
+  ultimoLogin         DateTime?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
   cliente Cliente?
 }
@@ -121,6 +125,8 @@ model Cliente {
   enderecos   Endereco[]
   organizador Organizador?
   inscricoes  Inscricao[]
+  dependentes Dependente[]
+  pedidos     Pedido[]
 }
 
 model ClientePf {
@@ -352,8 +358,40 @@ model Cupom {
 }
 
 // ---------------------------------------------------------------------------
-// Inscrição e pós-evento
+// Inscrição, Dependentes e Pedidos
 // ---------------------------------------------------------------------------
+
+model Dependente {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clienteId      String   @db.Uuid
+  nomeCompleto   String
+  cpf            String
+  dataNascimento DateTime @db.Date
+  genero         Genero
+  pcd            Boolean  @default(false)
+  celular        String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  cliente    Cliente     @relation(fields: [clienteId], references: [id])
+  inscricoes Inscricao[]
+
+  @@unique([clienteId, cpf])
+  @@index([clienteId])
+}
+
+model Pedido {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clienteId String   @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cliente    Cliente     @relation(fields: [clienteId], references: [id])
+  inscricoes Inscricao[]
+  pagamentos Pagamento[]
+
+  @@index([clienteId])
+}
 
 model Inscricao {
   id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -361,6 +399,16 @@ model Inscricao {
   categoriaId   String          @db.Uuid
   loteId        String          @db.Uuid
   cupomId       String?         @db.Uuid
+  pedidoId      String?         @db.Uuid
+  dependenteId  String?         @db.Uuid
+
+  // Dados do atleta participante (caso seja diferente do próprio titular)
+  atletaNome           String?
+  atletaCpf            String?
+  atletaDataNascimento DateTime? @db.Date
+  atletaGenero         Genero?
+  atletaPcd            Boolean   @default(false)
+
   numeroPeito   String?
   tamanhoCamisa String?
   kitEntregueEm DateTime?
@@ -368,6 +416,8 @@ model Inscricao {
   status        StatusInscricao @default(PENDENTE_PAGAMENTO)
 
   cliente     Cliente      @relation(fields: [clienteId], references: [id])
+  dependente  Dependente?  @relation(fields: [dependenteId], references: [id])
+  pedido      Pedido?      @relation(fields: [pedidoId], references: [id])
   categoria   Categoria    @relation(fields: [categoriaId], references: [id])
   lote        Lote         @relation(fields: [loteId], references: [id])
   cupom       Cupom?       @relation(fields: [cupomId], references: [id])
@@ -376,14 +426,14 @@ model Inscricao {
   resultado   Resultado?
 
   @@index([status])
+  @@index([pedidoId])
 }
 
-// 1 inscrição pode ter N tentativas de pagamento (retry após falha).
-// Um índice único parcial (ver migration) garante só 1 pagamento
-// com status APROVADO por inscrição.
+// 1 inscrição (ou 1 pedido agrupado) pode ter N tentativas de pagamento.
 model Pagamento {
   id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  inscricaoId     String          @db.Uuid
+  inscricaoId     String?         @db.Uuid
+  pedidoId        String?         @db.Uuid
   valor           Decimal         @db.Decimal(10, 2)
   metodo          MetodoPagamento
   status          StatusPagamento @default(PENDENTE)
@@ -395,9 +445,11 @@ model Pagamento {
   dataPagamento   DateTime?
   createdAt       DateTime        @default(now())
 
-  inscricao Inscricao @relation(fields: [inscricaoId], references: [id])
+  inscricao Inscricao? @relation(fields: [inscricaoId], references: [id])
+  pedido    Pedido?    @relation(fields: [pedidoId], references: [id])
 
   @@index([inscricaoId, status])
+  @@index([pedidoId, status])
 }
 
 // ---------------------------------------------------------------------------

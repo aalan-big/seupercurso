@@ -16,6 +16,7 @@ import { StaffModule } from './staff/staff.module';
 import { CronometragemModule } from './cronometragem/cronometragem.module';
 import { AuditLogModule } from './audit-log/audit-log.module';
 import { ArteModule } from './arte/arte.module';
+import { DependenteModule } from './dependente/dependente.module';
 import { envValidationSchema } from './config/env.validation';
 
 @Module({
@@ -27,6 +28,7 @@ import { envValidationSchema } from './config/env.validation';
     PrismaModule,
     AuthModule,
     ClienteModule,
+    DependenteModule,
     EventoModule,
     InscricaoModule,
     PagamentoModule,

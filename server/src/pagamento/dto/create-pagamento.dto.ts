@@ -2,8 +2,13 @@ import { IsEnum, IsOptional, IsString, IsUUID, IsNumber } from 'class-validator'
 import { MetodoPagamento } from '../../generated/prisma/enums';
 
 export class CreatePagamentoDto {
+  @IsOptional()
   @IsUUID()
-  inscricaoId: string;
+  inscricaoId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  pedidoId?: string;
 
   @IsEnum(MetodoPagamento)
   metodo: MetodoPagamento;

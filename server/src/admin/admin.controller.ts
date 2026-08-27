@@ -7,17 +7,44 @@ import {
   Param,
   Post,
   Query,
+  Sse,
+  MessageEvent,
   UseGuards,
 } from '@nestjs/common';
+import { Observable, map } from 'rxjs';
 import { AdminJwtGuard } from '../admin-auth/guards/admin-jwt.guard';
 import { AdminService } from './admin.service';
+import { NotificacaoAdminService } from './notificacao-admin.service';
 import { MotivoDto } from './dto/motivo.dto';
 import { ComissaoDto } from './dto/comissao.dto';
 
 @UseGuards(AdminJwtGuard)
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly notificacaoAdminService: NotificacaoAdminService,
+  ) {}
+
+  @Sse('notificacoes-stream')
+  notificacoesStream(): Observable<MessageEvent> {
+    return this.notificacaoAdminService.getStream().pipe(
+      map((data) => ({ data })),
+    );
+  }
+
+  @Get('notificacoes-historico')
+  obterHistoricoNotificacoes() {
+    return this.notificacaoAdminService.getHistorico();
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('testar-notificacao')
+  testarNotificacao(@Body() body: { valorTaxa?: number }) {
+    const valorTaxa = body.valorTaxa || 15.00;
+    this.notificacaoAdminService.notificarComissao(valorTaxa, valorTaxa * 10);
+    return { sucesso: true, mensagem: `Notificação enviada: R$ ${valorTaxa.toFixed(2)}` };
+  }
 
   @Get('dashboard')
   obterDashboard() {

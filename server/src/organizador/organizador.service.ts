@@ -238,7 +238,8 @@ export class OrganizadorService {
       totalArrecadado += valor;
       comissaoPlataforma += comissao;
 
-      const evento = pagamento.inscricao.categoria.modalidade.evento;
+      const evento = (pagamento.inscricao as any)?.categoria?.modalidade?.evento || (pagamento as any).pedido?.inscricoes?.[0]?.categoria?.modalidade?.evento;
+      if (!evento) continue;
       const atual = porEvento.get(evento.id) ?? {
         eventoId: evento.id,
         nome: evento.nome,
@@ -682,8 +683,60 @@ export class OrganizadorService {
     return inscricao;
   }
 
+  private async autoAtribuirNumerosPeito(eventoId: string) {
+    const semNumero = await this.prisma.inscricao.findMany({
+      where: {
+        categoria: { modalidade: { eventoId } },
+        status: StatusInscricao.CONFIRMADA,
+        OR: [{ numeroPeito: null }, { numeroPeito: '' }],
+      },
+      orderBy: { dataInscricao: 'asc' },
+    });
+
+    if (semNumero.length === 0) return;
+
+    const comNumero = await this.prisma.inscricao.findMany({
+      where: {
+        categoria: { modalidade: { eventoId } },
+        numeroPeito: { not: null },
+      },
+      select: { numeroPeito: true },
+    });
+
+    let maxNum = 0;
+    for (const item of comNumero) {
+      if (!item.numeroPeito) continue;
+      const num = parseInt(item.numeroPeito.replace(/\D/g, ''), 10);
+      if (!isNaN(num) && num > maxNum) {
+        maxNum = num;
+      }
+    }
+
+    let proximoNumero = maxNum > 0 ? maxNum + 1 : 1;
+
+    for (const inscricao of semNumero) {
+      await this.prisma.inscricao.update({
+        where: { id: inscricao.id },
+        data: { numeroPeito: String(proximoNumero) },
+      });
+      proximoNumero++;
+    }
+  }
+
   async listarInscritos(usuarioId: string, filtros: FiltrosInscritos) {
     const organizador = await this.getOrganizadorOuFalhar(usuarioId);
+
+    if (filtros.eventoId) {
+      await this.autoAtribuirNumerosPeito(filtros.eventoId);
+    } else {
+      const eventos = await this.prisma.evento.findMany({
+        where: { organizadorId: organizador.id },
+        select: { id: true },
+      });
+      for (const ev of eventos) {
+        await this.autoAtribuirNumerosPeito(ev.id);
+      }
+    }
 
     return this.prisma.inscricao.findMany({
       where: this.whereInscritos(organizador.id, filtros),
@@ -695,6 +748,7 @@ export class OrganizadorService {
             usuario: { select: { email: true } },
           },
         },
+        dependente: true,
         categoria: { include: { modalidade: { include: { evento: true } } } },
         lote: true,
         pagamentos: { orderBy: { createdAt: 'desc' } },
@@ -733,7 +787,7 @@ export class OrganizadorService {
       );
     }
 
-    return this.prisma.inscricao.update({
+    const res = await this.prisma.inscricao.update({
       where: { id: inscricaoId },
       data: {
         ...(dto.numeroPeito !== undefined ? { numeroPeito: dto.numeroPeito } : {}),
@@ -753,6 +807,12 @@ export class OrganizadorService {
         lote: true,
       },
     });
+
+    if (res.categoria?.modalidade?.eventoId) {
+      await this.autoAtribuirNumerosPeito(res.categoria.modalidade.eventoId);
+    }
+
+    return res;
   }
 
   async exportarInscritosCsv(
@@ -763,9 +823,10 @@ export class OrganizadorService {
 
     const linhas = [
       [
-        'Nome',
-        'CPF',
-        'E-mail',
+        'Nome do Atleta',
+        'CPF do Atleta',
+        'Comprador / Titular',
+        'E-mail Comprador',
         'Celular',
         'Evento',
         'Modalidade',
@@ -775,10 +836,24 @@ export class OrganizadorService {
         'Status',
         'Data da inscricao',
       ].join(';'),
-      ...inscritos.map((inscricao) =>
-        [
-          inscricao.cliente.pf?.nomeCompleto ?? '',
-          inscricao.cliente.pf?.cpf ?? '',
+      ...inscritos.map((inscricao) => {
+        const nomeAtleta =
+          inscricao.dependente?.nomeCompleto ??
+          inscricao.atletaNome ??
+          inscricao.cliente.pf?.nomeCompleto ??
+          inscricao.cliente.pj?.razaoSocial ??
+          '';
+        const cpfAtleta =
+          inscricao.dependente?.cpf ??
+          inscricao.atletaCpf ??
+          inscricao.cliente.pf?.cpf ??
+          '';
+        const comprador = inscricao.cliente.pf?.nomeCompleto || inscricao.cliente.usuario.email;
+
+        return [
+          nomeAtleta,
+          cpfAtleta,
+          comprador,
           inscricao.cliente.usuario.email,
           inscricao.cliente.pf?.celular ?? '',
           inscricao.categoria.modalidade.evento.nome,
@@ -790,8 +865,8 @@ export class OrganizadorService {
           inscricao.dataInscricao.toISOString(),
         ]
           .map((valor) => `"${String(valor).replace(/"/g, '""')}"`)
-          .join(';'),
-      ),
+          .join(';');
+      }),
     ];
 
     return linhas.join('\n');
@@ -806,6 +881,8 @@ export class OrganizadorService {
         ? (filtros.status as StatusInscricao)
         : undefined;
 
+    const busca = filtros.busca?.trim();
+
     return {
       categoria: {
         modalidade: {
@@ -815,17 +892,28 @@ export class OrganizadorService {
           },
         },
       },
-      ...(statusValido ? { status: statusValido } : {}),
-      ...(filtros.busca
+      status: statusValido
+        ? statusValido
+        : { notIn: [StatusInscricao.CANCELADA, StatusInscricao.EXPIRADA] },
+      ...(busca
         ? {
-            cliente: {
-              pf: {
-                OR: [
-                  { nomeCompleto: { contains: filtros.busca, mode: 'insensitive' as const } },
-                  { cpf: { contains: filtros.busca } },
-                ],
+            OR: [
+              { numeroPeito: { contains: busca, mode: 'insensitive' as const } },
+              { atletaNome: { contains: busca, mode: 'insensitive' as const } },
+              { atletaCpf: { contains: busca } },
+              { dependente: { nomeCompleto: { contains: busca, mode: 'insensitive' as const } } },
+              { dependente: { cpf: { contains: busca } } },
+              {
+                cliente: {
+                  pf: {
+                    OR: [
+                      { nomeCompleto: { contains: busca, mode: 'insensitive' as const } },
+                      { cpf: { contains: busca } },
+                    ],
+                  },
+                },
               },
-            },
+            ],
           }
         : {}),
     };

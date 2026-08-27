@@ -44,6 +44,14 @@ function exportarRelatorioGlobalCSV() {
   link.click()
   document.body.removeChild(link)
 }
+
+function dispararNotificacaoTeste() {
+  const { $notificacoes } = useNuxtApp() as any
+  if ($notificacoes) {
+    $notificacoes.solicitarPermissao()
+    $notificacoes.dispararNotificacaoPush(15.00)
+  }
+}
 </script>
 
 <template>
@@ -63,6 +71,14 @@ function exportarRelatorioGlobalCSV() {
       </div>
 
       <div class="flex items-center gap-3">
+        <button
+          type="button"
+          class="inline-flex items-center gap-2 rounded-xl bg-orange-600 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-orange-700 transition"
+          @click="dispararNotificacaoTeste"
+        >
+          <Zap :size="16" /> Testar Notificação de Comissão
+        </button>
+
         <button
           type="button"
           :disabled="!financeiro || financeiro.porOrganizador.length === 0"

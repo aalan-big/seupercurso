@@ -16,6 +16,7 @@ import {
 } from '../auth/decorators/current-user.decorator';
 import { InscricaoService } from './inscricao.service';
 import { CreateInscricaoDto } from './dto/create-inscricao.dto';
+import { CreateInscricaoBatchDto } from './dto/create-inscricao-batch.dto';
 import { UpdateTamanhoCamisaDto } from './dto/update-tamanho-camisa.dto';
 import { TrocarCategoriaDto } from './dto/trocar-categoria.dto';
 import { TransferirInscricaoDto } from './dto/transferir-inscricao.dto';
@@ -32,6 +33,15 @@ export class InscricaoController {
     @Body() dto: CreateInscricaoDto,
   ) {
     return this.inscricaoService.create(user.userId, dto);
+  }
+
+  @HttpCode(HttpStatus.CREATED)
+  @Post('batch')
+  createBatch(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateInscricaoBatchDto,
+  ) {
+    return this.inscricaoService.createBatch(user.userId, dto);
   }
 
   @Get('me')

@@ -86,6 +86,13 @@ export interface InscricaoComEvento {
   id: string
   numeroPeito: string | null
   tamanhoCamisa: string | null
+  atletaNome?: string | null
+  atletaCpf?: string | null
+  dependente?: {
+    id: string
+    nomeCompleto: string
+    cpf: string
+  } | null
   kitEntregueEm: string | null
   dataInscricao: string
   status: string
@@ -113,12 +120,39 @@ export interface CreateInscricaoInput {
   cupomCodigo?: string
 }
 
+export interface InscricaoItemInput {
+  categoriaId: string
+  loteId: string
+  tamanhoCamisa?: string
+  cupomCodigo?: string
+  dependenteId?: string
+  atleta?: {
+    nomeCompleto: string
+    cpf: string
+    dataNascimento: string
+    genero: 'MASCULINO' | 'FEMININO' | 'OUTRO'
+    pcd?: boolean
+  }
+}
+
+export interface InscricaoBatchCriada {
+  pedidoId: string
+  valorTotal: number
+  inscricoes: InscricaoCriada[]
+}
+
 export function useInscricao() {
   const minhasInscricoes = useState<InscricaoComEvento[]>('inscricoes_minhas', () => [])
   const api = useApi()
 
   async function criar(input: CreateInscricaoInput) {
     const res = await api<InscricaoCriada>('/inscricoes', { method: 'POST', body: input })
+    await fetchMinhas()
+    return res
+  }
+
+  async function criarBatch(items: InscricaoItemInput[]) {
+    const res = await api<InscricaoBatchCriada>('/inscricoes/batch', { method: 'POST', body: { items } })
     await fetchMinhas()
     return res
   }
@@ -150,7 +184,7 @@ export function useInscricao() {
   }
 
   async function pagarInscricao(
-    inscricaoId: string,
+    inscricaoId?: string,
     metodo: 'PIX' | 'CARTAO_CREDITO' | 'CREDITO' = 'PIX',
     cartaoDados?: {
       holderName?: string
@@ -159,13 +193,15 @@ export function useInscricao() {
       anoValidade?: string
       ccv?: string
       parcelas?: number
-    }
+    },
+    pedidoId?: string
   ) {
     const metodoMapeado = metodo === 'CREDITO' ? 'CARTAO_CREDITO' : metodo
     const res = await api<{ id: string; status: string; valor?: string; pixCopiaECola?: string; pixQrCodeUrl?: string }>('/pagamentos', {
       method: 'POST',
       body: {
-        inscricaoId,
+        ...(inscricaoId ? { inscricaoId } : {}),
+        ...(pedidoId ? { pedidoId } : {}),
         metodo: metodoMapeado,
         ...(cartaoDados
           ? {
@@ -186,6 +222,7 @@ export function useInscricao() {
   return {
     minhasInscricoes,
     criar,
+    criarBatch,
     fetchMinhas,
     cancelar,
     atualizarTamanhoCamisa,

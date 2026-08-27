@@ -269,7 +269,7 @@ const melhorTempo = computed(() => {
                 <span v-else class="text-slate-600">{{ resultado.colocacaoGeral ?? '—' }}º</span>
               </td>
               <td class="px-4 py-3.5 font-mono font-bold text-slate-700">#{{ resultado.inscricao.numeroPeito || '—' }}</td>
-              <td class="px-4 py-3.5 font-bold text-slate-900">{{ resultado.inscricao.cliente.pf?.nomeCompleto || '—' }}</td>
+              <td class="px-4 py-3.5 font-bold text-slate-900">{{ (resultado.inscricao as any).dependente?.nomeCompleto || (resultado.inscricao as any).atletaNome || resultado.inscricao.cliente.pf?.nomeCompleto || '—' }}</td>
               <td class="px-4 py-3.5 text-slate-600">{{ resultado.inscricao.categoria.nome }}</td>
               <td class="px-4 py-3.5 font-mono font-black text-slate-800">{{ formatarTempo(resultado.tempoLiquidoSegundos) }}</td>
               <td class="px-4 py-3.5 text-center">

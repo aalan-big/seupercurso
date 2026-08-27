@@ -9,6 +9,7 @@ import { StatusInscricao } from '../generated/prisma/enums';
 import { calcularValorInscricao } from '../common/calcular-valor-inscricao';
 import { calcularIdade } from '../common/calcular-idade';
 import { CreateInscricaoDto } from './dto/create-inscricao.dto';
+import { CreateInscricaoBatchDto } from './dto/create-inscricao-batch.dto';
 
 @Injectable()
 export class InscricaoService {
@@ -114,12 +115,198 @@ export class InscricaoService {
     return { ...inscricao, valor };
   }
 
+  async createBatch(usuarioId: string, dto: CreateInscricaoBatchDto) {
+    const cliente = await this.getClienteComPfOuFalhar(usuarioId);
+    const clienteId = cliente.id;
+
+    if (!dto.items || dto.items.length === 0) {
+      throw new BadRequestException('Selecione ao menos um participante para a inscrição.');
+    }
+
+    const inscricoesParaCriar: Array<{
+      categoriaId: string;
+      loteId: string;
+      cupomId: string | null;
+      tamanhoCamisa: string | null;
+      dependenteId: string | null;
+      atletaNome: string;
+      atletaCpf: string;
+      atletaDataNascimento: Date;
+      atletaGenero: any;
+      atletaPcd: boolean;
+      valor: number;
+    }> = [];
+
+    const cpfsNoCarrinho = new Set<string>();
+
+    for (const item of dto.items) {
+      let atletaNome: string;
+      let atletaCpf: string;
+      let atletaDataNascimento: Date;
+      let atletaGenero: any;
+      let atletaPcd = false;
+      let dependenteId: string | null = null;
+
+      if (item.dependenteId) {
+        const dependente = await this.prisma.dependente.findFirst({
+          where: { id: item.dependenteId, clienteId },
+        });
+        if (!dependente) {
+          throw new NotFoundException(`Dependente informado não encontrado.`);
+        }
+        dependenteId = dependente.id;
+        atletaNome = dependente.nomeCompleto;
+        atletaCpf = dependente.cpf;
+        atletaDataNascimento = dependente.dataNascimento;
+        atletaGenero = dependente.genero;
+        atletaPcd = dependente.pcd;
+      } else if (item.atleta) {
+        atletaNome = item.atleta.nomeCompleto.trim();
+        atletaCpf = item.atleta.cpf.replace(/\D/g, '');
+        atletaDataNascimento = new Date(item.atleta.dataNascimento);
+        atletaGenero = item.atleta.genero;
+        atletaPcd = item.atleta.pcd ?? false;
+      } else {
+        if (!cliente.pf) {
+          throw new BadRequestException('Complete seu perfil de pessoa física antes de se inscrever.');
+        }
+        atletaNome = cliente.pf.nomeCompleto;
+        atletaCpf = cliente.pf.cpf;
+        atletaDataNascimento = cliente.pf.dataNascimento;
+        atletaGenero = cliente.pf.genero;
+        atletaPcd = cliente.pf.pcd;
+      }
+
+      if (cpfsNoCarrinho.has(atletaCpf)) {
+        throw new ConflictException(`O atleta com CPF ${atletaCpf} foi adicionado mais de uma vez no mesmo pedido.`);
+      }
+      cpfsNoCarrinho.add(atletaCpf);
+
+      const categoria = await this.prisma.categoria.findUnique({
+        where: { id: item.categoriaId },
+        include: { modalidade: { include: { evento: true } } },
+      });
+      if (!categoria) {
+        throw new NotFoundException('Categoria não encontrada.');
+      }
+
+      this.validarElegibilidadeCategoria(
+        categoria,
+        { dataNascimento: atletaDataNascimento, genero: atletaGenero, pcd: atletaPcd },
+        categoria.modalidade.evento.dataInicio,
+      );
+
+      const loteRequisitado = await this.prisma.lote.findUnique({
+        where: { id: item.loteId },
+      });
+      if (!loteRequisitado) {
+        throw new NotFoundException('Lote não encontrado.');
+      }
+
+      if (categoria.modalidade.eventoId !== loteRequisitado.eventoId) {
+        throw new BadRequestException('A categoria e o lote precisam ser do mesmo evento.');
+      }
+
+      const lote = await this.resolverLoteDisponivel(
+        loteRequisitado.eventoId,
+        categoria.modalidadeId,
+      );
+
+      // Checa se o mesmo atleta já tem inscrição confirmada no evento
+      const jaInscrito = await this.prisma.inscricao.findFirst({
+        where: {
+          status: StatusInscricao.CONFIRMADA,
+          categoria: { modalidade: { eventoId: lote.eventoId } },
+          OR: [
+            { atletaCpf: atletaCpf },
+            { cliente: { pf: { cpf: atletaCpf } } },
+            { dependente: { cpf: atletaCpf } },
+          ],
+        },
+      });
+      if (jaInscrito) {
+        throw new ConflictException(`O atleta ${atletaNome} (CPF ${atletaCpf}) já possui uma inscrição confirmada para este evento.`);
+      }
+
+      const cupomId = item.cupomCodigo
+        ? await this.resolverCupomOuFalhar(lote.eventoId, item.cupomCodigo)
+        : null;
+
+      const valor = await calcularValorInscricao(this.prisma, {
+        loteId: lote.id,
+        modalidadeId: categoria.modalidadeId,
+        clienteId,
+        eventoId: lote.eventoId,
+        cupomId,
+        dataNascimentoAtleta: atletaDataNascimento,
+      });
+
+      inscricoesParaCriar.push({
+        categoriaId: item.categoriaId,
+        loteId: lote.id,
+        cupomId,
+        tamanhoCamisa: item.tamanhoCamisa || null,
+        dependenteId,
+        atletaNome,
+        atletaCpf,
+        atletaDataNascimento,
+        atletaGenero,
+        atletaPcd,
+        valor,
+      });
+    }
+
+    const valorTotal = inscricoesParaCriar.reduce((acc, i) => acc + i.valor, 0);
+
+    const resultado = await this.prisma.$transaction(async (tx) => {
+      const pedido = await tx.pedido.create({
+        data: { clienteId },
+      });
+
+      const inscricoesCriadas: any[] = [];
+      for (const itemData of inscricoesParaCriar) {
+        if (itemData.cupomId) {
+          await tx.cupom.update({
+            where: { id: itemData.cupomId },
+            data: { usosAtuais: { increment: 1 } },
+          });
+        }
+
+        const inscricao = await tx.inscricao.create({
+          data: {
+            clienteId,
+            pedidoId: pedido.id,
+            categoriaId: itemData.categoriaId,
+            loteId: itemData.loteId,
+            cupomId: itemData.cupomId,
+            dependenteId: itemData.dependenteId,
+            atletaNome: itemData.atletaNome,
+            atletaCpf: itemData.atletaCpf,
+            atletaDataNascimento: itemData.atletaDataNascimento,
+            atletaGenero: itemData.atletaGenero,
+            atletaPcd: itemData.atletaPcd,
+            tamanhoCamisa: itemData.tamanhoCamisa,
+            status: StatusInscricao.PENDENTE_PAGAMENTO,
+          },
+        });
+
+        inscricoesCriadas.push({ ...inscricao, valor: itemData.valor });
+      }
+
+      return { pedidoId: pedido.id, inscricoes: inscricoesCriadas, valorTotal };
+    });
+
+    return resultado;
+  }
+
   async findMinhas(usuarioId: string) {
     const clienteId = await this.getClienteIdOuFalhar(usuarioId);
 
     return this.prisma.inscricao.findMany({
       where: { clienteId },
       include: {
+        dependente: true,
+        pedido: { include: { pagamentos: true } },
         categoria: {
           include: {
             modalidade: {

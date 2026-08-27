@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -6,7 +7,9 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmailService } from '../email/email.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ChangeSenhaDto } from './dto/change-senha.dto';
@@ -28,6 +31,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly emailService: EmailService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -39,14 +43,111 @@ export class AuthService {
     }
 
     const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
+    const emailToken = crypto.randomBytes(32).toString('hex');
+    const emailTokenExpiraEm = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
     const usuario = await this.prisma.usuario.create({
-      data: { email: dto.email, passwordHash },
+      data: {
+        email: dto.email,
+        passwordHash,
+        emailToken,
+        emailTokenExpiraEm,
+      },
       select: PUBLIC_USUARIO_SELECT,
     });
 
+    // Envia e-mail de verificação em segundo plano
+    this.emailService.enviarEmailVerificacao({
+      email: dto.email,
+      nome: dto.email.split('@')[0],
+      token: emailToken,
+    }).catch(() => null);
+
     const accessToken = await this.signToken(usuario.id, usuario.email);
     return { accessToken, usuario };
+  }
+
+  async verificarEmail(token: string) {
+    const usuario = await this.prisma.usuario.findFirst({
+      where: {
+        emailToken: token,
+        emailTokenExpiraEm: { gte: new Date() },
+      },
+    });
+
+    if (!usuario) {
+      throw new BadRequestException('Token de verificação inválido ou expirado.');
+    }
+
+    await this.prisma.usuario.update({
+      where: { id: usuario.id },
+      data: {
+        emailVerificado: true,
+        emailToken: null,
+        emailTokenExpiraEm: null,
+      },
+    });
+
+    return { sucesso: true, mensagem: 'E-mail verificado com sucesso!' };
+  }
+
+  async solicitarRecuperacaoSenha(email: string) {
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { email },
+      include: { cliente: { include: { pf: true } } },
+    });
+
+    if (!usuario) {
+      // Retorna sucesso para evitar enumeração de usuários
+      return { sucesso: true, mensagem: 'Se o e-mail estiver cadastrado, você receberá um link de recuperação.' };
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenExpiraEm = new Date(Date.now() + 60 * 60 * 1000); // 1 hora
+
+    await this.prisma.usuario.update({
+      where: { id: usuario.id },
+      data: {
+        resetToken,
+        resetTokenExpiraEm,
+      },
+    });
+
+    const nome = usuario.cliente?.pf?.nomeCompleto || usuario.email.split('@')[0];
+
+    await this.emailService.enviarEmailRecuperacaoSenha({
+      email: usuario.email,
+      nome,
+      token: resetToken,
+    });
+
+    return { sucesso: true, mensagem: 'E-mail de recuperação enviado com sucesso!' };
+  }
+
+  async redefinirSenha(token: string, novaSenha: string) {
+    const usuario = await this.prisma.usuario.findFirst({
+      where: {
+        resetToken: token,
+        resetTokenExpiraEm: { gte: new Date() },
+      },
+    });
+
+    if (!usuario) {
+      throw new BadRequestException('Token de redefinição de senha inválido ou expirado.');
+    }
+
+    const passwordHash = await bcrypt.hash(novaSenha, SALT_ROUNDS);
+
+    await this.prisma.usuario.update({
+      where: { id: usuario.id },
+      data: {
+        passwordHash,
+        resetToken: null,
+        resetTokenExpiraEm: null,
+      },
+    });
+
+    return { sucesso: true, mensagem: 'Senha alterada com sucesso! Faça login com sua nova senha.' };
   }
 
   async login(dto: LoginDto) {

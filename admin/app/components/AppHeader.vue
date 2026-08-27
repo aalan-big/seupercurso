@@ -44,7 +44,19 @@ function escHandler(e: KeyboardEvent) {
 
 onMounted(() => {
   window.addEventListener('keydown', escHandler)
+  const { $notificacoes } = useNuxtApp() as any
+  if ($notificacoes) {
+    $notificacoes.solicitarPermissao()
+    $notificacoes.conectarStream()
+  }
 })
+
+function dispararTesteNotificacao() {
+  const { $notificacoes } = useNuxtApp() as any
+  if ($notificacoes) {
+    $notificacoes.dispararNotificacaoPush(15.00)
+  }
+}
 
 onUnmounted(() => {
   window.removeEventListener('keydown', escHandler)
@@ -109,13 +121,22 @@ async function onSair() {
                 {{ naoLidas }} novas
               </span>
             </div>
-            <button
-              type="button"
-              class="text-[11px] font-bold text-blue-600 hover:underline"
-              @click="marcarTodasLidas"
-            >
-              Marcar como lidas
-            </button>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                class="text-[11px] font-bold text-orange-600 bg-orange-50 hover:bg-orange-100 px-2.5 py-1 rounded-lg transition border border-orange-200"
+                @click="dispararTesteNotificacao"
+              >
+                ⚡ Testar Notificação
+              </button>
+              <button
+                type="button"
+                class="text-[11px] font-bold text-blue-600 hover:underline"
+                @click="marcarTodasLidas"
+              >
+                Marcar como lidas
+              </button>
+            </div>
           </div>
 
           <div v-if="notificacoes.length === 0" class="p-8 text-center text-xs text-slate-400 space-y-1">

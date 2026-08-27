@@ -7,7 +7,18 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
   app: {
     head: {
-      viewport: 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover'
+      title: 'Seu Percurso — Painel Master Admin',
+      viewport: 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover',
+      link: [
+        { rel: 'manifest', href: '/manifest.json' },
+        { rel: 'apple-touch-icon', href: '/icone_notificacao.jpg' },
+        { rel: 'icon', type: 'image/jpeg', href: '/icone_notificacao.jpg' }
+      ],
+      meta: [
+        { name: 'theme-color', content: '#0f172a' },
+        { name: 'apple-mobile-web-app-capable', content: 'yes' },
+        { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' }
+      ]
     }
   },
   runtimeConfig: {

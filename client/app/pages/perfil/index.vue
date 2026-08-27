@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Camera, Trophy } from 'lucide-vue-next'
+import { Camera, Trophy, Users } from 'lucide-vue-next'
 
 const { token, user } = useAuth()
 const { cliente, fetchMe, updatePessoaFisica, updateEndereco, uploadFoto, uploadDocumentoPcd } = useCliente()
@@ -290,6 +290,24 @@ async function salvarEndereco() {
         >
           Quero ser Organizador 🚀
         </a>
+      </div>
+
+      <!-- Card Meus Atletas / Dependentes -->
+      <div class="mt-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <p class="font-bold text-base text-slate-800 flex items-center gap-2">
+            <Users :size="18" class="text-orange-500" /> Meus Atletas / Dependentes
+          </p>
+          <p class="text-xs text-slate-500 mt-1">
+            Cadastre membros da sua família ou equipe para fazer inscrições em lote nos eventos.
+          </p>
+        </div>
+        <NuxtLink
+          to="/perfil/dependentes"
+          class="rounded-xl border border-slate-300 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-100 transition flex items-center gap-2"
+        >
+          <Users :size="14" /> Gerenciar Atletas
+        </NuxtLink>
       </div>
 
       <!-- Dados do atleta -->
