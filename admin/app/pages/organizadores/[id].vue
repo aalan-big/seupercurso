@@ -190,7 +190,7 @@ async function confirmarMotivo() {
                   min="0"
                   max="100"
                   step="0.5"
-                  class="w-28 rounded-lg border border-slate-300 py-1.5 pl-3 pr-7 text-sm font-bold focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  class="w-28 rounded-lg border border-slate-300 py-1.5 pl-3 pr-7 text-sm font-bold focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
                 />
                 <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
               </div>
@@ -291,7 +291,7 @@ async function confirmarMotivo() {
         <textarea
           v-model="motivo"
           rows="3"
-          class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+          class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
         ></textarea>
         <div class="mt-3 flex gap-2">
           <button

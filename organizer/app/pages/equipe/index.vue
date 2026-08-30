@@ -151,7 +151,7 @@ const linkStaff = computed(() => `${typeof window !== 'undefined' ? window.locat
               v-model="novaSenhaTemp"
               type="text"
               placeholder="Nova senha (mín. 6 caracteres)"
-              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
             <button type="button" class="shrink-0 rounded-lg bg-warning px-3 py-2 text-xs font-bold uppercase tracking-wide text-primary hover:brightness-95" @click="onRedefinirSenha">
               Salvar
@@ -172,10 +172,10 @@ const linkStaff = computed(() => `${typeof window !== 'undefined' ? window.locat
 
         <form v-else class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" @submit.prevent="onCriar">
           <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <input v-model="novoForm.nome" type="text" placeholder="Nome" class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" />
-            <input v-model="novoForm.email" type="email" placeholder="E-mail (login)" class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" />
-            <input v-model="novoForm.senha" type="text" placeholder="Senha (mín. 6 caracteres)" class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" />
-            <input v-model="novoForm.funcao" type="text" placeholder="Função (opcional, ex.: Kits)" class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" />
+            <input v-model="novoForm.nome" type="text" placeholder="Nome" class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30" />
+            <input v-model="novoForm.email" type="email" placeholder="E-mail (login)" class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30" />
+            <input v-model="novoForm.senha" type="text" placeholder="Senha (mín. 6 caracteres)" class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30" />
+            <input v-model="novoForm.funcao" type="text" placeholder="Função (opcional, ex.: Kits)" class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30" />
           </div>
           <div class="mt-3 flex gap-2">
             <button type="submit" :disabled="salvando" class="rounded-xl bg-warning px-4 py-2 text-sm font-bold uppercase tracking-wide text-primary transition hover:brightness-95 disabled:opacity-50">

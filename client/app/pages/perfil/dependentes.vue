@@ -82,6 +82,10 @@ async function salvar() {
     erro.value = 'Preencha todos os campos obrigatórios (Nome, CPF e Data de Nascimento).'
     return
   }
+  if (!cpfEhValido(form.cpf)) {
+    erro.value = 'CPF inválido. Confira os números digitados.'
+    return
+  }
 
   salvando.value = true
   try {

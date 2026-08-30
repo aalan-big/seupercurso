@@ -98,7 +98,7 @@ function formatarValor(valor: number) {
               type="number"
               min="0"
               step="1"
-              class="w-32 rounded-lg border border-slate-300 py-1.5 pl-8 pr-3 text-sm font-bold focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="w-32 rounded-lg border border-slate-300 py-1.5 pl-8 pr-3 text-sm font-bold focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
           </div>
           <button

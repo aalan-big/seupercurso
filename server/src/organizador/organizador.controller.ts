@@ -292,7 +292,7 @@ export class OrganizadorController {
     );
   }
 
-  @Patch('eventos/:id/mapa-percurso')
+  @Patch('eventos/:eventoId/modalidades/:modalidadeId/mapa-percurso')
   @UseInterceptors(
     FileInterceptor('arquivo', {
       storage: diskStorage({
@@ -314,14 +314,15 @@ export class OrganizadorController {
   )
   uploadMapaPercurso(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
+    @Param('eventoId') eventoId: string,
+    @Param('modalidadeId') modalidadeId: string,
     @UploadedFile() file?: Express.Multer.File,
   ) {
     if (!file) throw new BadRequestException('Nenhum arquivo enviado.');
-    return this.organizadorService.atualizarMidiaEvento(
+    return this.organizadorService.atualizarMidiaModalidade(
       user.userId,
-      id,
-      'mapaPercursoUrl',
+      eventoId,
+      modalidadeId,
       `/uploads/eventos/${file.filename}`,
     );
   }
@@ -462,17 +463,37 @@ export class OrganizadorController {
     @Query('eventoId') eventoId?: string,
     @Query('status') status?: string,
     @Query('busca') busca?: string,
+    @Query('formato') formato?: string,
   ) {
-    const csv = await this.organizadorService.exportarInscritosCsv(
+    const filtros = { eventoId, status, busca };
+
+    if (formato === 'pdf') {
+      const buffer = await this.organizadorService.exportarInscritosPdf(
+        user.userId,
+        filtros,
+      );
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader(
+        'Content-Disposition',
+        'attachment; filename="lista-de-largada.pdf"',
+      );
+      res.send(buffer);
+      return;
+    }
+
+    const buffer = await this.organizadorService.exportarInscritosXlsx(
       user.userId,
-      { eventoId, status, busca },
+      filtros,
     );
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
     res.setHeader(
       'Content-Disposition',
-      'attachment; filename="inscritos.csv"',
+      'attachment; filename="inscritos.xlsx"',
     );
-    res.send(csv);
+    res.send(buffer);
   }
 
   @HttpCode(HttpStatus.CREATED)

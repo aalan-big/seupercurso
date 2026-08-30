@@ -1,13 +1,14 @@
 import { Module } from '@nestjs/common';
 import { AdminAuthModule } from '../admin-auth/admin-auth.module';
+import { OrganizadorModule } from '../organizador/organizador.module';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
-import { NotificacaoAdminService } from './notificacao-admin.service';
+import { NotificacaoAdminModule } from './notificacao-admin.module';
 
 @Module({
-  imports: [AdminAuthModule],
+  imports: [AdminAuthModule, OrganizadorModule, NotificacaoAdminModule],
   controllers: [AdminController],
-  providers: [AdminService, NotificacaoAdminService],
-  exports: [NotificacaoAdminService],
+  providers: [AdminService],
+  exports: [NotificacaoAdminModule],
 })
 export class AdminModule {}

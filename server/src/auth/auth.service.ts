@@ -10,7 +10,9 @@ import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
+import { Prisma } from '../generated/prisma/client';
 import { RegisterDto } from './dto/register.dto';
+import { RegisterCompletoDto } from './dto/register-completo.dto';
 import { LoginDto } from './dto/login.dto';
 import { ChangeSenhaDto } from './dto/change-senha.dto';
 
@@ -65,6 +67,112 @@ export class AuthService {
 
     const accessToken = await this.signToken(usuario.id, usuario.email);
     return { accessToken, usuario };
+  }
+
+  async emailDisponivel(email: string) {
+    const existente = await this.prisma.usuario.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+    return { disponivel: !existente };
+  }
+
+  async registrarCompleto(dto: RegisterCompletoDto) {
+    dto.pessoaFisica.cpf = dto.pessoaFisica.cpf.replace(/\D/g, '');
+
+    const existente = await this.prisma.usuario.findUnique({
+      where: { email: dto.email },
+    });
+    if (existente) {
+      throw new ConflictException('Já existe uma conta com esse e-mail.');
+    }
+
+    const cpfExistente = await this.prisma.clientePf.findUnique({
+      where: { cpf: dto.pessoaFisica.cpf },
+    });
+    if (cpfExistente) {
+      throw new ConflictException('Já existe um cadastro com esse CPF.');
+    }
+
+    const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
+    const emailToken = crypto.randomBytes(32).toString('hex');
+    const emailTokenExpiraEm = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+
+    let usuario;
+    try {
+      usuario = await this.prisma.usuario.create({
+        data: {
+          email: dto.email,
+          passwordHash,
+          emailToken,
+          emailTokenExpiraEm,
+          cliente: {
+            create: {
+              pf: {
+                create: {
+                  ...dto.pessoaFisica,
+                  dataNascimento: new Date(dto.pessoaFisica.dataNascimento),
+                },
+              },
+              enderecos: { create: dto.endereco },
+            },
+          },
+        },
+        select: PUBLIC_USUARIO_SELECT,
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          'Já existe uma conta com esses dados.',
+        );
+      }
+      throw error;
+    }
+
+    this.emailService.enviarEmailVerificacao({
+      email: dto.email,
+      nome: dto.pessoaFisica.nomeCompleto,
+      token: emailToken,
+    }).catch(() => null);
+
+    const accessToken = await this.signToken(usuario.id, usuario.email);
+    return { accessToken, usuario };
+  }
+
+  async reenviarVerificacao(usuarioId: string) {
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id: usuarioId },
+      include: { cliente: { include: { pf: true } } },
+    });
+
+    if (!usuario) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    if (usuario.emailVerificado) {
+      return { sucesso: true, mensagem: 'Seu e-mail já está verificado.' };
+    }
+
+    const emailToken = crypto.randomBytes(32).toString('hex');
+    const emailTokenExpiraEm = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+
+    await this.prisma.usuario.update({
+      where: { id: usuario.id },
+      data: { emailToken, emailTokenExpiraEm },
+    });
+
+    const nome = usuario.cliente?.pf?.nomeCompleto || usuario.email.split('@')[0];
+
+    await this.emailService.enviarEmailVerificacao({
+      email: usuario.email,
+      nome,
+      token: emailToken,
+    });
+
+    return { sucesso: true, mensagem: 'E-mail de verificação reenviado com sucesso!' };
   }
 
   async verificarEmail(token: string) {

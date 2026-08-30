@@ -8,6 +8,7 @@ export interface Organizador {
   banco: string | null
   agencia: string | null
   conta: string | null
+  tipoConta: string | null
   fotoRostoUrl: string | null
   documentoIdentidadeUrl: string | null
   motivoRevisao: string | null
@@ -58,6 +59,7 @@ export function useOrganizador() {
     banco?: string
     agencia?: string
     conta?: string
+    tipoConta?: string
   }) {
     const res = await api<Organizador>('/organizadores/me/dados-bancarios', {
       method: 'PATCH',

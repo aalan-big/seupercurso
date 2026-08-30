@@ -3,12 +3,17 @@ import { Camera, Trophy, Users } from 'lucide-vue-next'
 
 const { token, user } = useAuth()
 const { cliente, fetchMe, updatePessoaFisica, updateEndereco, uploadFoto, uploadDocumentoPcd } = useCliente()
+const { organizador, fetchMe: fetchOrganizadorMe } = useOrganizador()
 const config = useRuntimeConfig()
 const organizerBase = config.public.organizerBase as string
 
 const organizerLink = computed(() => {
+  const tokenParam = token.value ? `?token=${encodeURIComponent(token.value)}` : ''
+  if (organizador.value?.status === 'APROVADO') {
+    return `${organizerBase}/dashboard${tokenParam}`
+  }
   if (token.value) {
-    return `${organizerBase}/onboarding?token=${encodeURIComponent(token.value)}`
+    return `${organizerBase}/onboarding${tokenParam}`
   }
   return `${organizerBase}/cadastro`
 })
@@ -134,6 +139,9 @@ onMounted(async () => {
     await navigateTo('/login?redirect=/perfil')
     return
   }
+  fetchOrganizadorMe().catch(() => {
+    // conta ainda não solicitou cadastro de organizador
+  })
   try {
     await fetchMe()
   } catch (e) {
@@ -273,23 +281,79 @@ async function salvarEndereco() {
     </p>
 
     <template v-else>
-      <!-- Card Quero ser Organizador -->
+      <!-- Card Organizador -->
       <div class="mt-8 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-6 shadow-sm flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p class="font-black text-base text-amber-950 flex items-center gap-2">
-            <Trophy :size="18" /> Quer organizar seus próprios eventos esportivos?
-          </p>
-          <p class="text-xs text-amber-800 mt-1">
-            Crie corridas e campeonatos, gerencie inscrições e receba via PIX e Cartão com repasses automáticos Asaas.
-          </p>
-        </div>
-        <a
-          :href="organizerLink"
-          target="_blank"
-          class="rounded-xl bg-amber-500 px-5 py-3 text-xs font-black uppercase tracking-wider text-white shadow-sm hover:bg-amber-600 transition"
-        >
-          Quero ser Organizador 🚀
-        </a>
+        <template v-if="organizador?.status === 'APROVADO'">
+          <div>
+            <p class="font-black text-base text-amber-950 flex items-center gap-2">
+              <Trophy :size="18" /> Você já é um organizador!
+            </p>
+            <p class="text-xs text-amber-800 mt-1">
+              Acesse o painel pra criar eventos, gerenciar inscrições e acompanhar seus repasses.
+            </p>
+          </div>
+          <a
+            :href="organizerLink"
+            target="_blank"
+            class="rounded-xl bg-amber-500 px-5 py-3 text-xs font-black uppercase tracking-wider text-white shadow-sm hover:bg-amber-600 transition"
+          >
+            Ir para o Painel do Organizador
+          </a>
+        </template>
+
+        <template v-else-if="organizador?.status === 'PENDENTE'">
+          <div>
+            <p class="font-black text-base text-amber-950 flex items-center gap-2">
+              <Trophy :size="18" /> Seu cadastro de organizador está em análise
+            </p>
+            <p class="text-xs text-amber-800 mt-1">
+              Assim que aprovarmos seus documentos, você já pode começar a criar eventos.
+            </p>
+          </div>
+          <a
+            :href="organizerLink"
+            target="_blank"
+            class="rounded-xl bg-amber-500 px-5 py-3 text-xs font-black uppercase tracking-wider text-white shadow-sm hover:bg-amber-600 transition"
+          >
+            Acompanhar status
+          </a>
+        </template>
+
+        <template v-else-if="organizador?.status === 'REJEITADO'">
+          <div>
+            <p class="font-black text-base text-amber-950 flex items-center gap-2">
+              <Trophy :size="18" /> Seu cadastro de organizador precisa de ajustes
+            </p>
+            <p class="text-xs text-amber-800 mt-1">
+              Revise os documentos enviados pra continuar o processo de aprovação.
+            </p>
+          </div>
+          <a
+            :href="organizerLink"
+            target="_blank"
+            class="rounded-xl bg-amber-500 px-5 py-3 text-xs font-black uppercase tracking-wider text-white shadow-sm hover:bg-amber-600 transition"
+          >
+            Revisar cadastro
+          </a>
+        </template>
+
+        <template v-else>
+          <div>
+            <p class="font-black text-base text-amber-950 flex items-center gap-2">
+              <Trophy :size="18" /> Quer organizar seus próprios eventos esportivos?
+            </p>
+            <p class="text-xs text-amber-800 mt-1">
+              Crie corridas e campeonatos, gerencie inscrições e receba via PIX e Cartão com repasses automáticos Asaas.
+            </p>
+          </div>
+          <a
+            :href="organizerLink"
+            target="_blank"
+            class="rounded-xl bg-amber-500 px-5 py-3 text-xs font-black uppercase tracking-wider text-white shadow-sm hover:bg-amber-600 transition"
+          >
+            Quero ser Organizador 🚀
+          </a>
+        </template>
       </div>
 
       <!-- Card Meus Atletas / Dependentes -->
@@ -396,7 +460,7 @@ async function salvarEndereco() {
               v-model="atletaForm.nomeCompleto"
               type="text"
               required
-              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
           </div>
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -408,7 +472,7 @@ async function salvarEndereco() {
                 type="text"
                 inputmode="numeric"
                 required
-                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
               />
             </div>
             <div>
@@ -418,7 +482,7 @@ async function salvarEndereco() {
                 type="date"
                 :max="hoje"
                 required
-                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
               />
             </div>
           </div>
@@ -430,7 +494,7 @@ async function salvarEndereco() {
               type="text"
               inputmode="numeric"
               required
-              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
           </div>
           <div>
@@ -453,7 +517,7 @@ async function salvarEndereco() {
             </div>
           </div>
           <label class="flex items-center gap-2 text-sm text-slate-700">
-            <input v-model="atletaForm.pcd" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-accent focus:ring-accent/30" />
+            <input v-model="atletaForm.pcd" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-accent focus:ring-warning/30" />
             Sou pessoa com deficiência (PCD)
           </label>
 
@@ -476,7 +540,7 @@ async function salvarEndereco() {
               v-model="atletaForm.nacionalidade"
               type="text"
               required
-              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
           </div>
           <div class="flex gap-3">
@@ -538,7 +602,7 @@ async function salvarEndereco() {
                 type="text"
                 inputmode="numeric"
                 required
-                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
               />
               <p v-if="buscandoCep" class="mt-1 text-xs text-slate-400">Buscando endereço...</p>
             </div>
@@ -548,7 +612,7 @@ async function salvarEndereco() {
                 v-model="enderecoForm.numero"
                 type="text"
                 required
-                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
               />
             </div>
           </div>
@@ -558,7 +622,7 @@ async function salvarEndereco() {
               v-model="enderecoForm.logradouro"
               type="text"
               required
-              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
           </div>
           <div>
@@ -566,7 +630,7 @@ async function salvarEndereco() {
             <input
               v-model="enderecoForm.complemento"
               type="text"
-              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
           </div>
           <div>
@@ -575,7 +639,7 @@ async function salvarEndereco() {
               v-model="enderecoForm.bairro"
               type="text"
               required
-              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
           </div>
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -585,7 +649,7 @@ async function salvarEndereco() {
                 v-model="enderecoForm.cidade"
                 type="text"
                 required
-                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
               />
             </div>
             <div>
@@ -593,7 +657,7 @@ async function salvarEndereco() {
               <select
                 v-model="enderecoForm.estado"
                 required
-                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
               >
                 <option value="" disabled>Selecione</option>
                 <option v-for="uf in estadosBr" :key="uf.sigla" :value="uf.sigla">{{ uf.sigla }} - {{ uf.nome }}</option>

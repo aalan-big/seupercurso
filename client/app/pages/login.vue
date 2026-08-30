@@ -85,7 +85,7 @@ async function onSubmit() {
               v-model="form.email"
               type="email"
               required
-              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
           </div>
           <div>
@@ -95,7 +95,7 @@ async function onSubmit() {
                 v-model="form.password"
                 :type="mostrarSenha ? 'text' : 'password'"
                 required
-                class="w-full rounded-xl border border-slate-300 pl-4 pr-11 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                class="w-full rounded-xl border border-slate-300 pl-4 pr-11 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
               />
               <button
                 type="button"
@@ -122,7 +122,11 @@ async function onSubmit() {
           </button>
         </form>
 
-        <p class="mt-6 text-center text-sm text-slate-500">
+        <p class="mt-4 text-center text-sm text-slate-500">
+          <NuxtLink to="/esqueci-senha" class="font-semibold text-secondary hover:underline">Esqueci minha senha</NuxtLink>
+        </p>
+
+        <p class="mt-2 text-center text-sm text-slate-500">
           Ainda não tem conta?
           <NuxtLink to="/cadastro" class="font-semibold text-secondary hover:underline">Cadastre-se</NuxtLink>
         </p>

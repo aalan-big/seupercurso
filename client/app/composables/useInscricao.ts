@@ -37,6 +37,10 @@ export interface ModalidadeInfo {
   nome: string
   distanciaKm: number | string
   descricao?: string | null
+  mapaPercursoUrl?: string | null
+  mapaEmbedUrl?: string | null
+  gpxUrl?: string | null
+  rotaGeoJson?: string | null
   categorias?: CategoriaInfo[]
 }
 
@@ -45,9 +49,6 @@ export interface EventoInfo {
   nome: string
   descricao?: string | null
   bannerUrl?: string | null
-  mapaPercursoUrl?: string | null
-  mapaEmbedUrl?: string | null
-  rotaGeoJson?: string | null
   regulamentoUrl?: string | null
   retiradaKitLocal?: string | null
   retiradaKitInicio?: string | null
@@ -104,6 +105,10 @@ export interface InscricaoComEvento {
       id: string
       nome: string
       distanciaKm: number | string
+      mapaPercursoUrl?: string | null
+      mapaEmbedUrl?: string | null
+      gpxUrl?: string | null
+      rotaGeoJson?: string | null
       evento: EventoInfo
     }
   }

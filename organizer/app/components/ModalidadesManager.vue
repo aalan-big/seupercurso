@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { Footprints, Plus, Accessibility } from 'lucide-vue-next'
+import { Footprints, Plus, Accessibility, Pencil } from 'lucide-vue-next'
 import type { ModalidadeOrganizador } from '../composables/useEventoOrganizador'
 
 const props = defineProps<{
   eventoId: string
+  cidade: string
+  estado: string
   modalidades: ModalidadeOrganizador[]
 }>()
 
-const { criarModalidade, atualizarModalidade, removerModalidade, criarCategoria, removerCategoria } =
+const { criarModalidade, atualizarModalidade, removerModalidade, criarCategoria, atualizarCategoria, removerCategoria } =
   useEventoOrganizador()
 
 const generoOpcoes = [
@@ -20,7 +22,7 @@ const erro = ref('')
 const salvando = ref(false)
 
 const mostrarFormModalidade = ref(false)
-const novaModalidade = reactive({ nome: '', distanciaKm: '', descricao: '', idadeMinima: '', idadeMaxima: '' })
+const novaModalidade = reactive({ nome: '', distanciaKm: '', descricao: '', idadeMinima: '', idadeMaxima: '', capacidade: '' })
 
 async function onCriarModalidade() {
   erro.value = ''
@@ -37,13 +39,15 @@ async function onCriarModalidade() {
       distanciaKm,
       descricao: novaModalidade.descricao || undefined,
       idadeMinima: novaModalidade.idadeMinima ? Number(novaModalidade.idadeMinima) : undefined,
-      idadeMaxima: novaModalidade.idadeMaxima ? Number(novaModalidade.idadeMaxima) : undefined
+      idadeMaxima: novaModalidade.idadeMaxima ? Number(novaModalidade.idadeMaxima) : undefined,
+      capacidade: novaModalidade.capacidade ? Number(novaModalidade.capacidade) : undefined
     })
     novaModalidade.nome = ''
     novaModalidade.distanciaKm = ''
     novaModalidade.descricao = ''
     novaModalidade.idadeMinima = ''
     novaModalidade.idadeMaxima = ''
+    novaModalidade.capacidade = ''
     mostrarFormModalidade.value = false
   } catch (e) {
     erro.value = extrairErro(e)
@@ -74,7 +78,7 @@ async function onToggleAtivo(modalidade: ModalidadeOrganizador) {
 }
 
 const modalidadeEditandoId = ref<string | null>(null)
-const edicaoModalidade = reactive({ nome: '', distanciaKm: '', descricao: '', idadeMinima: '', idadeMaxima: '' })
+const edicaoModalidade = reactive({ nome: '', distanciaKm: '', descricao: '', idadeMinima: '', idadeMaxima: '', capacidade: '' })
 
 function abrirEdicao(modalidade: ModalidadeOrganizador) {
   modalidadeEditandoId.value = modalidade.id
@@ -83,6 +87,7 @@ function abrirEdicao(modalidade: ModalidadeOrganizador) {
   edicaoModalidade.descricao = modalidade.descricao || ''
   edicaoModalidade.idadeMinima = modalidade.idadeMinima ? String(modalidade.idadeMinima) : ''
   edicaoModalidade.idadeMaxima = modalidade.idadeMaxima ? String(modalidade.idadeMaxima) : ''
+  edicaoModalidade.capacidade = modalidade.capacidade ? String(modalidade.capacidade) : ''
 }
 
 function cancelarEdicao() {
@@ -104,7 +109,8 @@ async function onSalvarEdicao(modalidadeId: string) {
       distanciaKm,
       descricao: edicaoModalidade.descricao || undefined,
       idadeMinima: edicaoModalidade.idadeMinima ? Number(edicaoModalidade.idadeMinima) : undefined,
-      idadeMaxima: edicaoModalidade.idadeMaxima ? Number(edicaoModalidade.idadeMaxima) : undefined
+      idadeMaxima: edicaoModalidade.idadeMaxima ? Number(edicaoModalidade.idadeMaxima) : undefined,
+      capacidade: edicaoModalidade.capacidade ? Number(edicaoModalidade.capacidade) : null
     })
     modalidadeEditandoId.value = null
   } catch (e) {
@@ -115,7 +121,12 @@ async function onSalvarEdicao(modalidadeId: string) {
 }
 
 const modalidadeAbertaId = ref<string | null>(null)
-const novaCategoria = reactive({ nome: '', idadeMinima: '', idadeMaxima: '', genero: 'LIVRE' as const, pcd: false })
+const modalidadeMapaAbertaId = ref<string | null>(null)
+
+function abrirMapa(modalidadeId: string) {
+  modalidadeMapaAbertaId.value = modalidadeMapaAbertaId.value === modalidadeId ? null : modalidadeId
+}
+const novaCategoria = reactive({ nome: '', idadeMinima: '', idadeMaxima: '', genero: 'LIVRE' as const, pcd: false, capacidade: '' })
 
 function abrirCategorias(modalidadeId: string) {
   modalidadeAbertaId.value = modalidadeAbertaId.value === modalidadeId ? null : modalidadeId
@@ -135,13 +146,38 @@ async function onCriarCategoria(modalidadeId: string) {
       idadeMinima: novaCategoria.idadeMinima ? Number(novaCategoria.idadeMinima) : undefined,
       idadeMaxima: novaCategoria.idadeMaxima ? Number(novaCategoria.idadeMaxima) : undefined,
       genero: novaCategoria.genero,
-      pcd: novaCategoria.pcd
+      pcd: novaCategoria.pcd,
+      capacidade: novaCategoria.capacidade ? Number(novaCategoria.capacidade) : undefined
     })
     novaCategoria.nome = ''
     novaCategoria.pcd = false
     novaCategoria.idadeMinima = ''
     novaCategoria.idadeMaxima = ''
     novaCategoria.genero = 'LIVRE'
+    novaCategoria.capacidade = ''
+  } catch (e) {
+    erro.value = extrairErro(e)
+  } finally {
+    salvando.value = false
+  }
+}
+
+const categoriaEditandoVagasId = ref<string | null>(null)
+const vagasEditando = ref('')
+
+function abrirEdicaoVagas(categoria: { id: string; capacidade: number | null }) {
+  categoriaEditandoVagasId.value = categoria.id
+  vagasEditando.value = categoria.capacidade ? String(categoria.capacidade) : ''
+}
+
+async function onSalvarVagas(modalidadeId: string, categoriaId: string) {
+  erro.value = ''
+  salvando.value = true
+  try {
+    await atualizarCategoria(props.eventoId, modalidadeId, categoriaId, {
+      capacidade: vagasEditando.value ? Number(vagasEditando.value) : null
+    })
+    categoriaEditandoVagasId.value = null
   } catch (e) {
     erro.value = extrairErro(e)
   } finally {
@@ -305,6 +341,16 @@ function faixaEtaria(min: number | null, max: number | null) {
                 class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-semibold focus:border-warning focus:outline-none"
               />
             </div>
+            <div>
+              <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Vagas do Percurso</label>
+              <input
+                v-model="edicaoModalidade.capacidade"
+                type="number"
+                min="1"
+                placeholder="Sem limite"
+                class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-semibold focus:border-warning focus:outline-none"
+              />
+            </div>
             <div class="sm:col-span-2">
               <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Descrição do Percurso</label>
               <textarea
@@ -346,6 +392,9 @@ function faixaEtaria(min: number | null, max: number | null) {
             </div>
             <p class="text-xs text-slate-500 font-medium">
               Faixa etária geral: <strong>{{ faixaEtaria(modalidade.idadeMinima, modalidade.idadeMaxima) }}</strong>
+            </p>
+            <p class="text-xs text-slate-500 font-medium">
+              Vagas do percurso: <strong>{{ modalidade.capacidade ?? 'Sem limite' }}</strong>
             </p>
           </div>
 
@@ -400,23 +449,63 @@ function faixaEtaria(min: number | null, max: number | null) {
               <div
                 v-for="categoria in modalidade.categorias"
                 :key="categoria.id"
-                class="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3 text-xs shadow-xs"
+                class="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3 text-xs shadow-xs"
               >
-                <div>
-                  <p class="font-extrabold text-slate-800">{{ categoria.nome }}</p>
-                  <p class="text-[11px] text-slate-500 mt-0.5">
-                    {{ faixaEtaria(categoria.idadeMinima, categoria.idadeMaxima) }} · {{ categoria.genero }}
-                    <span v-if="categoria.pcd" class="ml-1 rounded-md bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold text-indigo-700">PCD</span>
-                  </p>
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="font-extrabold text-slate-800">{{ categoria.nome }}</p>
+                    <p class="text-[11px] text-slate-500 mt-0.5">
+                      {{ faixaEtaria(categoria.idadeMinima, categoria.idadeMaxima) }} · {{ categoria.genero }}
+                      <span v-if="categoria.pcd" class="ml-1 rounded-md bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold text-indigo-700">PCD</span>
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    class="text-red-500 hover:text-red-700 font-bold p-1"
+                    title="Remover Categoria"
+                    @click="onRemoverCategoria(modalidade.id, categoria.id)"
+                  >
+                    <AppIcon name="close" size="14" />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  class="text-red-500 hover:text-red-700 font-bold p-1"
-                  title="Remover Categoria"
-                  @click="onRemoverCategoria(modalidade.id, categoria.id)"
-                >
-                  <AppIcon name="close" size="14" />
-                </button>
+
+                <div class="flex items-center justify-between border-t border-slate-100 pt-2">
+                  <template v-if="categoriaEditandoVagasId === categoria.id">
+                    <div class="flex items-center gap-1.5">
+                      <input
+                        v-model="vagasEditando"
+                        type="number"
+                        min="1"
+                        placeholder="Sem limite"
+                        class="w-24 rounded-lg border border-slate-300 px-2 py-1 text-[11px] font-semibold focus:border-warning focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        :disabled="salvando"
+                        class="rounded-lg bg-warning px-2 py-1 text-[10px] font-black uppercase text-primary hover:brightness-95 disabled:opacity-50"
+                        @click="onSalvarVagas(modalidade.id, categoria.id)"
+                      >
+                        Salvar
+                      </button>
+                      <button
+                        type="button"
+                        class="text-[10px] font-bold text-slate-400 hover:text-slate-600"
+                        @click="categoriaEditandoVagasId = null"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </template>
+                  <button
+                    v-else
+                    type="button"
+                    class="text-[11px] font-bold text-slate-500 hover:text-primary flex items-center gap-1"
+                    @click="abrirEdicaoVagas(categoria)"
+                  >
+                    Vagas: <span class="font-black text-slate-800">{{ categoria.capacidade ?? 'Sem limite' }}</span>
+                    <Pencil :size="11" />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -436,7 +525,7 @@ function faixaEtaria(min: number | null, max: number | null) {
                 </button>
               </div>
 
-              <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-4">
+              <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-5">
                 <div>
                   <label class="block text-[10px] font-bold text-slate-400 uppercase mb-0.5">Nome</label>
                   <input
@@ -475,6 +564,16 @@ function faixaEtaria(min: number | null, max: number | null) {
                     <option v-for="opcao in generoOpcoes" :key="opcao.valor" :value="opcao.valor">{{ opcao.label }}</option>
                   </select>
                 </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-400 uppercase mb-0.5">Vagas (opcional)</label>
+                  <input
+                    v-model="novaCategoria.capacidade"
+                    type="number"
+                    min="1"
+                    placeholder="Sem limite"
+                    class="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold focus:border-warning focus:outline-none"
+                  />
+                </div>
               </div>
 
               <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
@@ -493,6 +592,22 @@ function faixaEtaria(min: number | null, max: number | null) {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- Seção Expansível de Percurso/Mapa -->
+        <div class="border-t border-slate-100 bg-slate-50/50 p-4 sm:px-5 sm:py-4">
+          <button
+            type="button"
+            class="text-xs font-black uppercase tracking-wider text-slate-700 hover:text-primary flex items-center gap-1.5"
+            @click="abrirMapa(modalidade.id)"
+          >
+            <span>Percurso / Mapa {{ modalidade.rotaGeoJson || modalidade.mapaEmbedUrl || modalidade.mapaPercursoUrl ? '✓' : '' }}</span>
+            <AppIcon name="chevron" size="14" :class="modalidadeMapaAbertaId === modalidade.id ? 'rotate-180 transition' : 'transition'" />
+          </button>
+
+          <div v-if="modalidadeMapaAbertaId === modalidade.id" class="mt-4">
+            <ModalidadeMapa :evento-id="eventoId" :cidade="cidade" :estado="estado" :modalidade="modalidade" />
           </div>
         </div>
       </div>
@@ -575,6 +690,16 @@ function faixaEtaria(min: number | null, max: number | null) {
               type="number"
               min="0"
               placeholder="Ex.: 80 (Opcional)"
+              class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-semibold focus:border-amber-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Vagas do Percurso (opcional)</label>
+            <input
+              v-model="novaModalidade.capacidade"
+              type="number"
+              min="1"
+              placeholder="Sem limite"
               class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-semibold focus:border-amber-500 focus:outline-none"
             />
           </div>

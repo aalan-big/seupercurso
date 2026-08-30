@@ -110,7 +110,7 @@ function formatarValor(valor: number | string) {
               v-model="observacoes"
               rows="3"
               placeholder="Ex.: cores da minha marca são azul e laranja, gosto de um estilo esportivo/moderno..."
-              class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             ></textarea>
           </div>
 

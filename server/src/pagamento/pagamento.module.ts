@@ -6,10 +6,10 @@ import { PagamentoService } from './pagamento.service';
 import { AsaasService } from './asaas.service';
 
 import { EmailModule } from '../email/email.module';
-import { AdminModule } from '../admin/admin.module';
+import { NotificacaoAdminModule } from '../admin/notificacao-admin.module';
 
 @Module({
-  imports: [ConfigModule, EmailModule, AdminModule],
+  imports: [ConfigModule, EmailModule, NotificacaoAdminModule],
   controllers: [PagamentoController, WebhookController],
   providers: [PagamentoService, AsaasService],
   exports: [PagamentoService, AsaasService],

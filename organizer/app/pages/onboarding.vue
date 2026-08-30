@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { Pencil } from 'lucide-vue-next'
+import { Pencil, CalendarDays } from 'lucide-vue-next'
 
 definePageMeta({ layout: 'auth' })
 
 const { token } = useAuth()
 const { createPessoaFisica, createPessoaJuridica, createEndereco } = useCliente()
-const { organizador, fetchMe: fetchOrganizadorMe, solicitarCadastro, uploadDocumentoIdentidade } = useOrganizador()
+const { organizador, fetchMe: fetchOrganizadorMe, solicitarCadastro, uploadFotoRosto, uploadDocumentoIdentidade } = useOrganizador()
 
 const verificando = ref(true)
 const step = ref<1 | 2 | 3>(1)
@@ -106,6 +106,10 @@ onMounted(async () => {
       await navigateTo('/aguardando-aprovacao')
       return
     }
+
+    if (organizador.value) {
+      step.value = 3
+    }
   } catch {
     // ainda não solicitou organizador
   }
@@ -119,6 +123,8 @@ onMounted(async () => {
       pfForm.celular = clienteData.pf.celular || ''
       if (clienteData.pf.dataNascimento) {
         pfForm.dataNascimento = new Date(clienteData.pf.dataNascimento).toISOString().split('T')[0]
+        const [ano, mes, dia] = pfForm.dataNascimento.split('-')
+        dataNascimentoDisplay.value = `${dia}/${mes}/${ano}`
       }
       if (clienteData.pf.genero) {
         pfForm.genero = clienteData.pf.genero
@@ -136,6 +142,32 @@ onMounted(async () => {
 
 
 
+
+const dataNascimentoDisplay = ref('')
+
+function formatarDataNascimento(e: Event) {
+  const input = e.target as HTMLInputElement
+  let v = input.value.replace(/\D/g, '').slice(0, 8)
+  v = v.replace(/(\d{2})(\d)/, '$1/$2')
+  v = v.replace(/(\d{2})(\d)/, '$1/$2')
+  dataNascimentoDisplay.value = v
+
+  if (v.length === 10) {
+    const [dia, mes, ano] = v.split('/')
+    pfForm.dataNascimento = `${ano}-${mes}-${dia}`
+  } else {
+    pfForm.dataNascimento = ''
+  }
+}
+
+function onSelecionarDataNascimento(e: Event) {
+  const input = e.target as HTMLInputElement
+  pfForm.dataNascimento = input.value
+  if (input.value) {
+    const [ano, mes, dia] = input.value.split('-')
+    dataNascimentoDisplay.value = `${dia}/${mes}/${ano}`
+  }
+}
 
 function formatarCpf(e: Event, alvo: 'pf' | 'responsavel') {
   const input = e.target as HTMLInputElement
@@ -190,6 +222,14 @@ async function formatarCep(e: Event) {
 async function onSubmitDados() {
   erro.value = ''
 
+  if (tipoPessoa.value === 'PF' && !pfForm.dataNascimento) {
+    erro.value = 'Informe uma data de nascimento válida.'
+    return
+  }
+  if (tipoPessoa.value === 'PF' && pfForm.dataNascimento > hoje) {
+    erro.value = 'A data de nascimento não pode ser no futuro.'
+    return
+  }
   if (tipoPessoa.value === 'PF' && !pfForm.genero) {
     erro.value = 'Selecione um gênero.'
     return
@@ -409,7 +449,7 @@ function onFotoLivenessCapturada(file: File) {
             v-model="pjForm.razaoSocial"
             type="text"
             required
-            class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+            class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
           />
         </div>
         <div>
@@ -417,7 +457,7 @@ function onFotoLivenessCapturada(file: File) {
           <input
             v-model="pjForm.nomeFantasia"
             type="text"
-            class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+            class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
           />
         </div>
         <div>
@@ -429,7 +469,7 @@ function onFotoLivenessCapturada(file: File) {
             inputmode="numeric"
             placeholder="00.000.000/0000-00"
             required
-            class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+            class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
           />
         </div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -439,7 +479,7 @@ function onFotoLivenessCapturada(file: File) {
               v-model="pjForm.nomeResponsavel"
               type="text"
               required
-              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
           </div>
           <div>
@@ -451,7 +491,7 @@ function onFotoLivenessCapturada(file: File) {
               inputmode="numeric"
               placeholder="000.000.000-00"
               required
-              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
           </div>
         </div>
@@ -464,7 +504,7 @@ function onFotoLivenessCapturada(file: File) {
             inputmode="numeric"
             placeholder="(00) 00000-0000"
             required
-            class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+            class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
           />
         </div>
       </template>
@@ -476,7 +516,7 @@ function onFotoLivenessCapturada(file: File) {
             v-model="pfForm.nomeCompleto"
             type="text"
             required
-            class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+            class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
           />
         </div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -489,18 +529,35 @@ function onFotoLivenessCapturada(file: File) {
               inputmode="numeric"
               placeholder="000.000.000-00"
               required
-              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
           </div>
           <div class="min-w-0">
             <label class="mb-1 block text-sm font-semibold text-slate-700">Nascimento</label>
-            <input
-              v-model="pfForm.dataNascimento"
-              type="date"
-              :max="hoje"
-              required
-              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-            />
+            <div class="relative">
+              <input
+                :value="dataNascimentoDisplay"
+                @input="formatarDataNascimento"
+                type="text"
+                inputmode="numeric"
+                placeholder="DD/MM/AAAA"
+                maxlength="10"
+                required
+                class="w-full rounded-xl border border-slate-300 px-4 py-3 pr-11 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+              />
+              <div class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                <CalendarDays :size="18" />
+              </div>
+              <input
+                :value="pfForm.dataNascimento"
+                @change="onSelecionarDataNascimento"
+                type="date"
+                :max="hoje"
+                aria-label="Selecionar data no calendário"
+                class="absolute inset-y-0 right-0 cursor-pointer opacity-0"
+                style="width: 2.75rem; min-width: 0; max-width: none; min-height: 0; padding: 0;"
+              />
+            </div>
           </div>
         </div>
         <div>
@@ -512,7 +569,7 @@ function onFotoLivenessCapturada(file: File) {
             inputmode="numeric"
             placeholder="(00) 00000-0000"
             required
-            class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+            class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
           />
         </div>
         <div>
@@ -556,7 +613,7 @@ function onFotoLivenessCapturada(file: File) {
             inputmode="numeric"
             placeholder="00000-000"
             required
-            class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+            class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
           />
           <p v-if="buscandoCep" class="mt-1 text-xs text-slate-400">Buscando endereço...</p>
         </div>
@@ -566,7 +623,7 @@ function onFotoLivenessCapturada(file: File) {
             v-model="enderecoForm.numero"
             type="text"
             required
-            class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+            class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
           />
         </div>
       </div>
@@ -578,7 +635,7 @@ function onFotoLivenessCapturada(file: File) {
           type="text"
           placeholder="Rua, avenida..."
           required
-          class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+          class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
         />
       </div>
 
@@ -588,7 +645,7 @@ function onFotoLivenessCapturada(file: File) {
           v-model="enderecoForm.complemento"
           type="text"
           placeholder="Sala, andar..."
-          class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+          class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
         />
       </div>
 
@@ -598,7 +655,7 @@ function onFotoLivenessCapturada(file: File) {
           v-model="enderecoForm.bairro"
           type="text"
           required
-          class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+          class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
         />
       </div>
 
@@ -609,7 +666,7 @@ function onFotoLivenessCapturada(file: File) {
             v-model="enderecoForm.cidade"
             type="text"
             required
-            class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+            class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
           />
         </div>
         <div>
@@ -617,7 +674,7 @@ function onFotoLivenessCapturada(file: File) {
           <select
             v-model="enderecoForm.estado"
             required
-            class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+            class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
           >
             <option value="" disabled>Selecione</option>
             <option v-for="uf in estadosBr" :key="uf.sigla" :value="uf.sigla">{{ uf.sigla }} - {{ uf.nome }}</option>

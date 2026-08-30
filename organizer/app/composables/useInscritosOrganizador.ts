@@ -24,11 +24,14 @@ export interface FiltrosInscritos {
   busca?: string
 }
 
-function paraQueryString(filtros: FiltrosInscritos) {
+function paraQueryString(filtros: FiltrosInscritos, extras: Record<string, string> = {}) {
   const params = new URLSearchParams()
   if (filtros.eventoId) params.set('eventoId', filtros.eventoId)
   if (filtros.status) params.set('status', filtros.status)
   if (filtros.busca) params.set('busca', filtros.busca)
+  for (const [chave, valor] of Object.entries(extras)) {
+    if (valor) params.set(chave, valor)
+  }
   const query = params.toString()
   return query ? `?${query}` : ''
 }
@@ -43,14 +46,15 @@ export function useInscritosOrganizador() {
     return res
   }
 
-  async function exportarCsv(filtros: FiltrosInscritos = {}) {
-    const blob = await api<Blob>(`/organizadores/me/inscritos/exportar${paraQueryString(filtros)}`, {
+  async function exportarCsv(filtros: FiltrosInscritos = {}, formato: 'xlsx' | 'pdf' = 'xlsx') {
+    const query = paraQueryString(filtros, { formato })
+    const blob = await api<Blob>(`/organizadores/me/inscritos/exportar${query}`, {
       responseType: 'blob'
     })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = 'inscritos.csv'
+    link.download = formato === 'pdf' ? 'lista-de-largada.pdf' : 'inscritos.xlsx'
     document.body.appendChild(link)
     link.click()
     link.remove()

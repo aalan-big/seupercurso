@@ -8,6 +8,12 @@ export interface CriarSubcontaParams {
   cpfCnpj: string;
   telefone?: string;
   chavePix?: string;
+  dataNascimento?: string;
+  cep?: string;
+  logradouro?: string;
+  numero?: string;
+  complemento?: string;
+  bairro?: string;
 }
 
 export interface GerarPixParams {
@@ -82,6 +88,12 @@ export class AsaasService {
       email: params.email,
       cpfCnpj: params.cpfCnpj.replace(/\D/g, ''),
       mobilePhone: params.telefone || '88999999999',
+      birthDate: params.dataNascimento,
+      postalCode: params.cep?.replace(/\D/g, ''),
+      address: params.logradouro,
+      addressNumber: params.numero,
+      complement: params.complemento || undefined,
+      province: params.bairro,
     };
 
     try {

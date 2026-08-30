@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AlertTriangle, Banknote, Smartphone, CreditCard } from 'lucide-vue-next'
+import { AlertTriangle, Banknote, Smartphone, CreditCard, Shirt, ArrowLeftRight, CalendarDays, FileText } from 'lucide-vue-next'
 import type { EventoOrganizador } from '../composables/useEventoOrganizador'
 
 const props = defineProps<{
@@ -8,7 +8,14 @@ const props = defineProps<{
   modoEdicao?: boolean
 }>()
 
-const emit = defineEmits<{ submit: [payload: Record<string, unknown>] }>()
+const emit = defineEmits<{ submit: [payload: Record<string, unknown>, arquivoRegulamento: File | null] }>()
+
+const arquivoRegulamento = ref<File | null>(null)
+
+function onArquivoRegulamento(e: Event) {
+  const input = e.target as HTMLInputElement
+  arquivoRegulamento.value = input.files?.[0] ?? null
+}
 
 const estadosBr = [
   { sigla: 'AC', nome: 'Acre' },
@@ -72,11 +79,123 @@ const form = reactive({
   retiradaKitLocal: props.evento?.retiradaKitLocal ?? '',
   retiradaKitInicio: props.evento?.retiradaKitInicio?.slice(0, 16) ?? '',
   retiradaKitFim: props.evento?.retiradaKitFim?.slice(0, 16) ?? '',
+  limiteTrocaCamisaAté: props.evento?.limiteTrocaCamisaAté?.slice(0, 16) ?? '',
+  camisasBloqueadas: props.evento?.camisasBloqueadas ?? false,
+  permiteTransferencia: props.evento?.permiteTransferencia ?? true,
   taxaRepassadaAtleta: props.evento?.taxaRepassadaAtleta ?? true,
   aceitaPix: props.evento?.aceitaPix ?? true,
   aceitaCartao: props.evento?.aceitaCartao ?? true,
   status: props.evento?.status ?? 'RASCUNHO'
 })
+
+function converterIsoParaDisplay(iso: string) {
+  if (!iso) return ''
+  const [ano, mes, dia] = iso.split('-')
+  if (!ano || !mes || !dia) return ''
+  return `${dia}/${mes}/${ano}`
+}
+
+const dataInicioDisplay = ref(converterIsoParaDisplay(form.dataInicio))
+const dataFimDisplay = ref(converterIsoParaDisplay(form.dataFim))
+
+function formatarDataInicio(e: Event) {
+  const input = e.target as HTMLInputElement
+  let v = input.value.replace(/\D/g, '').slice(0, 8)
+  v = v.replace(/(\d{2})(\d)/, '$1/$2')
+  v = v.replace(/(\d{2})(\d)/, '$1/$2')
+  dataInicioDisplay.value = v
+  form.dataInicio = v.length === 10 ? `${v.slice(6, 10)}-${v.slice(3, 5)}-${v.slice(0, 2)}` : ''
+}
+
+function onSelecionarDataInicio(e: Event) {
+  const input = e.target as HTMLInputElement
+  form.dataInicio = input.value
+  dataInicioDisplay.value = converterIsoParaDisplay(input.value)
+}
+
+function formatarDataFim(e: Event) {
+  const input = e.target as HTMLInputElement
+  let v = input.value.replace(/\D/g, '').slice(0, 8)
+  v = v.replace(/(\d{2})(\d)/, '$1/$2')
+  v = v.replace(/(\d{2})(\d)/, '$1/$2')
+  dataFimDisplay.value = v
+  form.dataFim = v.length === 10 ? `${v.slice(6, 10)}-${v.slice(3, 5)}-${v.slice(0, 2)}` : ''
+}
+
+function onSelecionarDataFim(e: Event) {
+  const input = e.target as HTMLInputElement
+  form.dataFim = input.value
+  dataFimDisplay.value = converterIsoParaDisplay(input.value)
+}
+
+function converterIsoDatetimeParaDisplay(iso: string) {
+  if (!iso) return ''
+  const [data, hora] = iso.split('T')
+  const [ano, mes, dia] = (data ?? '').split('-')
+  if (!ano || !mes || !dia) return ''
+  return hora ? `${dia}/${mes}/${ano} ${hora.slice(0, 5)}` : `${dia}/${mes}/${ano}`
+}
+
+function mascararDataHora(v: string) {
+  const digitos = v.replace(/\D/g, '').slice(0, 12)
+  let out = digitos
+  if (digitos.length > 2) out = `${digitos.slice(0, 2)}/${digitos.slice(2)}`
+  if (digitos.length > 4) out = `${digitos.slice(0, 2)}/${digitos.slice(2, 4)}/${digitos.slice(4)}`
+  if (digitos.length > 8) out = `${digitos.slice(0, 2)}/${digitos.slice(2, 4)}/${digitos.slice(4, 8)} ${digitos.slice(8)}`
+  if (digitos.length > 10) out = `${digitos.slice(0, 2)}/${digitos.slice(2, 4)}/${digitos.slice(4, 8)} ${digitos.slice(8, 10)}:${digitos.slice(10)}`
+  return out
+}
+
+function converterDisplayParaIsoDatetime(display: string) {
+  const digitos = display.replace(/\D/g, '')
+  if (digitos.length !== 12) return ''
+  const dia = digitos.slice(0, 2)
+  const mes = digitos.slice(2, 4)
+  const ano = digitos.slice(4, 8)
+  const hora = digitos.slice(8, 10)
+  const min = digitos.slice(10, 12)
+  return `${ano}-${mes}-${dia}T${hora}:${min}`
+}
+
+const retiradaKitInicioDisplay = ref(converterIsoDatetimeParaDisplay(form.retiradaKitInicio))
+const retiradaKitFimDisplay = ref(converterIsoDatetimeParaDisplay(form.retiradaKitFim))
+const limiteTrocaCamisaDisplay = ref(converterIsoDatetimeParaDisplay(form.limiteTrocaCamisaAté))
+
+function formatarRetiradaKitInicio(e: Event) {
+  const v = mascararDataHora((e.target as HTMLInputElement).value)
+  retiradaKitInicioDisplay.value = v
+  form.retiradaKitInicio = converterDisplayParaIsoDatetime(v)
+}
+
+function onSelecionarRetiradaKitInicio(e: Event) {
+  const input = e.target as HTMLInputElement
+  form.retiradaKitInicio = input.value
+  retiradaKitInicioDisplay.value = converterIsoDatetimeParaDisplay(input.value)
+}
+
+function formatarRetiradaKitFim(e: Event) {
+  const v = mascararDataHora((e.target as HTMLInputElement).value)
+  retiradaKitFimDisplay.value = v
+  form.retiradaKitFim = converterDisplayParaIsoDatetime(v)
+}
+
+function onSelecionarRetiradaKitFim(e: Event) {
+  const input = e.target as HTMLInputElement
+  form.retiradaKitFim = input.value
+  retiradaKitFimDisplay.value = converterIsoDatetimeParaDisplay(input.value)
+}
+
+function formatarLimiteTrocaCamisa(e: Event) {
+  const v = mascararDataHora((e.target as HTMLInputElement).value)
+  limiteTrocaCamisaDisplay.value = v
+  form.limiteTrocaCamisaAté = converterDisplayParaIsoDatetime(v)
+}
+
+function onSelecionarLimiteTrocaCamisa(e: Event) {
+  const input = e.target as HTMLInputElement
+  form.limiteTrocaCamisaAté = input.value
+  limiteTrocaCamisaDisplay.value = converterIsoDatetimeParaDisplay(input.value)
+}
 
 // Mesmos campos exigidos pelo CreateEventoDto/UpdateEventoDto no backend.
 const camposObrigatorios = ['nome', 'local', 'cidade', 'estado', 'dataInicio', 'dataFim'] as const
@@ -91,7 +210,7 @@ function invalido(campo: (typeof camposObrigatorios)[number]) {
 function classeCampo(campo: (typeof camposObrigatorios)[number]) {
   return invalido(campo)
     ? 'w-full rounded-xl border border-red-400 px-4 py-3 text-sm focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-200'
-    : 'w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30'
+    : 'w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30'
 }
 
 const regAtual = computed(() =>
@@ -114,6 +233,9 @@ const temAlteracoes = computed(() => {
     form.retiradaKitLocal !== (props.evento.retiradaKitLocal ?? '') ||
     form.retiradaKitInicio !== (props.evento.retiradaKitInicio?.slice(0, 16) ?? '') ||
     form.retiradaKitFim !== (props.evento.retiradaKitFim?.slice(0, 16) ?? '') ||
+    form.limiteTrocaCamisaAté !== (props.evento.limiteTrocaCamisaAté?.slice(0, 16) ?? '') ||
+    form.camisasBloqueadas !== (props.evento.camisasBloqueadas ?? false) ||
+    form.permiteTransferencia !== (props.evento.permiteTransferencia ?? true) ||
     form.taxaRepassadaAtleta !== (props.evento.taxaRepassadaAtleta ?? true) ||
     form.aceitaPix !== (props.evento.aceitaPix ?? true) ||
     form.aceitaCartao !== (props.evento.aceitaCartao ?? true) ||
@@ -132,12 +254,20 @@ watch(
       form.estado = ev.estado ?? ''
       form.dataInicio = ev.dataInicio?.slice(0, 10) ?? ''
       form.dataFim = ev.dataFim?.slice(0, 10) ?? ''
+      dataInicioDisplay.value = converterIsoParaDisplay(form.dataInicio)
+      dataFimDisplay.value = converterIsoParaDisplay(form.dataFim)
       form.capacidade = ev.capacidade ?? undefined
       form.regulamentoUrl = ev.regulamentoUrl?.startsWith('/uploads/') ? '' : (ev.regulamentoUrl ?? '')
       form.termoResponsabilidade = ev.termoResponsabilidade ?? ''
       form.retiradaKitLocal = ev.retiradaKitLocal ?? ''
       form.retiradaKitInicio = ev.retiradaKitInicio?.slice(0, 16) ?? ''
       form.retiradaKitFim = ev.retiradaKitFim?.slice(0, 16) ?? ''
+      form.limiteTrocaCamisaAté = ev.limiteTrocaCamisaAté?.slice(0, 16) ?? ''
+      retiradaKitInicioDisplay.value = converterIsoDatetimeParaDisplay(form.retiradaKitInicio)
+      retiradaKitFimDisplay.value = converterIsoDatetimeParaDisplay(form.retiradaKitFim)
+      limiteTrocaCamisaDisplay.value = converterIsoDatetimeParaDisplay(form.limiteTrocaCamisaAté)
+      form.camisasBloqueadas = ev.camisasBloqueadas ?? false
+      form.permiteTransferencia = ev.permiteTransferencia ?? true
       form.taxaRepassadaAtleta = ev.taxaRepassadaAtleta ?? true
       form.aceitaPix = ev.aceitaPix ?? true
       form.aceitaCartao = ev.aceitaCartao ?? true
@@ -176,12 +306,15 @@ function onSubmit() {
     retiradaKitLocal: form.retiradaKitLocal || undefined,
     retiradaKitInicio: form.retiradaKitInicio || undefined,
     retiradaKitFim: form.retiradaKitFim || undefined,
+    limiteTrocaCamisaAté: form.limiteTrocaCamisaAté || undefined,
+    camisasBloqueadas: form.camisasBloqueadas,
+    permiteTransferencia: form.permiteTransferencia,
     taxaRepassadaAtleta: form.taxaRepassadaAtleta,
     aceitaPix: form.aceitaPix,
     aceitaCartao: form.aceitaCartao
   }
   if (props.modoEdicao) payload.status = form.status
-  emit('submit', payload)
+  emit('submit', payload, arquivoRegulamento.value)
 }
 </script>
 
@@ -242,7 +375,7 @@ function onSubmit() {
       <label class="mb-1 block text-sm font-semibold text-slate-700">Tipo do evento / Esporte</label>
       <select
         v-model="tipoEsporteSelecionado"
-        class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+        class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
       >
         <option value="CORRIDA">🏃 Corrida de Rua / Trail Run</option>
         <option value="CICLISMO">🚴 Ciclismo / Mountain Bike (MTB)</option>
@@ -265,19 +398,61 @@ function onSubmit() {
       <textarea
         v-model="form.descricao"
         rows="3"
-        class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+        class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
       ></textarea>
     </div>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <div class="min-w-0">
         <label class="mb-1 block text-sm font-semibold text-slate-700">Data de início *</label>
-        <input v-model="form.dataInicio" type="date" :class="classeCampo('dataInicio')" />
+        <div class="relative">
+          <input
+            :value="dataInicioDisplay"
+            @input="formatarDataInicio"
+            type="text"
+            inputmode="numeric"
+            placeholder="DD/MM/AAAA"
+            maxlength="10"
+            :class="[classeCampo('dataInicio'), 'pr-11']"
+          />
+          <div class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+            <CalendarDays :size="18" />
+          </div>
+          <input
+            :value="form.dataInicio"
+            @change="onSelecionarDataInicio"
+            type="date"
+            aria-label="Selecionar data no calendário"
+            class="absolute inset-y-0 right-0 cursor-pointer opacity-0"
+            style="width: 2.75rem; min-width: 0; max-width: none; min-height: 0; padding: 0;"
+          />
+        </div>
         <p v-if="invalido('dataInicio')" class="mt-1 text-xs text-red-600">Campo obrigatório.</p>
       </div>
       <div class="min-w-0">
         <label class="mb-1 block text-sm font-semibold text-slate-700">Data de fim *</label>
-        <input v-model="form.dataFim" type="date" :class="classeCampo('dataFim')" />
+        <div class="relative">
+          <input
+            :value="dataFimDisplay"
+            @input="formatarDataFim"
+            type="text"
+            inputmode="numeric"
+            placeholder="DD/MM/AAAA"
+            maxlength="10"
+            :class="[classeCampo('dataFim'), 'pr-11']"
+          />
+          <div class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+            <CalendarDays :size="18" />
+          </div>
+          <input
+            :value="form.dataFim"
+            @change="onSelecionarDataFim"
+            type="date"
+            aria-label="Selecionar data no calendário"
+            class="absolute inset-y-0 right-0 cursor-pointer opacity-0"
+            style="width: 2.75rem; min-width: 0; max-width: none; min-height: 0; padding: 0;"
+          />
+        </div>
         <p v-if="invalido('dataFim')" class="mt-1 text-xs text-red-600">Campo obrigatório.</p>
       </div>
     </div>
@@ -311,33 +486,57 @@ function onSubmit() {
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <div>
-        <label class="mb-1 block text-sm font-semibold text-slate-700">Capacidade (opcional)</label>
+        <label class="mb-1 block text-sm font-semibold text-slate-700">Capacidade total do evento (opcional)</label>
         <input
           v-model.number="form.capacidade"
           type="number"
           min="1"
-          class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+          class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
         />
+        <p class="mt-1 text-xs text-slate-400">
+          Limite máximo de inscrições somando todas as modalidades e categorias. Deixe em branco pra não limitar.
+        </p>
       </div>
       <div v-if="props.modoEdicao">
         <label class="mb-1 block text-sm font-semibold text-slate-700">Status</label>
         <select
           v-model="form.status"
-          class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+          class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
         >
           <option v-for="opcao in statusOpcoes" :key="opcao.valor" :value="opcao.valor">{{ opcao.label }}</option>
         </select>
       </div>
     </div>
 
-    <div>
+    <div v-if="!props.modoEdicao" class="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
+      <label class="text-sm font-bold text-slate-700 flex items-center gap-2">
+        <FileText :size="16" class="text-slate-500" /> Regulamento em PDF (opcional)
+      </label>
+      <input
+        type="file"
+        accept="application/pdf"
+        class="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-200 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-300"
+        @change="onArquivoRegulamento"
+      />
+      <p v-if="arquivoRegulamento" class="text-xs font-semibold text-emerald-700">{{ arquivoRegulamento.name }} selecionado — enviado ao salvar o evento.</p>
+      <p class="text-xs text-slate-400">Ou informe uma URL de regulamento manualmente:</p>
+      <input
+        v-model="form.regulamentoUrl"
+        type="text"
+        placeholder="https://..."
+        class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+      />
+    </div>
+
+    <div v-else>
       <label class="mb-1 block text-sm font-semibold text-slate-700">Regulamento (URL opcional)</label>
       <input
         v-model="form.regulamentoUrl"
         type="text"
         placeholder="https://..."
-        class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+        class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
       />
+      <p class="mt-1 text-xs text-slate-400">Pra anexar um PDF, use o campo "Regulamento em PDF" na seção Mídia do evento abaixo.</p>
     </div>
 
     <div>
@@ -346,7 +545,7 @@ function onSubmit() {
         v-model="form.termoResponsabilidade"
         rows="4"
         placeholder="Texto que o atleta precisa aceitar ao se inscrever (isenção de responsabilidade médica, regras da prova...)"
-        class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+        class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
       ></textarea>
     </div>
 
@@ -356,27 +555,112 @@ function onSubmit() {
         v-model="form.retiradaKitLocal"
         type="text"
         placeholder="Endereço ou nome do local"
-        class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+        class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
       />
     </div>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <div>
+      <div class="min-w-0">
         <label class="mb-1 block text-sm font-semibold text-slate-700">Retirada do kit — início (opcional)</label>
-        <input
-          v-model="form.retiradaKitInicio"
-          type="datetime-local"
-          class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-        />
+        <div class="relative">
+          <input
+            :value="retiradaKitInicioDisplay"
+            @input="formatarRetiradaKitInicio"
+            type="text"
+            inputmode="numeric"
+            placeholder="DD/MM/AAAA HH:mm"
+            maxlength="16"
+            class="w-full rounded-xl border border-slate-300 px-4 py-3 pr-11 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+          />
+          <div class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+            <CalendarDays :size="18" />
+          </div>
+          <input
+            :value="form.retiradaKitInicio"
+            @change="onSelecionarRetiradaKitInicio"
+            type="datetime-local"
+            aria-label="Selecionar data e hora no calendário"
+            class="absolute inset-y-0 right-0 cursor-pointer opacity-0"
+            style="width: 2.75rem; min-width: 0; max-width: none; min-height: 0; padding: 0;"
+          />
+        </div>
       </div>
-      <div>
+      <div class="min-w-0">
         <label class="mb-1 block text-sm font-semibold text-slate-700">Retirada do kit — fim (opcional)</label>
-        <input
-          v-model="form.retiradaKitFim"
-          type="datetime-local"
-          class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-        />
+        <div class="relative">
+          <input
+            :value="retiradaKitFimDisplay"
+            @input="formatarRetiradaKitFim"
+            type="text"
+            inputmode="numeric"
+            placeholder="DD/MM/AAAA HH:mm"
+            maxlength="16"
+            class="w-full rounded-xl border border-slate-300 px-4 py-3 pr-11 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+          />
+          <div class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+            <CalendarDays :size="18" />
+          </div>
+          <input
+            :value="form.retiradaKitFim"
+            @change="onSelecionarRetiradaKitFim"
+            type="datetime-local"
+            aria-label="Selecionar data e hora no calendário"
+            class="absolute inset-y-0 right-0 cursor-pointer opacity-0"
+            style="width: 2.75rem; min-width: 0; max-width: none; min-height: 0; padding: 0;"
+          />
+        </div>
       </div>
+    </div>
+
+    <div class="rounded-2xl border border-orange-200 bg-orange-50/50 p-4 space-y-3">
+      <label class="text-sm font-extrabold text-orange-950 flex items-center gap-2">
+        <Shirt :size="18" class="text-orange-700" /> Prazo de Produção dos Kits
+      </label>
+      <p class="text-xs text-slate-600">
+        Data em que você fecha o pedido com a gráfica. É diferente da retirada do kit — normalmente é bem antes. A partir dela, ninguém troca tamanho de camiseta, modalidade/categoria ou transfere a inscrição.
+      </p>
+
+      <div class="min-w-0">
+        <label class="mb-1 block text-sm font-semibold text-slate-700">Bloquear alterações de kit a partir de (opcional)</label>
+        <div class="relative">
+          <input
+            :value="limiteTrocaCamisaDisplay"
+            @input="formatarLimiteTrocaCamisa"
+            type="text"
+            inputmode="numeric"
+            placeholder="DD/MM/AAAA HH:mm"
+            maxlength="16"
+            class="w-full rounded-xl border border-slate-300 px-4 py-3 pr-11 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+          />
+          <div class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+            <CalendarDays :size="18" />
+          </div>
+          <input
+            :value="form.limiteTrocaCamisaAté"
+            @change="onSelecionarLimiteTrocaCamisa"
+            type="datetime-local"
+            aria-label="Selecionar data e hora no calendário"
+            class="absolute inset-y-0 right-0 cursor-pointer opacity-0"
+            style="width: 2.75rem; min-width: 0; max-width: none; min-height: 0; padding: 0;"
+          />
+        </div>
+      </div>
+
+      <label class="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3 cursor-pointer">
+        <input v-model="form.camisasBloqueadas" type="checkbox" class="h-4 w-4 text-primary accent-primary" />
+        <div class="text-xs">
+          <p class="font-bold text-slate-700">Bloquear agora, independente da data</p>
+          <p class="text-[11px] text-slate-500 font-normal">Use se os kits já foram enviados pra produção antes da data programada.</p>
+        </div>
+      </label>
+
+      <label class="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3 cursor-pointer">
+        <input v-model="form.permiteTransferencia" type="checkbox" class="h-4 w-4 text-primary accent-primary" />
+        <div class="text-xs">
+          <p class="font-bold text-slate-700 flex items-center gap-1.5"><ArrowLeftRight :size="13" /> Permitir transferência de titularidade</p>
+          <p class="text-[11px] text-slate-500 font-normal">Se desligar, nenhum atleta pode repassar a inscrição pra outra pessoa neste evento.</p>
+        </div>
+      </label>
     </div>
 
     <div class="rounded-2xl border border-blue-200 bg-blue-50/50 p-4 space-y-3">

@@ -15,10 +15,6 @@ const RESUMO_SELECT = {
   status: true,
   regulamentoUrl: true,
   bannerUrl: true,
-  mapaPercursoUrl: true,
-  mapaEmbedUrl: true,
-  gpxUrl: true,
-  rotaGeoJson: true,
   taxaRepassadaAtleta: true,
   aceitaPix: true,
   aceitaCartao: true,
@@ -130,6 +126,11 @@ export class EventoService {
             idadeMinima: true,
             idadeMaxima: true,
             ativo: true,
+            capacidade: true,
+            mapaPercursoUrl: true,
+            mapaEmbedUrl: true,
+            gpxUrl: true,
+            rotaGeoJson: true,
             categorias: {
               select: {
                 id: true,
@@ -138,6 +139,21 @@ export class EventoService {
                 idadeMaxima: true,
                 genero: true,
                 pcd: true,
+                capacidade: true,
+                _count: {
+                  select: {
+                    inscricoes: {
+                      where: {
+                        status: {
+                          notIn: [
+                            StatusInscricao.CANCELADA,
+                            StatusInscricao.EXPIRADA,
+                          ],
+                        },
+                      },
+                    },
+                  },
+                },
               },
             },
           },
@@ -192,14 +208,45 @@ export class EventoService {
             idadeMaxima: true,
             genero: true,
             pcd: true,
+            capacidade: true,
           },
         });
-        mod.categorias.push(catPadrao);
+        mod.categorias.push({ ...catPadrao, _count: { inscricoes: 0 } });
       }
     }
 
+    const totalInscritosEvento = evento.modalidades.reduce(
+      (acc, mod) =>
+        acc + mod.categorias.reduce((acc2, cat) => acc2 + cat._count.inscricoes, 0),
+      0,
+    );
+
     return {
       ...evento,
+      vagasRestantes:
+        evento.capacidade === null
+          ? null
+          : evento.capacidade - totalInscritosEvento,
+      modalidades: evento.modalidades.map((mod) => {
+        const inscritosModalidade = mod.categorias.reduce(
+          (acc, cat) => acc + cat._count.inscricoes,
+          0,
+        );
+        return {
+          ...mod,
+          vagasRestantes:
+            mod.capacidade === null
+              ? null
+              : mod.capacidade - inscritosModalidade,
+          categorias: mod.categorias.map(({ _count, ...categoria }) => ({
+            ...categoria,
+            vagasRestantes:
+              categoria.capacidade === null
+                ? null
+                : categoria.capacidade - _count.inscricoes,
+          })),
+        };
+      }),
       lotes: evento.lotes.map(({ _count, ...lote }) => ({
         ...lote,
         vagasRestantes:

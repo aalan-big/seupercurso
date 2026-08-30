@@ -23,4 +23,9 @@ export class CreateCategoriaDto {
   @IsOptional()
   @IsBoolean()
   pcd?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  capacidade?: number;
 }

@@ -1,4 +1,4 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsIn, IsOptional, IsString } from 'class-validator';
 
 export class UpdateDadosBancariosDto {
   @IsOptional()
@@ -16,4 +16,8 @@ export class UpdateDadosBancariosDto {
   @IsOptional()
   @IsString()
   conta?: string;
+
+  @IsOptional()
+  @IsIn(['CORRENTE', 'POUPANCA'])
+  tipoConta?: string;
 }

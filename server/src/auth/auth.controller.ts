@@ -10,6 +10,8 @@ import {
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
+import { RegisterCompletoDto } from './dto/register-completo.dto';
+import { CheckEmailDto } from './dto/check-email.dto';
 import { LoginDto } from './dto/login.dto';
 import { ChangeSenhaDto } from './dto/change-senha.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -27,6 +29,18 @@ export class AuthController {
     return this.authService.register(dto);
   }
 
+  @HttpCode(HttpStatus.CREATED)
+  @Post('registro-completo')
+  registrarCompleto(@Body() dto: RegisterCompletoDto) {
+    return this.authService.registrarCompleto(dto);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('check-email')
+  checkEmail(@Body() dto: CheckEmailDto) {
+    return this.authService.emailDisponivel(dto.email);
+  }
+
   @HttpCode(HttpStatus.OK)
   @Post('login')
   login(@Body() dto: LoginDto) {
@@ -37,6 +51,13 @@ export class AuthController {
   @Post('verificar-email')
   verificarEmail(@Body() dto: { token: string }) {
     return this.authService.verificarEmail(dto.token);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @Post('reenviar-verificacao')
+  reenviarVerificacao(@CurrentUser() user: AuthenticatedUser) {
+    return this.authService.reenviarVerificacao(user.userId);
   }
 
   @HttpCode(HttpStatus.OK)

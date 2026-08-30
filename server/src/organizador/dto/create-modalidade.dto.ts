@@ -10,11 +10,11 @@ import {
 export class CreateModalidadeDto {
   @IsString()
   @MinLength(2)
-  nome: string;
+  nome!: string;
 
   @IsNumber()
   @Min(0.1)
-  distanciaKm: number;
+  distanciaKm!: number;
 
   @IsOptional()
   @IsString()
@@ -29,4 +29,9 @@ export class CreateModalidadeDto {
   @IsInt()
   @Min(0)
   idadeMaxima?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  capacidade?: number;
 }

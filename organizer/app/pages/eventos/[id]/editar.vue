@@ -21,7 +21,7 @@ onMounted(async () => {
   }
 })
 
-async function onSubmit(payload: Record<string, unknown>) {
+async function onSubmit(payload: Record<string, unknown>, _arquivoRegulamento: File | null) {
   erro.value = ''
   sucesso.value = false
   carregando.value = true
@@ -109,7 +109,12 @@ async function onSubmit(payload: Record<string, unknown>) {
       </div>
 
       <div v-if="abaAtiva === 'modalidades'" class="mt-6">
-        <ModalidadesManager :evento-id="id" :modalidades="eventoSelecionado.modalidades || []" />
+        <ModalidadesManager
+          :evento-id="id"
+          :cidade="eventoSelecionado.cidade"
+          :estado="eventoSelecionado.estado"
+          :modalidades="eventoSelecionado.modalidades || []"
+        />
       </div>
 
       <div v-if="abaAtiva === 'lotes'" class="mt-6">

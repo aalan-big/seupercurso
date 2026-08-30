@@ -18,6 +18,8 @@ export class ClienteService {
   constructor(private readonly prisma: PrismaService) {}
 
   async createPessoaFisica(usuarioId: string, dto: CreateClientePfDto) {
+    dto.cpf = dto.cpf.replace(/\D/g, '');
+
     const cliente = await this.prisma.cliente.findUnique({
       where: { usuarioId },
       include: { pf: true },
@@ -127,6 +129,10 @@ export class ClienteService {
   }
 
   async updatePessoaFisica(usuarioId: string, dto: UpdateClientePfDto) {
+    if (dto.cpf) {
+      dto.cpf = dto.cpf.replace(/\D/g, '');
+    }
+
     const cliente = await this.prisma.cliente.findUnique({
       where: { usuarioId },
       include: { pf: true },

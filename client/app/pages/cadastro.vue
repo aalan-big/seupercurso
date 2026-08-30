@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { Footprints } from 'lucide-vue-next'
+import { Footprints, CalendarDays } from 'lucide-vue-next'
 
-const { token, register } = useAuth()
-const { createPessoaFisica, createEndereco, uploadDocumentoPcd, fetchMe } = useCliente()
+const { token, registrarCompleto, emailDisponivel } = useAuth()
+const { uploadDocumentoPcd, fetchMe } = useCliente()
 const route = useRoute()
 
 const destino = computed(() => {
@@ -109,6 +109,32 @@ function formatarCpf(e: Event) {
   atletaForm.cpf = v
 }
 
+const dataNascimentoDisplay = ref('')
+
+function formatarDataNascimento(e: Event) {
+  const input = e.target as HTMLInputElement
+  let v = input.value.replace(/\D/g, '').slice(0, 8)
+  v = v.replace(/(\d{2})(\d)/, '$1/$2')
+  v = v.replace(/(\d{2})(\d)/, '$1/$2')
+  dataNascimentoDisplay.value = v
+
+  if (v.length === 10) {
+    const [dia, mes, ano] = v.split('/')
+    atletaForm.dataNascimento = `${ano}-${mes}-${dia}`
+  } else {
+    atletaForm.dataNascimento = ''
+  }
+}
+
+function onSelecionarDataNascimento(e: Event) {
+  const input = e.target as HTMLInputElement
+  atletaForm.dataNascimento = input.value
+  if (input.value) {
+    const [ano, mes, dia] = input.value.split('-')
+    dataNascimentoDisplay.value = `${dia}/${mes}/${ano}`
+  }
+}
+
 function formatarCelular(e: Event) {
   const input = e.target as HTMLInputElement
   let v = input.value.replace(/\D/g, '').slice(0, 11)
@@ -152,7 +178,11 @@ async function onSubmitConta() {
 
   carregando.value = true
   try {
-    await register(contaForm.email, contaForm.password)
+    const disponivel = await emailDisponivel(contaForm.email)
+    if (!disponivel) {
+      erro.value = 'Já existe uma conta com esse e-mail.'
+      return
+    }
     step.value = 2
   } catch (e) {
     erro.value = extrairErro(e)
@@ -168,9 +198,17 @@ function onSelecionarDocumentoPcd(e: Event) {
   documentoPcd.value = input.files?.[0] || null
 }
 
-async function onSubmitAtleta() {
+function onSubmitAtleta() {
   erro.value = ''
 
+  if (!atletaForm.dataNascimento) {
+    erro.value = 'Informe uma data de nascimento válida.'
+    return
+  }
+  if (atletaForm.dataNascimento > hoje) {
+    erro.value = 'A data de nascimento não pode ser no futuro.'
+    return
+  }
   if (!atletaForm.genero) {
     erro.value = 'Selecione um gênero.'
     return
@@ -180,26 +218,7 @@ async function onSubmitAtleta() {
     return
   }
 
-  carregando.value = true
-  try {
-    await createPessoaFisica({
-      nomeCompleto: atletaForm.nomeCompleto,
-      cpf: atletaForm.cpf,
-      dataNascimento: atletaForm.dataNascimento,
-      genero: atletaForm.genero,
-      pcd: atletaForm.pcd,
-      celular: atletaForm.celular,
-      nacionalidade: atletaForm.nacionalidade
-    })
-    if (atletaForm.pcd && documentoPcd.value) {
-      await uploadDocumentoPcd(documentoPcd.value)
-    }
-    step.value = 3
-  } catch (e) {
-    erro.value = extrairErro(e)
-  } finally {
-    carregando.value = false
-  }
+  step.value = 3
 }
 
 async function onSubmitEndereco() {
@@ -212,7 +231,23 @@ async function onSubmitEndereco() {
 
   carregando.value = true
   try {
-    await createEndereco({ ...enderecoForm })
+    await registrarCompleto({
+      email: contaForm.email,
+      password: contaForm.password,
+      pessoaFisica: {
+        nomeCompleto: atletaForm.nomeCompleto,
+        cpf: atletaForm.cpf,
+        dataNascimento: atletaForm.dataNascimento,
+        genero: atletaForm.genero as 'MASCULINO' | 'FEMININO' | 'OUTRO',
+        pcd: atletaForm.pcd,
+        celular: atletaForm.celular,
+        nacionalidade: atletaForm.nacionalidade
+      },
+      endereco: { ...enderecoForm }
+    })
+    if (atletaForm.pcd && documentoPcd.value) {
+      await uploadDocumentoPcd(documentoPcd.value)
+    }
     await navigateTo(destino.value)
   } catch (e) {
     erro.value = extrairErro(e)
@@ -313,7 +348,7 @@ async function onSubmitEndereco() {
               v-model="contaForm.email"
               type="email"
               required
-              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
           </div>
           <div>
@@ -323,7 +358,7 @@ async function onSubmitEndereco() {
               type="password"
               required
               minlength="8"
-              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
             <p class="mt-1 text-xs text-slate-400">Mínimo de 8 caracteres.</p>
           </div>
@@ -333,7 +368,7 @@ async function onSubmitEndereco() {
               v-model="contaForm.confirmarSenha"
               type="password"
               required
-              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
           </div>
           <button
@@ -341,7 +376,7 @@ async function onSubmitEndereco() {
             :disabled="carregando"
             class="mt-2 rounded-xl bg-warning px-4 py-3 text-sm font-bold uppercase tracking-wide text-primary transition hover:brightness-95 disabled:opacity-50"
           >
-            {{ carregando ? 'Criando conta...' : 'Continuar' }}
+            {{ carregando ? 'Verificando...' : 'Continuar' }}
           </button>
         </form>
 
@@ -352,7 +387,7 @@ async function onSubmitEndereco() {
               v-model="atletaForm.nomeCompleto"
               type="text"
               required
-              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
           </div>
 
@@ -366,18 +401,35 @@ async function onSubmitEndereco() {
                 inputmode="numeric"
                 placeholder="000.000.000-00"
                 required
-                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
               />
             </div>
             <div>
               <label class="mb-1 block text-sm font-semibold text-slate-700">Nascimento</label>
-              <input
-                v-model="atletaForm.dataNascimento"
-                type="date"
-                :max="hoje"
-                required
-                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-              />
+              <div class="relative">
+                <input
+                  :value="dataNascimentoDisplay"
+                  @input="formatarDataNascimento"
+                  type="text"
+                  inputmode="numeric"
+                  placeholder="DD/MM/AAAA"
+                  maxlength="10"
+                  required
+                  class="w-full rounded-xl border border-slate-300 px-4 py-3 pr-11 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+                />
+                <div class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                  <CalendarDays :size="18" />
+                </div>
+                <input
+                  :value="atletaForm.dataNascimento"
+                  @change="onSelecionarDataNascimento"
+                  type="date"
+                  :max="hoje"
+                  aria-label="Selecionar data no calendário"
+                  class="absolute inset-y-0 right-0 cursor-pointer opacity-0"
+                  style="width: 2.75rem; min-width: 0; max-width: none; min-height: 0; padding: 0;"
+                />
+              </div>
             </div>
           </div>
 
@@ -390,7 +442,7 @@ async function onSubmitEndereco() {
               inputmode="numeric"
               placeholder="(00) 00000-0000"
               required
-              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
           </div>
 
@@ -415,7 +467,7 @@ async function onSubmitEndereco() {
           </div>
 
           <label class="flex items-center gap-2 text-sm text-slate-700">
-            <input v-model="atletaForm.pcd" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-accent focus:ring-accent/30" />
+            <input v-model="atletaForm.pcd" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-accent focus:ring-warning/30" />
             Sou pessoa com deficiência (PCD)
           </label>
 
@@ -436,7 +488,7 @@ async function onSubmitEndereco() {
               v-model="atletaForm.nacionalidade"
               type="text"
               required
-              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
           </div>
 
@@ -460,7 +512,7 @@ async function onSubmitEndereco() {
                 inputmode="numeric"
                 placeholder="00000-000"
                 required
-                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
               />
               <p v-if="buscandoCep" class="mt-1 text-xs text-slate-400">Buscando endereço...</p>
             </div>
@@ -470,7 +522,7 @@ async function onSubmitEndereco() {
                 v-model="enderecoForm.numero"
                 type="text"
                 required
-                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
               />
             </div>
           </div>
@@ -482,7 +534,7 @@ async function onSubmitEndereco() {
               type="text"
               placeholder="Rua, avenida..."
               required
-              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
           </div>
 
@@ -492,7 +544,7 @@ async function onSubmitEndereco() {
               v-model="enderecoForm.complemento"
               type="text"
               placeholder="Apto, bloco..."
-              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
           </div>
 
@@ -502,7 +554,7 @@ async function onSubmitEndereco() {
               v-model="enderecoForm.bairro"
               type="text"
               required
-              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
           </div>
 
@@ -513,7 +565,7 @@ async function onSubmitEndereco() {
                 v-model="enderecoForm.cidade"
                 type="text"
                 required
-                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
               />
             </div>
             <div>
@@ -521,7 +573,7 @@ async function onSubmitEndereco() {
               <select
                 v-model="enderecoForm.estado"
                 required
-                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
               >
                 <option value="" disabled>Selecione</option>
                 <option v-for="uf in estadosBr" :key="uf.sigla" :value="uf.sigla">{{ uf.sigla }} - {{ uf.nome }}</option>

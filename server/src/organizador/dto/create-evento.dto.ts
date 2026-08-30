@@ -37,6 +37,18 @@ export class CreateEventoDto {
   @IsDateString()
   retiradaKitFim?: string;
 
+  @IsOptional()
+  @IsDateString()
+  limiteTrocaCamisaAté?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  camisasBloqueadas?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  permiteTransferencia?: boolean;
+
   @IsDateString()
   dataInicio: string;
 

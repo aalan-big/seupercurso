@@ -39,6 +39,13 @@ export interface EnviarRecuperacaoSenhaParams {
   token: string;
 }
 
+export interface EnviarMensagemContatoParams {
+  nome: string;
+  email: string;
+  assunto?: string;
+  mensagem: string;
+}
+
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
@@ -81,7 +88,7 @@ export class EmailService {
     }
   }
 
-  private async enviarMail(destinatario: string, assunto: string, html: string) {
+  private async enviarMail(destinatario: string, assunto: string, html: string, replyTo?: string) {
     const resendApiKey = this.configService.get<string>('RESEND_API_KEY');
     if (resendApiKey) {
       try {
@@ -92,6 +99,7 @@ export class EmailService {
           to: destinatario,
           subject: assunto,
           html,
+          ...(replyTo ? { replyTo } : {}),
         });
         this.logger.log(`[RESEND ENVIADO DIRETO COM SUCESSO!] Para: ${destinatario} | ID: ${res.data?.id}`);
         return { enviado: true, resendId: res.data?.id };
@@ -113,6 +121,7 @@ export class EmailService {
           to: destinatario,
           subject: assunto,
           html,
+          ...(replyTo ? { replyTo } : {}),
         });
         const previewUrl = nodemailer.getTestMessageUrl(info);
         if (previewUrl) {
@@ -193,34 +202,56 @@ export class EmailService {
    * 1. E-mail de Verificação de Conta após Cadastro
    */
   async enviarEmailVerificacao(params: EnviarVerificacaoEmailParams) {
+    const html = this.montarHtmlVerificacao(params);
+    return this.enviarMail(params.email, 'Confirme seu E-mail — Seu Percurso', html);
+  }
+
+  private montarHtmlVerificacao(params: EnviarVerificacaoEmailParams): string {
     const appUrl = this.configService.get<string>('CLIENT_URL', 'http://localhost:3001');
     const linkVerificacao = `${appUrl}/verificar-email?token=${encodeURIComponent(params.token)}`;
 
     const conteudoHtml = `
-      <p style="font-size: 16px; font-weight: 700; color: #0f172a; margin-top: 0;">Olá, ${params.nome}!</p>
-      <p style="color: #475569;">Obrigado por se cadastrar no <strong>Seu Percurso</strong>! Para garantir a segurança da sua conta e poder realizar inscrições em provas e corridas, por favor confirme seu endereço de e-mail.</p>
-      
+      <div style="display: inline-flex; align-items: center; background-color: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; font-size: 12px; font-weight: 800; padding: 6px 16px; border-radius: 50px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 20px;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        Falta só um passo
+      </div>
+      <p style="font-size: 16px; font-weight: 800; color: #0f172a; margin-top: 0;">Olá, ${params.nome}!</p>
+      <p style="color: #475569;">Obrigado por se cadastrar no <strong>Seu Percurso</strong>! Para garantir a segurança da sua conta e poder se inscrever em provas e corridas, confirme seu endereço de e-mail.</p>
+
+      <div class="card">
+        <div style="font-size: 13px; font-weight: 800; color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 12px; display: flex; align-items: center;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          POR QUE CONFIRMAR
+        </div>
+        <div style="font-size: 13px; color: #475569; margin-bottom: 6px;">✓ Protege sua conta contra acessos indevidos</div>
+        <div style="font-size: 13px; color: #475569; margin-bottom: 6px;">✓ Libera inscrições em eventos e emissão de voucher</div>
+        <div style="font-size: 13px; color: #475569;">✓ Garante que avisos sobre suas inscrições cheguem certinho</div>
+      </div>
+
       <div style="text-align: center; margin: 32px 0;">
-        <a href="${linkVerificacao}" class="btn-primary">Confirmar Meu E-mail</a>
+        <a href="${linkVerificacao}" class="btn-primary" style="display:inline-block;background-color:#f97316;color:#ffffff;font-weight:900;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;padding:14px 32px;border-radius:14px;text-decoration:none;">Confirmar Meu E-mail</a>
       </div>
 
       <p style="font-size: 12px; color: #94a3b8; text-align: center;">Ou copie e cole este link no seu navegador:<br><a href="${linkVerificacao}" style="color: #f97316; word-break: break-all;">${linkVerificacao}</a></p>
       <p style="font-size: 12px; color: #64748b; margin-top: 24px;">Este link é válido por 24 horas. Se você não realizou este cadastro, pode ignorar este e-mail.</p>
     `;
 
-    const html = this.renderBaseTemplate({
+    return this.renderBaseTemplate({
       tituloHeader: 'Confirme seu E-mail',
       subtituloHeader: 'Validação de conta no Seu Percurso',
       conteudoHtml,
     });
-
-    return this.enviarMail(params.email, 'Confirme seu E-mail — Seu Percurso', html);
   }
 
   /**
    * 2. E-mail de Recuperação de Senha
    */
   async enviarEmailRecuperacaoSenha(params: EnviarRecuperacaoSenhaParams) {
+    const html = this.montarHtmlRecuperacaoSenha(params);
+    return this.enviarMail(params.email, 'Recuperação de Senha — Seu Percurso', html);
+  }
+
+  private montarHtmlRecuperacaoSenha(params: EnviarRecuperacaoSenhaParams): string {
     const appUrl = this.configService.get<string>('CLIENT_URL', 'http://localhost:3001');
     const linkRedefinicao = `${appUrl}/redefinir-senha?token=${encodeURIComponent(params.token)}`;
 
@@ -230,20 +261,77 @@ export class EmailService {
       <p style="color: #475569;">Clique no botão abaixo para criar uma nova senha com segurança:</p>
 
       <div style="text-align: center; margin: 32px 0;">
-        <a href="${linkRedefinicao}" class="btn-primary">Redefinir Minha Senha</a>
+        <a href="${linkRedefinicao}" class="btn-primary" style="display:inline-block;background-color:#f97316;color:#ffffff;font-weight:900;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;padding:14px 32px;border-radius:14px;text-decoration:none;">Redefinir Minha Senha</a>
       </div>
 
       <p style="font-size: 12px; color: #94a3b8; text-align: center;">Link direto:<br><a href="${linkRedefinicao}" style="color: #f97316; word-break: break-all;">${linkRedefinicao}</a></p>
       <p style="font-size: 12px; color: #ef4444; font-weight: 700; margin-top: 24px;">⚠️ Este link expira em 1 hora. Se você não solicitou a troca de senha, sua conta continua segura e você pode ignorar esta mensagem.</p>
     `;
 
-    const html = this.renderBaseTemplate({
+    return this.renderBaseTemplate({
       tituloHeader: 'Recuperação de Senha',
       subtituloHeader: 'Solicitação de redefinição de acesso',
       conteudoHtml,
     });
+  }
 
-    return this.enviarMail(params.email, 'Recuperação de Senha — Seu Percurso', html);
+  /**
+   * Gera o HTML de um e-mail sem enviar — usado pela rota de preview em
+   * desenvolvimento, já que testar visual por entrega real depende de
+   * provedor/spam e não é confiável pra isso.
+   */
+  gerarPreview(tipo: 'verificacao' | 'recuperacao-senha'): string {
+    if (tipo === 'recuperacao-senha') {
+      return this.montarHtmlRecuperacaoSenha({
+        email: 'atleta@exemplo.com',
+        nome: 'Alan',
+        token: 'preview-token',
+      });
+    }
+    return this.montarHtmlVerificacao({
+      email: 'atleta@exemplo.com',
+      nome: 'Alan',
+      token: 'preview-token',
+    });
+  }
+
+  /**
+   * Mensagem enviada pelo formulário "Fale conosco" do site do atleta
+   */
+  async enviarMensagemContato(params: EnviarMensagemContatoParams) {
+    const destinatario = this.configService.get<string>('CONTATO_EMAIL', 'suporte@seupercurso.com.br');
+    const nome = this.escapeHtml(params.nome);
+    const email = this.escapeHtml(params.email);
+    const assunto = this.escapeHtml(params.assunto?.trim() || 'Nova mensagem pelo site');
+    const mensagem = this.escapeHtml(params.mensagem);
+
+    const conteudoHtml = `
+      <p style="font-size: 16px; font-weight: 700; color: #0f172a; margin-top: 0;">Nova mensagem recebida pelo "Fale conosco"</p>
+      <div class="card">
+        <p style="margin: 0 0 8px;"><strong>Nome:</strong> ${nome}</p>
+        <p style="margin: 0 0 8px;"><strong>E-mail:</strong> ${email}</p>
+        <p style="margin: 0;"><strong>Assunto:</strong> ${assunto}</p>
+      </div>
+      <p style="color: #475569; white-space: pre-wrap;">${mensagem}</p>
+      <p style="font-size: 12px; color: #94a3b8; margin-top: 24px;">Responda diretamente este e-mail para falar com ${nome}.</p>
+    `;
+
+    const html = this.renderBaseTemplate({
+      tituloHeader: 'Fale Conosco',
+      subtituloHeader: 'Mensagem recebida pelo site',
+      conteudoHtml,
+    });
+
+    return this.enviarMail(destinatario, `[Fale Conosco] ${assunto}`, html, params.email);
+  }
+
+  private escapeHtml(valor: string): string {
+    return valor
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   /**
@@ -332,7 +420,7 @@ export class EmailService {
       ${atletasHtml}
 
       <div style="text-align: center; margin-top: 32px;">
-        <a href="${appUrl}/minhas-inscricoes" class="btn-primary">Ver Inscrições no Perfil</a>
+        <a href="${appUrl}/minhas-inscricoes" class="btn-primary" style="display:inline-block;background-color:#f97316;color:#ffffff;font-weight:900;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;padding:14px 32px;border-radius:14px;text-decoration:none;">Ver Inscrições no Perfil</a>
       </div>
     `;
 

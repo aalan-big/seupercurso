@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CheckCircle, Lock } from 'lucide-vue-next'
+import { CheckCircle, Lock, Clock } from 'lucide-vue-next'
 
 const { organizador, fetchMe, atualizarDadosBancarios } = useOrganizador()
 
@@ -12,7 +12,8 @@ const form = reactive({
   chavePix: '',
   banco: '',
   agencia: '',
-  conta: ''
+  conta: '',
+  tipoConta: ''
 })
 
 onMounted(async () => {
@@ -22,6 +23,7 @@ onMounted(async () => {
     form.banco = organizador.value?.banco || ''
     form.agencia = organizador.value?.agencia || ''
     form.conta = organizador.value?.conta || ''
+    form.tipoConta = organizador.value?.tipoConta || ''
   } catch (e) {
     erro.value = extrairErro(e)
   } finally {
@@ -54,11 +56,22 @@ async function onSalvar() {
     <p v-if="carregando" class="mt-8 text-sm text-slate-500">Carregando...</p>
 
     <template v-else>
-      <div v-if="organizador?.asaasWalletId" class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-800 flex items-center gap-3">
+      <div v-if="organizador?.asaasWalletId" class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 text-xs text-emerald-900 flex items-start gap-3 shadow-2xs">
         <CheckCircle :size="20" class="text-emerald-600" />
-        <div>
-          <p class="font-bold text-sm">Subconta Asaas Ativa & Verificada</p>
-          <p class="text-[11px] text-emerald-700">Sua conta de repasse automático (ID: {{ organizador.asaasWalletId }}) está configurada para receber pagamentos via PIX e Cartão com liberação D+2.</p>
+        <div class="space-y-1">
+          <p class="font-black text-sm text-emerald-950">Sua conta de recebimento está ativa</p>
+          <p class="text-[11px] text-emerald-800 leading-relaxed">Tudo certo! Você já pode receber automaticamente os pagamentos das suas inscrições, via PIX e Cartão, com o dinheiro liberado em até 2 dias.</p>
+        </div>
+      </div>
+
+      <div
+        v-else-if="(organizador?.chavePix || organizador?.conta) && organizador?.status !== 'APROVADO'"
+        class="mt-4 rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-xs text-amber-900 flex items-start gap-3 shadow-2xs"
+      >
+        <Clock :size="20" class="text-amber-600" />
+        <div class="space-y-1">
+          <p class="font-black text-sm text-amber-950">Dados salvos — conta ainda não ativada</p>
+          <p class="text-[11px] text-amber-800 leading-relaxed">Assim que seu cadastro de organizador for aprovado pela nossa equipe, sua conta de recebimento é ativada automaticamente. Não precisa preencher nada de novo.</p>
         </div>
       </div>
 
@@ -83,24 +96,32 @@ async function onSalvar() {
             v-model="form.chavePix"
             type="text"
             placeholder="CPF/CNPJ, e-mail, celular ou chave aleatória"
-            class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+            class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
           />
         </div>
 
         <div class="border-t border-slate-100 pt-4">
           <p class="mb-3 text-xs font-bold uppercase tracking-wide text-slate-400">Ou dados da conta bancária</p>
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <label class="mb-1 block text-sm font-semibold text-slate-700">Banco</label>
-              <input v-model="form.banco" type="text" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" />
+              <input v-model="form.banco" type="text" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30" />
             </div>
             <div>
               <label class="mb-1 block text-sm font-semibold text-slate-700">Agência</label>
-              <input v-model="form.agencia" type="text" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" />
+              <input v-model="form.agencia" type="text" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30" />
             </div>
             <div>
               <label class="mb-1 block text-sm font-semibold text-slate-700">Conta</label>
-              <input v-model="form.conta" type="text" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" />
+              <input v-model="form.conta" type="text" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30" />
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-semibold text-slate-700">Tipo de conta</label>
+              <select v-model="form.tipoConta" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30">
+                <option value="">Selecione</option>
+                <option value="CORRENTE">Corrente</option>
+                <option value="POUPANCA">Poupança</option>
+              </select>
             </div>
           </div>
         </div>

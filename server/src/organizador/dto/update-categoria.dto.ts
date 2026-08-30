@@ -24,4 +24,9 @@ export class UpdateCategoriaDto {
   @IsOptional()
   @IsBoolean()
   pcd?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  capacidade?: number | null;
 }

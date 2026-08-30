@@ -79,6 +79,15 @@ const formManual = reactive({
   pcd: false
 })
 
+function onInputCpfManual(e: Event) {
+  const input = e.target as HTMLInputElement
+  let v = input.value.replace(/\D/g, '').slice(0, 11)
+  v = v.replace(/(\d{3})(\d)/, '$1.$2')
+  v = v.replace(/(\d{3})(\d)/, '$1.$2')
+  v = v.replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+  formManual.cpf = v
+}
+
 const cupomCodigo = ref('')
 const aceiteTermos = ref(false)
 
@@ -228,6 +237,10 @@ function confirmarAdicionarAtleta() {
       return
     }
     const cpfLimpo = formManual.cpf.replace(/\D/g, '')
+    if (!cpfEhValido(cpfLimpo)) {
+      alert('CPF inválido. Confira os números digitados.')
+      return
+    }
     if (carrinho.value.some((item) => (item.cpf || '').replace(/\D/g, '') === cpfLimpo)) {
       alert('Este CPF já está no seu carrinho de inscrições.')
       return
@@ -264,10 +277,14 @@ function calcularIdade(nascimentoIso: string, referenciaIso: string) {
 }
 
 function motivoInelegibilidadeParaAtleta(
-  categoria: { idadeMinima: number | null; idadeMaxima: number | null; genero: string; pcd: boolean },
+  categoria: { idadeMinima: number | null; idadeMaxima: number | null; genero: string; pcd: boolean; vagasRestantes?: number | null },
   atleta: { dataNascimento: string; genero: string; pcd: boolean }
 ) {
   if (!atleta || !eventoSelecionado.value) return null
+
+  if (categoria.vagasRestantes !== undefined && categoria.vagasRestantes !== null && categoria.vagasRestantes <= 0) {
+    return 'Vagas esgotadas para essa categoria'
+  }
 
   if (categoria.idadeMinima !== null || categoria.idadeMaxima !== null) {
     const idade = calcularIdade(atleta.dataNascimento, eventoSelecionado.value.dataInicio)
@@ -843,15 +860,28 @@ async function onInscrever() {
                     <button
                       v-for="mod in modalidadesAtivas"
                       :key="mod.id"
+                      :disabled="mod.vagasRestantes !== undefined && mod.vagasRestantes !== null && mod.vagasRestantes <= 0"
                       @click="selecionarModalidadeItem(item, mod.id)"
                       class="p-4 rounded-xl border text-left transition flex flex-col justify-between space-y-2"
-                      :class="item.modalidadeId === mod.id ? 'bg-orange-50 border-orange-500 text-slate-900 shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'"
+                      :class="[
+                        mod.vagasRestantes !== undefined && mod.vagasRestantes !== null && mod.vagasRestantes <= 0
+                          ? 'opacity-40 bg-slate-100 border-slate-200 cursor-not-allowed text-slate-400'
+                          : item.modalidadeId === mod.id
+                          ? 'bg-orange-50 border-orange-500 text-slate-900 shadow-sm'
+                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
+                      ]"
                     >
                       <div class="flex items-center justify-between">
                         <span class="font-extrabold text-sm text-slate-900">{{ mod.nome }}</span>
                         <span class="text-xs font-black text-orange-600">{{ formatarPreco(precoBasePara(mod.id)) }}</span>
                       </div>
                       <p v-if="mod.descricao" class="text-xs text-slate-500 line-clamp-2">{{ mod.descricao }}</p>
+                      <p v-if="mod.vagasRestantes !== undefined && mod.vagasRestantes !== null && mod.vagasRestantes <= 0" class="text-xs font-bold text-rose-500">
+                        Vagas esgotadas
+                      </p>
+                      <p v-else-if="mod.vagasRestantes !== undefined && mod.vagasRestantes !== null && mod.vagasRestantes <= 10" class="text-xs font-bold text-amber-600">
+                        Só {{ mod.vagasRestantes }} {{ mod.vagasRestantes === 1 ? 'vaga' : 'vagas' }} restantes
+                      </p>
                     </button>
                   </div>
                 </div>
@@ -880,6 +910,12 @@ async function onInscrever() {
                         <p class="text-sm font-semibold">{{ cat.nome }}</p>
                         <p v-if="motivoInelegibilidadeParaAtleta(cat, item)" class="text-xs text-rose-500 mt-0.5">
                           {{ motivoInelegibilidadeParaAtleta(cat, item) }}
+                        </p>
+                        <p
+                          v-else-if="cat.vagasRestantes !== undefined && cat.vagasRestantes !== null && cat.vagasRestantes <= 10"
+                          class="text-xs text-amber-600 mt-0.5"
+                        >
+                          Só {{ cat.vagasRestantes }} {{ cat.vagasRestantes === 1 ? 'vaga' : 'vagas' }} restantes
                         </p>
                       </div>
                       <Check v-if="item.categoriaId === cat.id" class="w-4 h-4 text-orange-500" />
@@ -1167,7 +1203,7 @@ async function onInscrever() {
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-bold text-slate-700 mb-1">CPF *</label>
-              <input v-model="formManual.cpf" type="text" placeholder="000.000.000-00" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-slate-800 focus:border-orange-500 focus:bg-white focus:outline-none" />
+              <input :value="formManual.cpf" @input="onInputCpfManual" type="text" inputmode="numeric" placeholder="000.000.000-00" maxlength="14" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-slate-800 focus:border-orange-500 focus:bg-white focus:outline-none" />
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-700 mb-1">Data Nasc. *</label>

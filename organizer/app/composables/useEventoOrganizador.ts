@@ -6,6 +6,7 @@ export interface CategoriaOrganizador {
   idadeMaxima: number | null
   genero: 'MASCULINO' | 'FEMININO' | 'LIVRE'
   pcd: boolean
+  capacidade: number | null
 }
 
 export interface PrecoLoteOrganizador {
@@ -24,6 +25,11 @@ export interface ModalidadeOrganizador {
   idadeMinima: number | null
   idadeMaxima: number | null
   ativo: boolean
+  capacidade: number | null
+  mapaPercursoUrl: string | null
+  mapaEmbedUrl: string | null
+  gpxUrl: string | null
+  rotaGeoJson: string | null
   categorias: CategoriaOrganizador[]
 }
 
@@ -44,11 +50,13 @@ export interface EventoOrganizador {
   descricao: string | null
   regulamentoUrl: string | null
   bannerUrl: string | null
-  mapaPercursoUrl: string | null
   termoResponsabilidade: string | null
   retiradaKitLocal: string | null
   retiradaKitInicio: string | null
   retiradaKitFim: string | null
+  limiteTrocaCamisaAté: string | null
+  camisasBloqueadas: boolean
+  permiteTransferencia: boolean
   aplicaDescontoIdoso: boolean
   percentualDescontoIdoso: string | null
   taxaRepassadaAtleta: boolean
@@ -78,6 +86,9 @@ export interface EventoOrganizadorInput {
   retiradaKitLocal?: string
   retiradaKitInicio?: string
   retiradaKitFim?: string
+  limiteTrocaCamisaAté?: string
+  camisasBloqueadas?: boolean
+  permiteTransferencia?: boolean
   dataInicio: string
   dataFim: string
   local: string
@@ -98,10 +109,14 @@ export interface ModalidadeInput {
   descricao?: string
   idadeMinima?: number
   idadeMaxima?: number
+  capacidade?: number
 }
 
-export interface ModalidadeUpdateInput extends Partial<ModalidadeInput> {
+export interface ModalidadeUpdateInput extends Partial<Omit<ModalidadeInput, 'capacidade'>> {
   ativo?: boolean
+  mapaEmbedUrl?: string
+  rotaGeoJson?: string
+  capacidade?: number | null
 }
 
 export interface CategoriaInput {
@@ -110,6 +125,11 @@ export interface CategoriaInput {
   idadeMaxima?: number
   genero?: CategoriaOrganizador['genero']
   pcd?: boolean
+  capacidade?: number
+}
+
+export type CategoriaUpdateInput = Partial<Omit<CategoriaInput, 'capacidade'>> & {
+  capacidade?: number | null
 }
 
 export interface LoteInput {
@@ -154,7 +174,7 @@ export function useEventoOrganizador() {
     return res
   }
 
-  async function uploadMidia(id: string, campo: 'banner' | 'mapa-percurso' | 'regulamento', arquivo: File) {
+  async function uploadMidia(id: string, campo: 'banner' | 'regulamento', arquivo: File) {
     const formData = new FormData()
     formData.append('arquivo', arquivo)
     const res = await api<EventoOrganizador>(`/organizadores/me/eventos/${id}/${campo}`, {
@@ -163,6 +183,16 @@ export function useEventoOrganizador() {
     })
     eventoSelecionado.value = res
     return res
+  }
+
+  async function uploadMapaPercursoModalidade(eventoId: string, modalidadeId: string, arquivo: File) {
+    const formData = new FormData()
+    formData.append('arquivo', arquivo)
+    await api(`/organizadores/me/eventos/${eventoId}/modalidades/${modalidadeId}/mapa-percurso`, {
+      method: 'PATCH',
+      body: formData
+    })
+    await fetchEvento(eventoId)
   }
 
   async function criarModalidade(eventoId: string, input: ModalidadeInput) {
@@ -186,6 +216,19 @@ export function useEventoOrganizador() {
   async function criarCategoria(eventoId: string, modalidadeId: string, input: CategoriaInput) {
     await api(`/organizadores/me/eventos/${eventoId}/modalidades/${modalidadeId}/categorias`, {
       method: 'POST',
+      body: input
+    })
+    await fetchEvento(eventoId)
+  }
+
+  async function atualizarCategoria(
+    eventoId: string,
+    modalidadeId: string,
+    categoriaId: string,
+    input: CategoriaUpdateInput
+  ) {
+    await api(`/organizadores/me/eventos/${eventoId}/modalidades/${modalidadeId}/categorias/${categoriaId}`, {
+      method: 'PATCH',
       body: input
     })
     await fetchEvento(eventoId)
@@ -233,10 +276,12 @@ export function useEventoOrganizador() {
     criarEvento,
     atualizarEvento,
     uploadMidia,
+    uploadMapaPercursoModalidade,
     criarModalidade,
     atualizarModalidade,
     removerModalidade,
     criarCategoria,
+    atualizarCategoria,
     removerCategoria,
     criarLote,
     atualizarLote,

@@ -1,11 +1,25 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { Plug, FolderOpen, BarChart2, Key, Check, RefreshCw, Download, CheckCircle, AlertTriangle, Zap } from 'lucide-vue-next'
+import { Plug, FolderOpen, BarChart2, Key, Check, RefreshCw, Download, CheckCircle, AlertTriangle, Zap, Users, FileText } from 'lucide-vue-next'
 import { useEventoOrganizador } from '~/composables/useEventoOrganizador'
 import { useCronometragem, type InscricaoComResultado } from '~/composables/useCronometragem'
+import { useInscritosOrganizador } from '~/composables/useInscritosOrganizador'
 
 const { eventos, fetchEventos } = useEventoOrganizador()
 const { buscarInfo, gerarApiKey, importarCsv, listarResultados } = useCronometragem()
+const { exportarCsv } = useInscritosOrganizador()
+
+const exportandoLista = ref<'xlsx' | 'pdf' | null>(null)
+
+async function onExportarListaLargada(formato: 'xlsx' | 'pdf') {
+  if (!eventoSelecionadoId.value) return
+  exportandoLista.value = formato
+  try {
+    await exportarCsv({ eventoId: eventoSelecionadoId.value, status: 'CONFIRMADA' }, formato)
+  } finally {
+    exportandoLista.value = null
+  }
+}
 
 const config = useRuntimeConfig()
 const apiBase = (config.public.apiBase as string) || 'http://localhost:3000'
@@ -271,6 +285,37 @@ const resultadosFiltrados = computed(() => {
         >
           <BarChart2 :size="15" /> Tabela de Resultados ({{ listaResultados.length }})
         </button>
+      </div>
+
+      <!-- Lista de Largada pra empresa de cronometragem -->
+      <div class="rounded-3xl border border-emerald-200 bg-emerald-50/60 p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <Users :size="16" class="text-emerald-700" /> Lista de Largada (pra sua empresa de cronometragem)
+          </h2>
+          <p class="text-xs text-slate-600 mt-1">
+            Antes de configurar a API ou importar tempos, envie essa planilha pra empresa de cronometragem programar
+            os chips — ela tem o número do peito de cada atleta junto com nome, CPF, modalidade e categoria.
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button
+            type="button"
+            :disabled="!!exportandoLista"
+            class="rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:bg-emerald-700 transition disabled:opacity-50 whitespace-nowrap flex items-center justify-center gap-1.5"
+            @click="onExportarListaLargada('xlsx')"
+          >
+            <Download :size="14" /> {{ exportandoLista === 'xlsx' ? 'Gerando...' : 'Excel' }}
+          </button>
+          <button
+            type="button"
+            :disabled="!!exportandoLista"
+            class="rounded-xl border border-emerald-600 bg-white px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-emerald-700 shadow-xs hover:bg-emerald-50 transition disabled:opacity-50 whitespace-nowrap flex items-center justify-center gap-1.5"
+            @click="onExportarListaLargada('pdf')"
+          >
+            <FileText :size="14" /> {{ exportandoLista === 'pdf' ? 'Gerando...' : 'PDF (A4)' }}
+          </button>
+        </div>
       </div>
 
       <!-- ABA 1: API AO VIVO -->

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BarChart2, AlertTriangle, Footprints, X, CheckCircle, Hash, Shirt, CreditCard, Save } from 'lucide-vue-next'
+import { BarChart2, AlertTriangle, Footprints, X, CheckCircle, Hash, Shirt, CreditCard, Save, ListTree, FileText } from 'lucide-vue-next'
 
 const { inscritos, fetchInscritos, exportarCsv, atualizarInscricao } = useInscritosOrganizador()
 const { eventos, fetchMeusEventos, fetchEvento } = useEventoOrganizador()
@@ -34,6 +34,44 @@ const statusOpcoes = [
   { valor: 'EXPIRADA', label: 'Expirada' }
 ]
 
+const modalCategoriasAberto = ref(false)
+const abaCategoriaAtiva = ref('')
+
+const inscritosPorCategoria = computed(() => {
+  const grupos = new Map<string, { id: string; titulo: string; itens: typeof inscritos.value }>()
+
+  for (const inscrito of inscritos.value) {
+    const chave = inscrito.categoria.id
+    const titulo = `${inscrito.categoria.modalidade.nome} · ${inscrito.categoria.nome}`
+    if (!grupos.has(chave)) {
+      grupos.set(chave, { id: chave, titulo, itens: [] })
+    }
+    grupos.get(chave)!.itens.push(inscrito)
+  }
+
+  return Array.from(grupos.values())
+    .map((grupo) => ({
+      ...grupo,
+      // Mantém a numeração de peito exatamente como já foi gerada — aqui só
+      // ordena a exibição por ela dentro de cada categoria, sem recalcular nada.
+      itens: [...grupo.itens].sort((a, b) => {
+        const pa = a.numeroPeito ? Number(a.numeroPeito) : Infinity
+        const pb = b.numeroPeito ? Number(b.numeroPeito) : Infinity
+        return pa - pb
+      })
+    }))
+    .sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR'))
+})
+
+const grupoCategoriaAtivo = computed(() => {
+  return inscritosPorCategoria.value.find((g) => g.id === abaCategoriaAtiva.value) || inscritosPorCategoria.value[0] || null
+})
+
+function abrirModalCategorias() {
+  abaCategoriaAtiva.value = inscritosPorCategoria.value[0]?.id || ''
+  modalCategoriasAberto.value = true
+}
+
 const statusInfo: Record<string, { texto: string; classe: string }> = {
   PENDENTE_PAGAMENTO: { texto: 'Pagamento pendente', classe: 'bg-amber-100 text-amber-800 font-bold' },
   CONFIRMADA: { texto: 'Confirmada', classe: 'bg-emerald-100 text-emerald-800 font-bold' },
@@ -66,15 +104,18 @@ onMounted(async () => {
   await carregar()
 })
 
-async function onExportar() {
+async function onExportar(formato: 'xlsx' | 'pdf' = 'xlsx') {
   erro.value = ''
   exportando.value = true
   try {
-    await exportarCsv({
-      eventoId: filtroEvento.value || undefined,
-      status: filtroStatus.value || undefined,
-      busca: filtroBusca.value || undefined
-    })
+    await exportarCsv(
+      {
+        eventoId: filtroEvento.value || undefined,
+        status: filtroStatus.value || undefined,
+        busca: filtroBusca.value || undefined
+      },
+      formato
+    )
   } catch (e) {
     erro.value = extrairErro(e)
   } finally {
@@ -173,21 +214,39 @@ function formatarData(iso: string) {
         </p>
       </div>
 
-      <button
-        type="button"
-        :disabled="exportando"
-        class="inline-flex items-center gap-2 rounded-xl bg-slate-800 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-slate-900 transition disabled:opacity-40"
-        @click="onExportar"
-      >
-        <BarChart2 :size="16" /> Exportar Tabela em CSV
-      </button>
+      <div class="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          :disabled="inscritos.length === 0"
+          class="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-100 transition disabled:opacity-40"
+          @click="abrirModalCategorias"
+        >
+          <ListTree :size="16" /> Ver por Categoria
+        </button>
+        <button
+          type="button"
+          :disabled="exportando"
+          class="inline-flex items-center gap-2 rounded-xl bg-slate-800 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-slate-900 transition disabled:opacity-40"
+          @click="onExportar('xlsx')"
+        >
+          <BarChart2 :size="16" /> Exportar em Excel
+        </button>
+        <button
+          type="button"
+          :disabled="exportando"
+          class="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-100 transition disabled:opacity-40"
+          @click="onExportar('pdf')"
+        >
+          <FileText :size="16" /> Exportar em PDF (A4)
+        </button>
+      </div>
     </div>
 
     <!-- Filtros Rápido -->
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
       <select
         v-model="filtroEvento"
-        class="rounded-xl border border-slate-300 px-4 py-2.5 text-xs font-bold text-slate-800 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+        class="rounded-xl border border-slate-300 px-4 py-2.5 text-xs font-bold text-slate-800 focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
         @change="carregar"
       >
         <option value="">Todos os eventos</option>
@@ -198,7 +257,7 @@ function formatarData(iso: string) {
 
       <select
         v-model="filtroStatus"
-        class="rounded-xl border border-slate-300 px-4 py-2.5 text-xs font-bold text-slate-800 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+        class="rounded-xl border border-slate-300 px-4 py-2.5 text-xs font-bold text-slate-800 focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
         @change="carregar"
       >
         <option v-for="st in statusOpcoes" :key="st.valor" :value="st.valor">
@@ -210,7 +269,7 @@ function formatarData(iso: string) {
         v-model="filtroBusca"
         type="text"
         placeholder="Buscar por nome, CPF ou nº do peito..."
-        class="rounded-xl border border-slate-300 px-4 py-2.5 text-xs font-medium text-slate-800 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+        class="rounded-xl border border-slate-300 px-4 py-2.5 text-xs font-medium text-slate-800 focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
         @keyup.enter="carregar"
       />
     </div>
@@ -337,7 +396,7 @@ function formatarData(iso: string) {
                 <select
                   v-else
                   v-model="formInscrito.categoriaId"
-                  class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
                 >
                   <option v-for="cat in categoriasDisponiveis" :key="cat.id" :value="cat.id">
                     {{ cat.nomeFormatado }}
@@ -352,7 +411,7 @@ function formatarData(iso: string) {
                   v-model="formInscrito.numeroPeito"
                   type="text"
                   placeholder="ex: 105"
-                  class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-xs font-mono font-bold text-slate-900 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-xs font-mono font-bold text-slate-900 focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
                 />
               </div>
 
@@ -361,7 +420,7 @@ function formatarData(iso: string) {
                 <label class="font-black text-slate-700 mb-1 flex items-center gap-1"><Shirt :size="14" /> Tamanho da Camisa</label>
                 <select
                   v-model="formInscrito.tamanhoCamisa"
-                  class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
                 >
                   <option value="PP">PP</option>
                   <option value="P">P</option>
@@ -378,7 +437,7 @@ function formatarData(iso: string) {
                 <label class="font-black text-slate-700 mb-1 flex items-center gap-1"><CreditCard :size="14" /> Status da Inscrição</label>
                 <select
                   v-model="formInscrito.status"
-                  class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
                 >
                   <option value="CONFIRMADA">🟢 Confirmada (Kit Liberado)</option>
                   <option value="PENDENTE_PAGAMENTO">🟡 Pagamento Pendente</option>
@@ -407,6 +466,112 @@ function formatarData(iso: string) {
               <Save :size="14" /> {{ salvandoModal ? 'Salvando...' : 'Salvar Alterações' }}
             </button>
           </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- MODAL: INSCRITOS AGRUPADOS POR CATEGORIA -->
+    <Teleport to="body">
+      <div v-if="modalCategoriasAberto" class="fixed inset-0 z-[300] flex items-center justify-center p-4">
+        <div class="fixed inset-0 bg-slate-950/75 backdrop-blur-xs" @click="modalCategoriasAberto = false"></div>
+
+        <div class="relative flex w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl z-[301] max-h-[85vh]">
+          <div class="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+            <div>
+              <h3 class="font-black text-base text-slate-900 flex items-center gap-2">
+                <ListTree :size="18" class="text-primary" /> Inscritos por Categoria
+              </h3>
+              <p class="text-xs text-slate-500 mt-0.5">
+                Mesma numeração de peito de sempre — só agrupada pra facilitar a visualização.
+              </p>
+            </div>
+            <button
+              type="button"
+              class="rounded-xl bg-slate-100 p-2 text-xs font-bold text-slate-500 hover:bg-slate-200 transition inline-flex items-center gap-1"
+              @click="modalCategoriasAberto = false"
+            >
+              <X :size="13" /> Fechar
+            </button>
+          </div>
+
+          <div v-if="inscritosPorCategoria.length === 0" class="px-6 py-12 text-center text-xs text-slate-400">
+            Nenhum inscrito pra agrupar com os filtros atuais.
+          </div>
+
+          <template v-else>
+            <!-- Abas por categoria -->
+            <div class="flex gap-1.5 overflow-x-auto border-b border-slate-200 bg-slate-50 px-4 pt-3">
+              <button
+                v-for="grupo in inscritosPorCategoria"
+                :key="grupo.id"
+                type="button"
+                class="flex shrink-0 items-center gap-2 rounded-t-xl border border-b-0 px-3.5 py-2 text-xs font-bold transition"
+                :class="
+                  grupoCategoriaAtivo?.id === grupo.id
+                    ? 'border-slate-200 bg-white text-primary'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                "
+                @click="abaCategoriaAtiva = grupo.id"
+              >
+                {{ grupo.titulo }}
+                <span
+                  class="rounded-full px-1.5 py-0.5 text-[10px]"
+                  :class="grupoCategoriaAtivo?.id === grupo.id ? 'bg-primary/10 text-primary' : 'bg-slate-200 text-slate-500'"
+                >
+                  {{ grupo.itens.length }}
+                </span>
+              </button>
+            </div>
+
+            <!-- Conteúdo da aba ativa -->
+            <div class="overflow-y-auto px-6 py-4">
+              <div v-if="grupoCategoriaAtivo" class="overflow-x-auto rounded-2xl border border-slate-200">
+                <table class="w-full text-left text-xs">
+                  <thead class="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    <tr>
+                      <th class="px-3 py-2 text-center">Nº Peito</th>
+                      <th class="px-3 py-2">Nome do Atleta</th>
+                      <th class="px-3 py-2">CPF</th>
+                      <th class="px-3 py-2 text-center">Camisa</th>
+                      <th class="px-3 py-2 text-center">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100">
+                    <tr
+                      v-for="inscrito in grupoCategoriaAtivo.itens"
+                      :key="inscrito.id"
+                      class="cursor-pointer hover:bg-blue-50/60 transition"
+                      title="Clique para visualizar e editar os dados do atleta"
+                      @click="modalCategoriasAberto = false; abrirModal360(inscrito)"
+                    >
+                      <td class="px-3 py-2.5 text-center font-mono font-black text-slate-900">
+                        <span v-if="inscrito.numeroPeito" class="rounded-lg bg-slate-900 text-white px-2 py-1 text-[11px] shadow-2xs">
+                          #{{ inscrito.numeroPeito }}
+                        </span>
+                        <span v-else class="text-slate-400 font-normal">—</span>
+                      </td>
+                      <td class="px-3 py-2.5">
+                        <div class="font-bold text-slate-900">{{ nomeCliente(inscrito) }}</div>
+                        <span v-if="compradorTitular(inscrito)" class="text-[10px] font-semibold text-slate-400 block">
+                          {{ compradorTitular(inscrito) }}
+                        </span>
+                      </td>
+                      <td class="px-3 py-2.5 text-slate-600 font-mono">{{ documentoCliente(inscrito) }}</td>
+                      <td class="px-3 py-2.5 text-center font-bold text-slate-700">{{ inscrito.tamanhoCamisa || '—' }}</td>
+                      <td class="px-3 py-2.5 text-center">
+                        <span
+                          class="whitespace-nowrap rounded-full px-2 py-1 text-[10px] uppercase"
+                          :class="statusInfo[inscrito.status]?.classe || 'bg-slate-100 text-slate-500'"
+                        >
+                          {{ statusInfo[inscrito.status]?.texto || inscrito.status }}
+                        </span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </template>
         </div>
       </div>
     </Teleport>

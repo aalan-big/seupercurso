@@ -185,6 +185,7 @@ model Organizador {
   banco                  String?
   agencia                String?
   conta                  String?
+  tipoConta              String?
   fotoRostoUrl           String?
   documentoIdentidadeUrl String?
   motivoRevisao          String?
@@ -220,10 +221,6 @@ model Evento {
   descricao               String?
   regulamentoUrl          String?
   bannerUrl               String?
-  mapaPercursoUrl         String?
-  mapaEmbedUrl            String?
-  gpxUrl                  String?
-  rotaGeoJson             String?
   termoResponsabilidade   String?
   retiradaKitLocal        String?
   retiradaKitInicio       DateTime?
@@ -283,16 +280,21 @@ model Staff {
 }
 
 model Modalidade {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  eventoId    String   @db.Uuid
-  nome        String
-  distanciaKm Decimal  @db.Decimal(6, 2)
-  descricao   String?
-  idadeMinima Int?
-  idadeMaxima Int?
-  ativo       Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventoId        String   @db.Uuid
+  nome            String
+  distanciaKm     Decimal  @db.Decimal(6, 2)
+  descricao       String?
+  idadeMinima     Int?
+  idadeMaxima     Int?
+  ativo           Boolean  @default(true)
+  capacidade      Int?
+  mapaPercursoUrl String?
+  mapaEmbedUrl    String?
+  gpxUrl          String?
+  rotaGeoJson     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   evento     Evento                @relation(fields: [eventoId], references: [id])
   categorias Categoria[]
@@ -307,6 +309,7 @@ model Categoria {
   idadeMaxima  Int?
   genero       GeneroCategoria @default(LIVRE)
   pcd          Boolean         @default(false)
+  capacidade   Int?
 
   modalidade Modalidade  @relation(fields: [modalidadeId], references: [id])
   inscricoes Inscricao[]

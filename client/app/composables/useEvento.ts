@@ -8,6 +8,7 @@ export interface EventoResumo {
   cidade: string
   estado: string
   capacidade: number | null
+  vagasRestantes?: number | null
   status: string
   taxaRepassadaAtleta?: boolean
   aceitaPix?: boolean
@@ -18,6 +19,8 @@ export interface EventoResumo {
 
 export interface CategoriaEvento {
   id: string
+  capacidade?: number | null
+  vagasRestantes?: number | null
   nome: string
   idadeMinima: number | null
   idadeMaxima: number | null
@@ -33,6 +36,12 @@ export interface ModalidadeEvento {
   idadeMinima: number | null
   idadeMaxima: number | null
   ativo: boolean
+  capacidade?: number | null
+  vagasRestantes?: number | null
+  mapaPercursoUrl: string | null
+  mapaEmbedUrl: string | null
+  gpxUrl: string | null
+  rotaGeoJson: string | null
   categorias: CategoriaEvento[]
 }
 

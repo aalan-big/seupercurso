@@ -93,13 +93,31 @@ async function onSalvarEdicao(loteId: string) {
   }
 }
 
+function formatarValorMoeda(valor: number | string) {
+  const num = Number(valor)
+  if (Number.isNaN(num)) return ''
+  return num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 function precoAtual(lote: LoteOrganizador, modalidadeId: string) {
-  return lote.precos.find((p) => p.modalidadeId === modalidadeId)?.valor ?? ''
+  const valor = lote.precos.find((p) => p.modalidadeId === modalidadeId)?.valor
+  return valor !== undefined ? formatarValorMoeda(valor) : ''
+}
+
+function mascararMoeda(v: string) {
+  const digitos = v.replace(/\D/g, '')
+  if (!digitos) return ''
+  return (Number(digitos) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function onInputPreco(e: Event) {
+  const input = e.target as HTMLInputElement
+  input.value = mascararMoeda(input.value)
 }
 
 async function onSalvarPreco(loteId: string, modalidadeId: string, e: Event) {
   const input = e.target as HTMLInputElement
-  const valor = Number(input.value)
+  const valor = Number(input.value.replace(/\./g, '').replace(',', '.'))
   if (!input.value || Number.isNaN(valor)) return
 
   erro.value = ''
@@ -142,14 +160,14 @@ function formatarData(iso: string) {
                 v-model="edicaoLote.nome"
                 type="text"
                 placeholder="Nome (ex.: 1º Lote)"
-                class="col-span-2 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                class="col-span-2 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
               />
               <div class="min-w-0">
                 <label class="mb-1 block text-xs font-semibold text-slate-500">Início da venda</label>
                 <input
                   v-model="edicaoLote.inicioVenda"
                   type="date"
-                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
                 />
               </div>
               <div class="min-w-0">
@@ -157,7 +175,7 @@ function formatarData(iso: string) {
                 <input
                   v-model="edicaoLote.fimVenda"
                   type="date"
-                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
                 />
               </div>
               <input
@@ -165,7 +183,7 @@ function formatarData(iso: string) {
                 type="number"
                 min="1"
                 placeholder="Quantidade de vagas (opcional)"
-                class="col-span-2 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                class="col-span-2 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
               />
             </div>
             <div class="mt-3 flex gap-2">
@@ -231,11 +249,11 @@ function formatarData(iso: string) {
                 <label class="text-xs font-bold text-slate-600">Valor (R$):</label>
                 <input
                   :value="precoAtual(lote, modalidade.id)"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
+                  type="text"
+                  inputmode="decimal"
+                  placeholder="0,00"
                   class="w-32 rounded-xl border-2 border-amber-400 bg-white px-3 py-2 text-xs font-black text-slate-900 shadow-xs focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+                  @input="onInputPreco"
                   @change="(e) => onSalvarPreco(lote.id, modalidade.id, e)"
                 />
               </div>
@@ -260,14 +278,14 @@ function formatarData(iso: string) {
               v-model="novoLote.nome"
               type="text"
               placeholder="Nome (ex.: 1º Lote)"
-              class="col-span-2 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="col-span-2 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
             <div class="min-w-0">
               <label class="mb-1 block text-xs font-semibold text-slate-500">Início da venda</label>
               <input
                 v-model="novoLote.inicioVenda"
                 type="date"
-                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
               />
             </div>
             <div class="min-w-0">
@@ -275,7 +293,7 @@ function formatarData(iso: string) {
               <input
                 v-model="novoLote.fimVenda"
                 type="date"
-                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
               />
             </div>
             <input
@@ -283,7 +301,7 @@ function formatarData(iso: string) {
               type="number"
               min="1"
               placeholder="Quantidade de vagas (opcional)"
-              class="col-span-2 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="col-span-2 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
           </div>
 

@@ -36,4 +36,17 @@ export class UpdateModalidadeDto {
   @IsOptional()
   @IsBoolean()
   ativo?: boolean;
+
+  @IsOptional()
+  @IsString()
+  mapaEmbedUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  rotaGeoJson?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  capacidade?: number | null;
 }

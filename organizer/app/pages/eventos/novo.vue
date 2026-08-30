@@ -1,14 +1,21 @@
 <script setup lang="ts">
-const { criarEvento } = useEventoOrganizador()
+const { criarEvento, uploadMidia } = useEventoOrganizador()
 
 const carregando = ref(false)
 const erro = ref('')
 
-async function onSubmit(payload: Record<string, unknown>) {
+async function onSubmit(payload: Record<string, unknown>, arquivoRegulamento: File | null) {
   erro.value = ''
   carregando.value = true
   try {
     const evento = await criarEvento(payload as Parameters<typeof criarEvento>[0])
+    if (arquivoRegulamento) {
+      try {
+        await uploadMidia(evento.id, 'regulamento', arquivoRegulamento)
+      } catch {
+        // evento já foi criado; organizador pode reenviar o PDF na tela de edição
+      }
+    }
     await navigateTo(`/eventos/${evento.id}/editar`)
   } catch (e) {
     erro.value = extrairErro(e)

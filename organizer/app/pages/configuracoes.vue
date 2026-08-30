@@ -308,21 +308,21 @@ function formatarData(iso: string) {
         <form v-else-if="editandoDados && cliente?.pf" class="mt-4 flex flex-col gap-4" @submit.prevent="salvarDados">
           <div>
             <label class="mb-1 block text-sm font-semibold text-slate-700">Nome completo</label>
-            <input v-model="pfForm.nomeCompleto" type="text" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" />
+            <input v-model="pfForm.nomeCompleto" type="text" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30" />
           </div>
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label class="mb-1 block text-sm font-semibold text-slate-700">CPF</label>
-              <input :value="pfForm.cpf" @input="formatarCpf" type="text" inputmode="numeric" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" />
+              <input :value="pfForm.cpf" @input="formatarCpf" type="text" inputmode="numeric" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30" />
             </div>
             <div class="min-w-0">
               <label class="mb-1 block text-sm font-semibold text-slate-700">Nascimento</label>
-              <input v-model="pfForm.dataNascimento" type="date" :max="hoje" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" />
+              <input v-model="pfForm.dataNascimento" type="date" :max="hoje" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30" />
             </div>
           </div>
           <div>
             <label class="mb-1 block text-sm font-semibold text-slate-700">Celular</label>
-            <input :value="pfForm.celular" @input="(e) => formatarCelular(e, 'pf')" type="text" inputmode="numeric" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" />
+            <input :value="pfForm.celular" @input="(e) => formatarCelular(e, 'pf')" type="text" inputmode="numeric" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30" />
           </div>
           <div>
             <label class="mb-2 block text-sm font-semibold text-slate-700">Gênero</label>
@@ -341,7 +341,7 @@ function formatarData(iso: string) {
           </div>
           <div>
             <label class="mb-1 block text-sm font-semibold text-slate-700">Nacionalidade</label>
-            <input v-model="pfForm.nacionalidade" type="text" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" />
+            <input v-model="pfForm.nacionalidade" type="text" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30" />
           </div>
           <div class="flex gap-3">
             <button type="button" class="rounded-xl border border-slate-300 px-4 py-3 text-sm font-bold uppercase tracking-wide text-slate-600 hover:bg-slate-100" @click="editandoDados = false">Cancelar</button>
@@ -354,29 +354,29 @@ function formatarData(iso: string) {
         <form v-else-if="editandoDados && cliente?.pj" class="mt-4 flex flex-col gap-4" @submit.prevent="salvarDados">
           <div>
             <label class="mb-1 block text-sm font-semibold text-slate-700">Razão social</label>
-            <input v-model="pjForm.razaoSocial" type="text" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" />
+            <input v-model="pjForm.razaoSocial" type="text" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30" />
           </div>
           <div>
             <label class="mb-1 block text-sm font-semibold text-slate-700">Nome fantasia (opcional)</label>
-            <input v-model="pjForm.nomeFantasia" type="text" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" />
+            <input v-model="pjForm.nomeFantasia" type="text" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30" />
           </div>
           <div>
             <label class="mb-1 block text-sm font-semibold text-slate-700">CNPJ</label>
-            <input :value="pjForm.cnpj" @input="formatarCnpj" type="text" inputmode="numeric" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" />
+            <input :value="pjForm.cnpj" @input="formatarCnpj" type="text" inputmode="numeric" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30" />
           </div>
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label class="mb-1 block text-sm font-semibold text-slate-700">Nome do responsável</label>
-              <input v-model="pjForm.nomeResponsavel" type="text" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" />
+              <input v-model="pjForm.nomeResponsavel" type="text" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30" />
             </div>
             <div>
               <label class="mb-1 block text-sm font-semibold text-slate-700">CPF do responsável</label>
-              <input :value="pjForm.documentoResponsavel" @input="formatarCpfResponsavel" type="text" inputmode="numeric" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" />
+              <input :value="pjForm.documentoResponsavel" @input="formatarCpfResponsavel" type="text" inputmode="numeric" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30" />
             </div>
           </div>
           <div>
             <label class="mb-1 block text-sm font-semibold text-slate-700">Celular comercial</label>
-            <input :value="pjForm.celularComercial" @input="(e) => formatarCelular(e, 'pj')" type="text" inputmode="numeric" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" />
+            <input :value="pjForm.celularComercial" @input="(e) => formatarCelular(e, 'pj')" type="text" inputmode="numeric" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30" />
           </div>
           <div class="flex gap-3">
             <button type="button" class="rounded-xl border border-slate-300 px-4 py-3 text-sm font-bold uppercase tracking-wide text-slate-600 hover:bg-slate-100" @click="editandoDados = false">Cancelar</button>
@@ -420,34 +420,34 @@ function formatarData(iso: string) {
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label class="mb-1 block text-sm font-semibold text-slate-700">CEP</label>
-              <input :value="enderecoForm.cep" @input="formatarCep" type="text" inputmode="numeric" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" />
+              <input :value="enderecoForm.cep" @input="formatarCep" type="text" inputmode="numeric" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30" />
               <p v-if="buscandoCep" class="mt-1 text-xs text-slate-400">Buscando endereço...</p>
             </div>
             <div>
               <label class="mb-1 block text-sm font-semibold text-slate-700">Número</label>
-              <input v-model="enderecoForm.numero" type="text" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" />
+              <input v-model="enderecoForm.numero" type="text" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30" />
             </div>
           </div>
           <div>
             <label class="mb-1 block text-sm font-semibold text-slate-700">Logradouro</label>
-            <input v-model="enderecoForm.logradouro" type="text" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" />
+            <input v-model="enderecoForm.logradouro" type="text" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30" />
           </div>
           <div>
             <label class="mb-1 block text-sm font-semibold text-slate-700">Complemento (opcional)</label>
-            <input v-model="enderecoForm.complemento" type="text" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" />
+            <input v-model="enderecoForm.complemento" type="text" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30" />
           </div>
           <div>
             <label class="mb-1 block text-sm font-semibold text-slate-700">Bairro</label>
-            <input v-model="enderecoForm.bairro" type="text" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" />
+            <input v-model="enderecoForm.bairro" type="text" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30" />
           </div>
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label class="mb-1 block text-sm font-semibold text-slate-700">Cidade</label>
-              <input v-model="enderecoForm.cidade" type="text" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30" />
+              <input v-model="enderecoForm.cidade" type="text" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30" />
             </div>
             <div>
               <label class="mb-1 block text-sm font-semibold text-slate-700">Estado</label>
-              <select v-model="enderecoForm.estado" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+              <select v-model="enderecoForm.estado" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30">
                 <option value="" disabled>Selecione</option>
                 <option v-for="uf in estadosBr" :key="uf.sigla" :value="uf.sigla">{{ uf.sigla }} - {{ uf.nome }}</option>
               </select>

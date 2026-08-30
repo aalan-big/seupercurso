@@ -72,7 +72,7 @@ onMounted(async () => {
           v-model="busca"
           type="text"
           placeholder="Pesquise pelo nome do evento ou cidade..."
-          class="w-full rounded-2xl border-0 py-4 pl-12 pr-5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-accent"
+          class="w-full rounded-2xl border-0 py-4 pl-12 pr-5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-warning"
         />
       </div>
     </div>

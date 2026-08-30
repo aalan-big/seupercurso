@@ -11,6 +11,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { Genero } from '../../generated/prisma/enums';
+import { IsCPF } from '../../common/validators/is-cpf.validator';
 
 export class AtletaManualDto {
   @IsString()
@@ -19,6 +20,7 @@ export class AtletaManualDto {
 
   @IsString()
   @IsNotEmpty({ message: 'CPF do atleta é obrigatório.' })
+  @IsCPF()
   cpf: string;
 
   @IsDateString({}, { message: 'Data de nascimento do atleta é inválida.' })

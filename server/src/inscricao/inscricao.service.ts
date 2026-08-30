@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -16,6 +17,7 @@ export class InscricaoService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(usuarioId: string, dto: CreateInscricaoDto) {
+    await this.garantirEmailVerificado(usuarioId);
     const cliente = await this.getClienteComPfOuFalhar(usuarioId);
     const clienteId = cliente.id;
 
@@ -31,6 +33,16 @@ export class InscricaoService {
       categoria,
       cliente.pf,
       categoria.modalidade.evento.dataInicio,
+    );
+
+    await this.garantirVagaNaCategoria(categoria.id, categoria.capacidade);
+    await this.garantirVagaNaModalidade(
+      categoria.modalidadeId,
+      categoria.modalidade.capacidade,
+    );
+    await this.garantirVagaNoEvento(
+      categoria.modalidade.eventoId,
+      categoria.modalidade.evento.capacidade,
     );
 
     const loteRequisitado = await this.prisma.lote.findUnique({
@@ -116,6 +128,7 @@ export class InscricaoService {
   }
 
   async createBatch(usuarioId: string, dto: CreateInscricaoBatchDto) {
+    await this.garantirEmailVerificado(usuarioId);
     const cliente = await this.getClienteComPfOuFalhar(usuarioId);
     const clienteId = cliente.id;
 
@@ -194,6 +207,16 @@ export class InscricaoService {
         categoria,
         { dataNascimento: atletaDataNascimento, genero: atletaGenero, pcd: atletaPcd },
         categoria.modalidade.evento.dataInicio,
+      );
+
+      await this.garantirVagaNaCategoria(categoria.id, categoria.capacidade);
+      await this.garantirVagaNaModalidade(
+        categoria.modalidadeId,
+        categoria.modalidade.capacidade,
+      );
+      await this.garantirVagaNoEvento(
+        categoria.modalidade.eventoId,
+        categoria.modalidade.evento.capacidade,
       );
 
       const loteRequisitado = await this.prisma.lote.findUnique({
@@ -499,6 +522,17 @@ export class InscricaoService {
       );
     }
 
+    const eventoTransf = inscricao.categoria.modalidade.evento;
+    const agoraTransf = new Date();
+    if (
+      eventoTransf.camisasBloqueadas ||
+      (eventoTransf.limiteTrocaCamisaAté && eventoTransf.limiteTrocaCamisaAté < agoraTransf)
+    ) {
+      throw new BadRequestException(
+        'O prazo para transferência de titularidade já foi encerrado, pois os kits deste evento já foram enviados para produção.',
+      );
+    }
+
     const usuarioDestino = await this.prisma.usuario.findUnique({
       where: { email: emailDestino.toLowerCase().trim() },
       include: { cliente: true },
@@ -610,6 +644,64 @@ export class InscricaoService {
     return disponivel;
   }
 
+  // Mesmo padrão de resolverLoteDisponivel, mas pro limite de vagas da
+  // categoria (capacidade null = sem limite).
+  private async garantirVagaNaCategoria(categoriaId: string, capacidade: number | null) {
+    if (capacidade === null) return;
+
+    const inscritos = await this.prisma.inscricao.count({
+      where: {
+        categoriaId,
+        status: { notIn: [StatusInscricao.CANCELADA, StatusInscricao.EXPIRADA] },
+      },
+    });
+
+    if (inscritos >= capacidade) {
+      throw new BadRequestException(
+        'Não há mais vagas disponíveis para essa categoria.',
+      );
+    }
+  }
+
+  // Mesmo padrão, mas pro limite de vagas da modalidade inteira (percurso) —
+  // soma todas as categorias dela, já que a maioria das plataformas de
+  // corrida controla vaga por percurso/distância, não por categoria.
+  private async garantirVagaNaModalidade(modalidadeId: string, capacidade: number | null) {
+    if (capacidade === null) return;
+
+    const inscritos = await this.prisma.inscricao.count({
+      where: {
+        categoria: { modalidadeId },
+        status: { notIn: [StatusInscricao.CANCELADA, StatusInscricao.EXPIRADA] },
+      },
+    });
+
+    if (inscritos >= capacidade) {
+      throw new BadRequestException(
+        'Não há mais vagas disponíveis para esse percurso.',
+      );
+    }
+  }
+
+  // Mesmo padrão, mas pro limite total de vagas do evento inteiro
+  // (evento.capacidade null = sem limite).
+  private async garantirVagaNoEvento(eventoId: string, capacidade: number | null) {
+    if (capacidade === null) return;
+
+    const inscritos = await this.prisma.inscricao.count({
+      where: {
+        categoria: { modalidade: { eventoId } },
+        status: { notIn: [StatusInscricao.CANCELADA, StatusInscricao.EXPIRADA] },
+      },
+    });
+
+    if (inscritos >= capacidade) {
+      throw new BadRequestException(
+        'Não há mais vagas disponíveis para este evento.',
+      );
+    }
+  }
+
   private async resolverCupomOuFalhar(eventoId: string, codigo: string) {
     const codigoLimpo = codigo.trim();
     if (!codigoLimpo) {
@@ -649,6 +741,18 @@ export class InscricaoService {
     }
 
     return cupom.id;
+  }
+
+  private async garantirEmailVerificado(usuarioId: string) {
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id: usuarioId },
+      select: { emailVerificado: true },
+    });
+    if (!usuario?.emailVerificado) {
+      throw new ForbiddenException(
+        'Confirme seu e-mail antes de se inscrever em um evento. Verifique sua caixa de entrada.',
+      );
+    }
   }
 
   private async getClienteComPfOuFalhar(usuarioId: string) {

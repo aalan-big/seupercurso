@@ -210,7 +210,7 @@ async function confirmarSuspensao() {
         <textarea
           v-model="motivo"
           rows="3"
-          class="w-full rounded-xl border border-slate-300 p-3 text-xs focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+          class="w-full rounded-xl border border-slate-300 p-3 text-xs focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
         ></textarea>
         <div class="flex gap-2">
           <button

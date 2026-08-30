@@ -307,7 +307,7 @@ function exportarRelatorioCSV() {
               v-else
               type="button"
               :disabled="solicitandoSaque"
-              class="rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-xs hover:bg-emerald-700 transition disabled:opacity-40"
+              class="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-xs hover:bg-emerald-700 transition disabled:opacity-40"
               @click="realizarSaquePix"
             >
               <Zap :size="14" /> {{ solicitandoSaque ? 'Processando Saque...' : 'Confirmar Transferência PIX' }}

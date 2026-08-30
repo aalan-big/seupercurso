@@ -136,7 +136,7 @@ function formatarDataHora(iso?: string | null) {
 }
 
 const mapaUrlFormatted = computed(() => {
-  const raw = props.inscricao?.categoria.modalidade.evento.mapaPercursoUrl
+  const raw = props.inscricao?.categoria.modalidade.mapaPercursoUrl
   return urlFoto(raw, apiBase)
 })
 
@@ -269,9 +269,6 @@ async function submeterTransferencia() {
 
           <div class="relative z-10 space-y-1.5">
             <div class="flex items-center gap-2">
-              <span class="rounded-full bg-white/20 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider backdrop-blur-xs">
-                Modal 360°
-              </span>
               <span
                 class="rounded-full border px-2.5 py-0.5 text-xs font-bold"
                 :class="statusInfo[inscricao.status]?.classe || 'bg-slate-800 text-slate-200 border-slate-600'"
@@ -565,9 +562,9 @@ async function submeterTransferencia() {
           <!-- ABA 2: MAPA DO PERCURSO INTERATIVO -->
           <div v-else-if="abaAtiva === 'mapa'" class="space-y-4">
             <MapaInterativoPercurso
-              :mapa-percurso-url="inscricao.categoria.modalidade.evento.mapaPercursoUrl"
-              :mapa-embed-url="inscricao.categoria.modalidade.evento.mapaEmbedUrl"
-              :rota-geo-json="inscricao.categoria.modalidade.evento.rotaGeoJson"
+              :mapa-percurso-url="inscricao.categoria.modalidade.mapaPercursoUrl"
+              :mapa-embed-url="inscricao.categoria.modalidade.mapaEmbedUrl"
+              :rota-geo-json="inscricao.categoria.modalidade.rotaGeoJson"
               :cidade="inscricao.categoria.modalidade.evento.cidade"
               :estado="inscricao.categoria.modalidade.evento.estado"
             />

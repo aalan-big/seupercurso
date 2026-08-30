@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { CheckCircle } from 'lucide-vue-next'
 import type { EventoOrganizador } from '../composables/useEventoOrganizador'
 
 const props = defineProps<{ eventoId: string; evento: EventoOrganizador }>()
@@ -98,7 +99,7 @@ function formatarData(iso: string | null) {
       <p class="mt-1 text-xs text-slate-400">Aplica desconto automático pra inscritos com 60 anos ou mais na data do evento.</p>
 
       <label class="mt-4 flex items-center gap-2 text-sm text-slate-700">
-        <input v-model="descontoIdosoAtivo" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-accent focus:ring-accent/30" />
+        <input v-model="descontoIdosoAtivo" type="checkbox" class="h-4 w-4 rounded border-slate-300 accent-warning focus:ring-warning/30" />
         Aplicar desconto do idoso neste evento
       </label>
 
@@ -111,13 +112,15 @@ function formatarData(iso: string | null) {
             min="0.01"
             max="100"
             step="0.01"
-            class="w-24 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+            class="w-24 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
           />
           <span class="text-sm text-slate-500">%</span>
         </div>
       </div>
 
-      <p v-if="sucessoIdoso" class="mt-3 text-xs text-accent">Salvo.</p>
+      <p v-if="sucessoIdoso" class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-800 flex items-center gap-2 w-fit">
+        <CheckCircle :size="14" class="text-emerald-600" /> Salvo.
+      </p>
 
       <button
         type="button"
@@ -179,7 +182,7 @@ function formatarData(iso: string | null) {
               v-model="novoCupom.codigo"
               type="text"
               placeholder="Código (ex.: ASSESSORIAX)"
-              class="rounded-lg border border-slate-300 px-3 py-2 text-sm uppercase focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="rounded-lg border border-slate-300 px-3 py-2 text-sm uppercase focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
             <input
               v-model="novoCupom.percentualDesconto"
@@ -188,19 +191,19 @@ function formatarData(iso: string | null) {
               max="100"
               step="0.01"
               placeholder="Desconto (%)"
-              class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
             <input
               v-model="novoCupom.quantidadeMaxima"
               type="number"
               min="1"
               placeholder="Limite de usos (opcional)"
-              class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
             <input
               v-model="novoCupom.validoAte"
               type="date"
-              class="min-w-0 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              class="min-w-0 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
           </div>
           <div class="mt-3 flex gap-2">

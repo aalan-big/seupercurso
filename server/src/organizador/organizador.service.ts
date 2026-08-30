@@ -8,6 +8,8 @@ import {
 import { unlink } from 'fs/promises';
 import { join } from 'path';
 import * as bcrypt from 'bcrypt';
+import ExcelJS from 'exceljs';
+import PDFDocument from 'pdfkit';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '../generated/prisma/client';
 import {
@@ -281,6 +283,9 @@ export class OrganizadorService {
         ...(dto.retiradaKitFim
           ? { retiradaKitFim: new Date(dto.retiradaKitFim) }
           : {}),
+        ...(dto.limiteTrocaCamisaAté
+          ? { limiteTrocaCamisaAté: new Date(dto.limiteTrocaCamisaAté) }
+          : {}),
       },
     });
   }
@@ -389,6 +394,9 @@ export class OrganizadorService {
         ...(dto.retiradaKitFim
           ? { retiradaKitFim: new Date(dto.retiradaKitFim) }
           : {}),
+        ...(dto.limiteTrocaCamisaAté
+          ? { limiteTrocaCamisaAté: new Date(dto.limiteTrocaCamisaAté) }
+          : {}),
       },
     });
   }
@@ -396,7 +404,7 @@ export class OrganizadorService {
   async atualizarMidiaEvento(
     usuarioId: string,
     eventoId: string,
-    campo: 'bannerUrl' | 'mapaPercursoUrl' | 'regulamentoUrl',
+    campo: 'bannerUrl' | 'regulamentoUrl',
     caminhoRelativo: string,
   ) {
     const organizador = await this.getOrganizadorAprovadoOuFalhar(usuarioId);
@@ -815,61 +823,210 @@ export class OrganizadorService {
     return res;
   }
 
-  async exportarInscritosCsv(
+  async exportarInscritosXlsx(
     usuarioId: string,
     filtros: FiltrosInscritos,
-  ): Promise<string> {
+  ): Promise<Buffer> {
     const inscritos = await this.listarInscritos(usuarioId, filtros);
 
-    const linhas = [
-      [
-        'Nome do Atleta',
-        'CPF do Atleta',
-        'Comprador / Titular',
-        'E-mail Comprador',
-        'Celular',
-        'Evento',
-        'Modalidade',
-        'Categoria',
-        'Numero do peito',
-        'Tamanho da camisa',
-        'Status',
-        'Data da inscricao',
-      ].join(';'),
-      ...inscritos.map((inscricao) => {
-        const nomeAtleta =
-          inscricao.dependente?.nomeCompleto ??
-          inscricao.atletaNome ??
-          inscricao.cliente.pf?.nomeCompleto ??
-          inscricao.cliente.pj?.razaoSocial ??
-          '';
-        const cpfAtleta =
-          inscricao.dependente?.cpf ??
-          inscricao.atletaCpf ??
-          inscricao.cliente.pf?.cpf ??
-          '';
-        const comprador = inscricao.cliente.pf?.nomeCompleto || inscricao.cliente.usuario.email;
+    const statusLabel: Record<string, string> = {
+      PENDENTE_PAGAMENTO: 'Pagamento pendente',
+      CONFIRMADA: 'Confirmada',
+      CANCELADA: 'Cancelada',
+      EXPIRADA: 'Expirada',
+    };
 
-        return [
-          nomeAtleta,
-          cpfAtleta,
-          comprador,
-          inscricao.cliente.usuario.email,
-          inscricao.cliente.pf?.celular ?? '',
-          inscricao.categoria.modalidade.evento.nome,
-          inscricao.categoria.modalidade.nome,
-          inscricao.categoria.nome,
-          inscricao.numeroPeito ?? '',
-          inscricao.tamanhoCamisa ?? '',
-          inscricao.status,
-          inscricao.dataInscricao.toISOString(),
-        ]
-          .map((valor) => `"${String(valor).replace(/"/g, '""')}"`)
-          .join(';');
-      }),
+    const workbook = new ExcelJS.Workbook();
+    const planilha = workbook.addWorksheet('Inscritos');
+
+    planilha.columns = [
+      { header: 'Nome do Atleta', key: 'nome', width: 28 },
+      { header: 'CPF do Atleta', key: 'cpf', width: 16 },
+      { header: 'Comprador / Titular', key: 'comprador', width: 26 },
+      { header: 'E-mail Comprador', key: 'email', width: 28 },
+      { header: 'Celular', key: 'celular', width: 16 },
+      { header: 'Evento', key: 'evento', width: 24 },
+      { header: 'Modalidade', key: 'modalidade', width: 18 },
+      { header: 'Categoria', key: 'categoria', width: 16 },
+      { header: 'Numero do peito', key: 'numeroPeito', width: 15 },
+      { header: 'Tamanho da camisa', key: 'tamanhoCamisa', width: 15 },
+      { header: 'Status', key: 'status', width: 18 },
+      { header: 'Data da inscricao', key: 'dataInscricao', width: 20 },
     ];
 
-    return linhas.join('\n');
+    planilha.getRow(1).font = { bold: true };
+    planilha.getRow(1).alignment = { vertical: 'middle' };
+    planilha.views = [{ state: 'frozen', ySplit: 1 }];
+
+    for (const inscricao of inscritos) {
+      const nomeAtleta =
+        inscricao.dependente?.nomeCompleto ??
+        inscricao.atletaNome ??
+        inscricao.cliente.pf?.nomeCompleto ??
+        inscricao.cliente.pj?.razaoSocial ??
+        '';
+      const cpfAtleta =
+        inscricao.dependente?.cpf ??
+        inscricao.atletaCpf ??
+        inscricao.cliente.pf?.cpf ??
+        '';
+      const comprador = inscricao.cliente.pf?.nomeCompleto || inscricao.cliente.usuario.email;
+
+      const linha = planilha.addRow({
+        nome: nomeAtleta,
+        cpf: this.formatarCpfParaExport(cpfAtleta),
+        comprador,
+        email: inscricao.cliente.usuario.email,
+        celular: inscricao.cliente.pf?.celular ?? '',
+        evento: inscricao.categoria.modalidade.evento.nome,
+        modalidade: inscricao.categoria.modalidade.nome,
+        categoria: inscricao.categoria.nome,
+        numeroPeito: inscricao.numeroPeito ?? '',
+        tamanhoCamisa: inscricao.tamanhoCamisa ?? '',
+        status: statusLabel[inscricao.status] ?? inscricao.status,
+        dataInscricao: inscricao.dataInscricao.toLocaleString('pt-BR', {
+          timeZone: 'America/Sao_Paulo',
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+      });
+
+      // Trava a coluna do CPF como texto — mesmo sem pontuação, o Excel nunca
+      // tenta interpretar como número (evita a notação científica 8,25E+10).
+      linha.getCell('cpf').numFmt = '@';
+    }
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(buffer);
+  }
+
+  private formatarCpfParaExport(cpf: string): string {
+    const digitos = cpf.replace(/\D/g, '');
+    if (digitos.length !== 11) return cpf;
+    return digitos.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  }
+
+  async exportarInscritosPdf(
+    usuarioId: string,
+    filtros: FiltrosInscritos,
+  ): Promise<Buffer> {
+    const inscritos = await this.listarInscritos(usuarioId, filtros);
+
+    // Lista de largada: ordena por percurso e depois por número de peito,
+    // que é a ordem que faz sentido pra conferir na hora do check-in/prova.
+    const ordenados = [...inscritos].sort((a, b) => {
+      const modA = a.categoria.modalidade.nome;
+      const modB = b.categoria.modalidade.nome;
+      if (modA !== modB) return modA.localeCompare(modB, 'pt-BR');
+      const peitoA = a.numeroPeito ? Number(a.numeroPeito) : Infinity;
+      const peitoB = b.numeroPeito ? Number(b.numeroPeito) : Infinity;
+      return peitoA - peitoB;
+    });
+
+    const nomeEvento =
+      ordenados[0]?.categoria.modalidade.evento.nome || 'Lista de Inscritos';
+
+    const colunas = [
+      { titulo: 'Nº', largura: 32 },
+      { titulo: 'Nome do Atleta', largura: 165 },
+      { titulo: 'CPF', largura: 85 },
+      { titulo: 'Modalidade', largura: 85 },
+      { titulo: 'Categoria', largura: 78 },
+      { titulo: 'Camisa', largura: 48 },
+    ];
+    const margem = 40;
+    const larguraTabela = colunas.reduce((acc, c) => acc + c.largura, 0);
+    const alturaLinha = 20;
+
+    const doc = new PDFDocument({ size: 'A4', margin: margem });
+    const chunks: Buffer[] = [];
+    doc.on('data', (chunk) => chunks.push(chunk));
+    const fimPromise = new Promise<Buffer>((resolve) => {
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+    });
+
+    const desenharCabecalhoTabela = (y: number) => {
+      doc.rect(margem, y, larguraTabela, alturaLinha).fill('#0f172a');
+      doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(9);
+      let x = margem;
+      for (const col of colunas) {
+        doc.text(col.titulo, x + 4, y + 6, { width: col.largura - 8, ellipsis: true });
+        x += col.largura;
+      }
+      doc.fillColor('#000000').font('Helvetica');
+      return y + alturaLinha;
+    };
+
+    doc.font('Helvetica-Bold').fontSize(16).text(nomeEvento, margem, margem);
+    doc
+      .font('Helvetica')
+      .fontSize(9)
+      .fillColor('#64748b')
+      .text(
+        `Lista de largada — gerada em ${new Date().toLocaleString('pt-BR', {
+          timeZone: 'America/Sao_Paulo',
+        })} — ${ordenados.length} inscrito(s)`,
+        margem,
+        margem + 22,
+      );
+    doc.fillColor('#000000');
+
+    let y = margem + 50;
+    y = desenharCabecalhoTabela(y);
+
+    const alturaUtil = doc.page.height - margem;
+
+    ordenados.forEach((inscricao, indice) => {
+      if (y + alturaLinha > alturaUtil) {
+        doc.addPage();
+        y = margem;
+        y = desenharCabecalhoTabela(y);
+      }
+
+      if (indice % 2 === 1) {
+        doc.rect(margem, y, larguraTabela, alturaLinha).fill('#f8fafc');
+        doc.fillColor('#000000');
+      }
+
+      const nomeAtleta =
+        inscricao.dependente?.nomeCompleto ??
+        inscricao.atletaNome ??
+        inscricao.cliente.pf?.nomeCompleto ??
+        inscricao.cliente.pj?.razaoSocial ??
+        '';
+      const cpfAtleta =
+        inscricao.dependente?.cpf ??
+        inscricao.atletaCpf ??
+        inscricao.cliente.pf?.cpf ??
+        '';
+
+      const valores = [
+        inscricao.numeroPeito ?? '—',
+        nomeAtleta,
+        this.formatarCpfParaExport(cpfAtleta),
+        inscricao.categoria.modalidade.nome,
+        inscricao.categoria.nome,
+        inscricao.tamanhoCamisa ?? '—',
+      ];
+
+      doc.fontSize(8.5);
+      let x = margem;
+      valores.forEach((valor, i) => {
+        doc.text(String(valor), x + 4, y + 6, {
+          width: colunas[i].largura - 8,
+          ellipsis: true,
+        });
+        x += colunas[i].largura;
+      });
+
+      y += alturaLinha;
+    });
+
+    doc.end();
+    return fimPromise;
   }
 
   private whereInscritos(organizadorId: string, filtros: FiltrosInscritos) {
@@ -955,6 +1112,31 @@ export class OrganizadorService {
     return this.prisma.modalidade.update({
       where: { id: modalidadeId },
       data: dto,
+    });
+  }
+
+  async atualizarMidiaModalidade(
+    usuarioId: string,
+    eventoId: string,
+    modalidadeId: string,
+    caminhoRelativo: string,
+  ) {
+    const organizador = await this.getOrganizadorAprovadoOuFalhar(usuarioId);
+    await this.getEventoDoOrganizadorOuFalhar(organizador.id, eventoId);
+    const modalidade = await this.getModalidadeDoEventoOuFalhar(
+      eventoId,
+      modalidadeId,
+    );
+
+    if (modalidade.mapaPercursoUrl?.startsWith('/uploads/')) {
+      unlink(join(process.cwd(), modalidade.mapaPercursoUrl)).catch(
+        () => undefined,
+      );
+    }
+
+    return this.prisma.modalidade.update({
+      where: { id: modalidadeId },
+      data: { mapaPercursoUrl: caminhoRelativo },
     });
   }
 
@@ -1316,35 +1498,63 @@ export class OrganizadorService {
   async atualizarDadosBancarios(usuarioId: string, dto: UpdateDadosBancariosDto) {
     const organizador = await this.getOrganizadorOuFalhar(usuarioId);
 
-    let asaasData = {};
-    if (!organizador.asaasWalletId) {
-      const cliente = await this.prisma.cliente.findUnique({
-        where: { id: organizador.clienteId },
-        include: { pf: true, pj: true, usuario: true },
-      });
+    await this.prisma.organizador.update({
+      where: { id: organizador.id },
+      data: { ...dto },
+    });
 
-      const nome = cliente?.pf?.nomeCompleto || cliente?.pj?.razaoSocial || cliente?.usuario.email || 'Organizador Eventos';
-      const cpfCnpj = cliente?.pf?.cpf || cliente?.pj?.cnpj || '00000000000';
-      const email = cliente?.usuario.email || 'organizador@seupercurso.com.br';
+    // A subconta Asaas só é criada depois que o admin aprovar o organizador.
+    return this.garantirSubcontaAsaas(organizador.id);
+  }
 
-      const asaasSub = await this.asaasService.criarSubcontaOrganizador({
-        nome,
-        email,
-        cpfCnpj,
-        chavePix: dto.chavePix,
-      });
-
-      asaasData = {
-        asaasAccountId: asaasSub.accountId,
-        asaasWalletId: asaasSub.walletId,
-      };
+  // Cria a subconta Asaas assim que o organizador estiver aprovado e já tiver dados bancários salvos.
+  // Chamado tanto ao salvar dados bancários quanto no momento em que o admin aprova o cadastro.
+  async garantirSubcontaAsaas(organizadorId: string) {
+    const organizador = await this.prisma.organizador.findUnique({
+      where: { id: organizadorId },
+    });
+    if (!organizador) {
+      throw new NotFoundException('Organizador não encontrado.');
     }
+
+    const temDadosBancarios = !!(organizador.chavePix || organizador.conta);
+    if (
+      organizador.asaasWalletId ||
+      organizador.status !== StatusOrganizador.APROVADO ||
+      !temDadosBancarios
+    ) {
+      return organizador;
+    }
+
+    const cliente = await this.prisma.cliente.findUnique({
+      where: { id: organizador.clienteId },
+      include: { pf: true, pj: true, usuario: true, enderecos: true },
+    });
+
+    const nome = cliente?.pf?.nomeCompleto || cliente?.pj?.razaoSocial || cliente?.usuario.email || 'Organizador Eventos';
+    const cpfCnpj = cliente?.pf?.cpf || cliente?.pj?.cnpj || '00000000000';
+    const email = cliente?.usuario.email || 'organizador@seupercurso.com.br';
+    const endereco = cliente?.enderecos[0];
+
+    const asaasSub = await this.asaasService.criarSubcontaOrganizador({
+      nome,
+      email,
+      cpfCnpj,
+      chavePix: organizador.chavePix ?? undefined,
+      telefone: cliente?.pf?.celular || cliente?.pj?.celularComercial,
+      dataNascimento: cliente?.pf?.dataNascimento?.toISOString().slice(0, 10),
+      cep: endereco?.cep,
+      logradouro: endereco?.logradouro,
+      numero: endereco?.numero,
+      complemento: endereco?.complemento ?? undefined,
+      bairro: endereco?.bairro,
+    });
 
     return this.prisma.organizador.update({
       where: { id: organizador.id },
       data: {
-        ...dto,
-        ...asaasData,
+        asaasAccountId: asaasSub.accountId,
+        asaasWalletId: asaasSub.walletId,
       },
     });
   }

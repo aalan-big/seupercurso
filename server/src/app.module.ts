@@ -17,6 +17,7 @@ import { CronometragemModule } from './cronometragem/cronometragem.module';
 import { AuditLogModule } from './audit-log/audit-log.module';
 import { ArteModule } from './arte/arte.module';
 import { DependenteModule } from './dependente/dependente.module';
+import { ContatoModule } from './contato/contato.module';
 import { envValidationSchema } from './config/env.validation';
 
 @Module({
@@ -40,6 +41,7 @@ import { envValidationSchema } from './config/env.validation';
     CronometragemModule,
     AuditLogModule,
     ArteModule,
+    ContatoModule,
   ],
   controllers: [AppController],
   providers: [AppService],

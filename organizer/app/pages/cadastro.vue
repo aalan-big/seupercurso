@@ -53,7 +53,7 @@ async function onSubmit() {
           v-model="form.email"
           type="email"
           required
-          class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+          class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
         />
       </div>
       <div>
@@ -63,7 +63,7 @@ async function onSubmit() {
           type="password"
           required
           minlength="8"
-          class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+          class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
         />
         <p class="mt-1 text-xs text-slate-400">Mínimo de 8 caracteres.</p>
       </div>
@@ -73,7 +73,7 @@ async function onSubmit() {
           v-model="form.confirmarSenha"
           type="password"
           required
-          class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+          class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
         />
       </div>
       <button

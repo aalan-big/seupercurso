@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { OrganizadorService } from '../organizador/organizador.service';
 import { Prisma } from '../generated/prisma/client';
 import {
   StatusEvento,
@@ -28,7 +29,10 @@ const EVENTO_INCLUDE = {
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly organizadorService: OrganizadorService,
+  ) {}
 
   async listarOrganizadores(status?: string) {
     const whereClause: Prisma.OrganizadorWhereInput = status
@@ -65,9 +69,16 @@ export class AdminService {
   async aprovarOrganizador(id: string) {
     const organizador = await this.getOrganizadorOuFalhar(id);
 
-    return this.prisma.organizador.update({
+    await this.prisma.organizador.update({
       where: { id },
       data: { status: StatusOrganizador.APROVADO, motivoRevisao: null },
+    });
+
+    // Se o organizador já tinha preenchido os dados bancários antes de ser aprovado, cria a subconta Asaas agora.
+    await this.organizadorService.garantirSubcontaAsaas(organizador.id);
+
+    return this.prisma.organizador.findUnique({
+      where: { id },
       include: ORGANIZADOR_INCLUDE,
     });
   }

@@ -28,14 +28,6 @@ export class UpdateEventoDto {
 
   @IsOptional()
   @IsString()
-  mapaEmbedUrl?: string;
-
-  @IsOptional()
-  @IsString()
-  rotaGeoJson?: string;
-
-  @IsOptional()
-  @IsString()
   termoResponsabilidade?: string;
 
   @IsOptional()
@@ -49,6 +41,18 @@ export class UpdateEventoDto {
   @IsOptional()
   @IsDateString()
   retiradaKitFim?: string;
+
+  @IsOptional()
+  @IsDateString()
+  limiteTrocaCamisaAté?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  camisasBloqueadas?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  permiteTransferencia?: boolean;
 
   @IsOptional()
   @IsBoolean()

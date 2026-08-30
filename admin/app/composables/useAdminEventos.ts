@@ -4,7 +4,6 @@ export interface EventoAdmin {
   descricao: string | null
   regulamentoUrl: string | null
   bannerUrl: string | null
-  mapaPercursoUrl: string | null
   termoResponsabilidade: string | null
   dataInicio: string
   dataFim: string

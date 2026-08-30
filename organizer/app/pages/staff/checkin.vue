@@ -110,7 +110,7 @@ function onQrCodeLido(codigo: string) {
     <template v-else>
       <select
         v-model="eventoSelecionadoId"
-        class="w-full rounded-xl border border-slate-300 px-4 py-3 text-base font-bold text-slate-800 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+        class="w-full rounded-xl border border-slate-300 px-4 py-3 text-base font-bold text-slate-800 focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
         @change="resultados = []"
       >
         <option v-for="evento in eventos" :key="evento.id" :value="evento.id">{{ evento.nome }}</option>
@@ -131,7 +131,7 @@ function onQrCodeLido(codigo: string) {
           v-model="termoBusca"
           type="text"
           placeholder="Nome, CPF ou número do peito..."
-          class="w-full rounded-xl border border-slate-300 px-4 py-4 text-base focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+          class="w-full rounded-xl border border-slate-300 px-4 py-4 text-base focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
           @keyup.enter="onBuscar"
         />
         <button

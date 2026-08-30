@@ -27,10 +27,17 @@ html, body {
   }
 }
 
-/* input[type=date] tem largura intrínseca própria no Android/iOS que não respeita
-   width:100% dentro de grid/flex — sem min-width:0 ele estoura a coluna e é cortado
-   pelo overflow-x:hidden do body, parecendo "maior que a tela" */
+/* No Chrome/Android o input[type=date] usa uma largura intrínseca própria do
+   controle nativo e ignora width/max-width normais, estourando a tela dentro
+   de grid/flex. "width:1px" força o navegador a abandonar essa largura
+   intrínseca e "min-width:100%"/"max-width:100%" travam o campo exatamente na
+   largura do container — sem remover a aparência nativa (mantém o ícone do
+   calendário). */
 input[type="date"] {
-  min-width: 0;
+  width: 1px;
+  min-width: 100%;
   max-width: 100%;
+  box-sizing: border-box;
+  min-height: 3rem;
+  padding: 0.75rem 1rem;
 }

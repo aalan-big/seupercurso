@@ -5,9 +5,9 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  Matches,
 } from 'class-validator';
 import { Genero } from '../../generated/prisma/enums';
+import { IsCPF } from '../../common/validators/is-cpf.validator';
 
 export class CreateDependenteDto {
   @IsString()
@@ -16,9 +16,7 @@ export class CreateDependenteDto {
 
   @IsString()
   @IsNotEmpty({ message: 'CPF é obrigatório.' })
-  @Matches(/^\d{3}\.\d{3}\.\d{3}-\d{2}$|^\d{11}$/, {
-    message: 'CPF deve estar no formato 000.000.000-00 ou conter 11 dígitos.',
-  })
+  @IsCPF()
   cpf: string;
 
   @IsDateString({}, { message: 'Data de nascimento inválida.' })

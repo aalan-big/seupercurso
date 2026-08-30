@@ -59,35 +59,43 @@ const iniciais = computed(() => {
   return (primeira + ultima).toUpperCase()
 })
 
-onMounted(async () => {
+async function carregarDadosUsuario() {
   if (!token.value) {
     verificandoOrganizador.value = false
-    document.addEventListener('click', onClickFora)
     return
   }
 
-  const tarefas: Promise<unknown>[] = []
+  verificandoOrganizador.value = true
 
+  const tarefas: Promise<unknown>[] = [
+    fetchClienteMe().catch(() => {
+      // perfil de atleta ainda não completado — mantém o e-mail como fallback
+    }),
+    fetchOrganizadorMe().catch(() => {
+      // conta ainda não solicitou cadastro de organizador
+    })
+  ]
+
+  // fetchMe só é chamado se ainda não temos os dados do usuário: logo após
+  // login/cadastro eles já vêm prontos na resposta, então refazer essa
+  // chamada aqui é redundante e arriscado — uma falha passageira aqui não
+  // pode derrubar um login que acabou de funcionar.
   if (!user.value) {
     tarefas.push(fetchMe().catch(() => logout()))
-  }
-  if (!cliente.value) {
-    tarefas.push(
-      fetchClienteMe().catch(() => {
-        // perfil de atleta ainda não completado — mantém o e-mail como fallback
-      })
-    )
-  }
-  if (!organizador.value) {
-    tarefas.push(
-      fetchOrganizadorMe().catch(() => {
-        // conta ainda não solicitou cadastro de organizador
-      })
-    )
   }
 
   await Promise.all(tarefas)
   verificandoOrganizador.value = false
+}
+
+// Re-executa sempre que o login/logout acontece dentro da mesma sessão (SPA),
+// já que este header só monta uma vez e não refletiria a mudança sozinho.
+watch(token, () => {
+  carregarDadosUsuario()
+})
+
+onMounted(() => {
+  carregarDadosUsuario()
   document.addEventListener('click', onClickFora)
 })
 
@@ -104,6 +112,8 @@ function onClickFora(e: MouseEvent) {
 async function onLogout() {
   menuAberto.value = false
   logout()
+  cliente.value = null
+  organizador.value = null
   await navigateTo('/')
 }
 </script>
@@ -116,11 +126,11 @@ async function onLogout() {
       </NuxtLink>
 
       <nav class="hidden gap-6 text-sm font-semibold uppercase tracking-wide text-slate-600 sm:flex">
-        <NuxtLink to="/" class="hover:text-secondary">Eventos</NuxtLink>
-        <NuxtLink v-if="token" to="/meus-eventos" class="hover:text-secondary">Meus Eventos</NuxtLink>
-        <NuxtLink to="/sobre" class="hover:text-secondary">Sobre</NuxtLink>
-        <NuxtLink to="/blog" class="hover:text-secondary">Blog</NuxtLink>
-        <NuxtLink to="/contato" class="hover:text-secondary">Contato</NuxtLink>
+        <NuxtLink to="/" class="hover:text-warning">Eventos</NuxtLink>
+        <NuxtLink v-if="token" to="/meus-eventos" class="hover:text-warning">Meus Eventos</NuxtLink>
+        <NuxtLink to="/sobre" class="hover:text-warning">Sobre</NuxtLink>
+        <NuxtLink to="/blog" class="hover:text-warning">Blog</NuxtLink>
+        <NuxtLink to="/contato" class="hover:text-warning">Contato</NuxtLink>
       </nav>
 
       <div class="flex items-center gap-2">
