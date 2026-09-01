@@ -154,11 +154,19 @@ function formatarData(iso: string) {
     </p>
 
     <template v-else>
-      <div v-if="lotes.length === 0" class="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-        Nenhum lote cadastrado ainda. Sem lote e preço, o evento fica sem preço no site.
+      <div v-if="lotes.length === 0" class="rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50/60 p-8 text-center text-sm text-slate-700 space-y-2">
+        <p class="font-extrabold text-base text-amber-950">⚠️ Nenhum lote cadastrado para este evento!</p>
+        <p class="text-xs text-slate-600 max-w-md mx-auto">
+          Para o valor da inscrição aparecer no card do site (ex.: <strong>A partir de R$ 50,00</strong>), clique no botão <strong>+ Novo lote</strong> abaixo e informe o preço de cada percurso.
+        </p>
       </div>
 
       <div v-else class="flex flex-col gap-4">
+        <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs font-semibold text-amber-900 flex items-center gap-2">
+          <span class="text-base">💡</span>
+          <span>Digite o valor em reais (R$) de cada percurso no card do lote abaixo e clique no botão amarelo <strong>Salvar</strong> para o preço aparecer no site!</span>
+        </div>
+
         <div
           v-for="lote in lotes"
           :key="lote.id"

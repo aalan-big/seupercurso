@@ -17,7 +17,8 @@ function formatarData(iso: string) {
 }
 
 function formatarPreco(valor: number | null) {
-  return valor === null ? null : `R$ ${valor.toFixed(2)}`
+  if (valor === null || valor === undefined) return null
+  return Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
 const estaEsgotado = computed(() => props.evento.status === 'INSCRICOES_ENCERRADAS')
