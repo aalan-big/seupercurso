@@ -49,4 +49,9 @@ export class UpdateModalidadeDto {
   @IsInt()
   @Min(1)
   capacidade?: number | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  valor?: number;
 }

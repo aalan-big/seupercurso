@@ -1092,7 +1092,8 @@ export class OrganizadorService {
     const organizador = await this.getOrganizadorAprovadoOuFalhar(usuarioId);
     await this.getEventoDoOrganizadorOuFalhar(organizador.id, eventoId);
 
-    const modalidade = await this.prisma.modalidade.create({ data: { ...dto, eventoId } });
+    const { valor, ...modalidadeData } = dto;
+    const modalidade = await this.prisma.modalidade.create({ data: { ...modalidadeData, eventoId } });
 
     // Auto-cria categoria padrão Geral
     await this.prisma.categoria.create({
@@ -1103,6 +1104,32 @@ export class OrganizadorService {
         pcd: false,
       },
     });
+
+    // Se o evento não possui nenhum lote ainda, auto-cria o "1º Lote"
+    const lotes = await this.prisma.lote.findMany({ where: { eventoId }, orderBy: { createdAt: 'asc' } });
+    let lotePrincipal = lotes[0];
+    if (!lotePrincipal) {
+      const evento = await this.prisma.evento.findUnique({ where: { id: eventoId } });
+      const agora = new Date();
+      const fim = evento?.dataFim || new Date(agora.getTime() + 60 * 24 * 60 * 60 * 1000);
+      lotePrincipal = await this.prisma.lote.create({
+        data: {
+          eventoId,
+          nome: '1º Lote',
+          inicioVenda: agora,
+          fimVenda: fim,
+        },
+      });
+    }
+
+    // Se veio um valor, salva no lote principal
+    if (valor !== undefined && valor !== null && lotePrincipal) {
+      await this.prisma.loteModalidadePreco.upsert({
+        where: { loteId_modalidadeId: { loteId: lotePrincipal.id, modalidadeId: modalidade.id } },
+        update: { valor },
+        create: { loteId: lotePrincipal.id, modalidadeId: modalidade.id, valor },
+      });
+    }
 
     return modalidade;
   }
@@ -1117,9 +1144,37 @@ export class OrganizadorService {
     await this.getEventoDoOrganizadorOuFalhar(organizador.id, eventoId);
     await this.getModalidadeDoEventoOuFalhar(eventoId, modalidadeId);
 
+    const { valor, ...modalidadeData } = dto;
+
+    if (valor !== undefined && valor !== null) {
+      const lotes = await this.prisma.lote.findMany({ where: { eventoId }, orderBy: { createdAt: 'asc' } });
+      let lotePrincipal = lotes[0];
+      if (!lotePrincipal) {
+        const evento = await this.prisma.evento.findUnique({ where: { id: eventoId } });
+        const agora = new Date();
+        const fim = evento?.dataFim || new Date(agora.getTime() + 60 * 24 * 60 * 60 * 1000);
+        lotePrincipal = await this.prisma.lote.create({
+          data: {
+            eventoId,
+            nome: '1º Lote',
+            inicioVenda: agora,
+            fimVenda: fim,
+          },
+        });
+      }
+
+      if (lotePrincipal) {
+        await this.prisma.loteModalidadePreco.upsert({
+          where: { loteId_modalidadeId: { loteId: lotePrincipal.id, modalidadeId } },
+          update: { valor },
+          create: { loteId: lotePrincipal.id, modalidadeId, valor },
+        });
+      }
+    }
+
     return this.prisma.modalidade.update({
       where: { id: modalidadeId },
-      data: dto,
+      data: modalidadeData,
     });
   }
 

@@ -34,4 +34,9 @@ export class CreateModalidadeDto {
   @IsInt()
   @Min(1)
   capacidade?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  valor?: number;
 }

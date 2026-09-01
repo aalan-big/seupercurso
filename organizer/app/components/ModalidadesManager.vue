@@ -22,7 +22,7 @@ const erro = ref('')
 const salvando = ref(false)
 
 const mostrarFormModalidade = ref(false)
-const novaModalidade = reactive({ nome: '', distanciaKm: '', descricao: '', idadeMinima: '', idadeMaxima: '', capacidade: '' })
+const novaModalidade = reactive({ nome: '', distanciaKm: '', descricao: '', idadeMinima: '', idadeMaxima: '', capacidade: '', valor: '' })
 
 async function onCriarModalidade() {
   erro.value = ''
@@ -40,14 +40,16 @@ async function onCriarModalidade() {
       descricao: novaModalidade.descricao || undefined,
       idadeMinima: novaModalidade.idadeMinima ? Number(novaModalidade.idadeMinima) : undefined,
       idadeMaxima: novaModalidade.idadeMaxima ? Number(novaModalidade.idadeMaxima) : undefined,
-      capacidade: novaModalidade.capacidade ? Number(novaModalidade.capacidade) : undefined
-    })
+      capacidade: novaModalidade.capacidade ? Number(novaModalidade.capacidade) : undefined,
+      valor: novaModalidade.valor ? Number(novaModalidade.valor) : undefined
+    } as any)
     novaModalidade.nome = ''
     novaModalidade.distanciaKm = ''
     novaModalidade.descricao = ''
     novaModalidade.idadeMinima = ''
     novaModalidade.idadeMaxima = ''
     novaModalidade.capacidade = ''
+    novaModalidade.valor = ''
     mostrarFormModalidade.value = false
   } catch (e) {
     erro.value = extrairErro(e)
@@ -78,7 +80,7 @@ async function onToggleAtivo(modalidade: ModalidadeOrganizador) {
 }
 
 const modalidadeEditandoId = ref<string | null>(null)
-const edicaoModalidade = reactive({ nome: '', distanciaKm: '', descricao: '', idadeMinima: '', idadeMaxima: '', capacidade: '' })
+const edicaoModalidade = reactive({ nome: '', distanciaKm: '', descricao: '', idadeMinima: '', idadeMaxima: '', capacidade: '', valor: '' })
 
 function abrirEdicao(modalidade: ModalidadeOrganizador) {
   modalidadeEditandoId.value = modalidade.id
@@ -88,6 +90,7 @@ function abrirEdicao(modalidade: ModalidadeOrganizador) {
   edicaoModalidade.idadeMinima = modalidade.idadeMinima ? String(modalidade.idadeMinima) : ''
   edicaoModalidade.idadeMaxima = modalidade.idadeMaxima ? String(modalidade.idadeMaxima) : ''
   edicaoModalidade.capacidade = modalidade.capacidade ? String(modalidade.capacidade) : ''
+  edicaoModalidade.valor = ''
 }
 
 function cancelarEdicao() {
@@ -110,8 +113,9 @@ async function onSalvarEdicao(modalidadeId: string) {
       descricao: edicaoModalidade.descricao || undefined,
       idadeMinima: edicaoModalidade.idadeMinima ? Number(edicaoModalidade.idadeMinima) : undefined,
       idadeMaxima: edicaoModalidade.idadeMaxima ? Number(edicaoModalidade.idadeMaxima) : undefined,
-      capacidade: edicaoModalidade.capacidade ? Number(edicaoModalidade.capacidade) : null
-    })
+      capacidade: edicaoModalidade.capacidade ? Number(edicaoModalidade.capacidade) : undefined,
+      valor: edicaoModalidade.valor ? Number(edicaoModalidade.valor) : undefined
+    } as any)
     modalidadeEditandoId.value = null
   } catch (e) {
     erro.value = extrairErro(e)
@@ -348,6 +352,17 @@ function faixaEtaria(min: number | null, max: number | null) {
                 type="number"
                 min="1"
                 placeholder="Sem limite"
+                class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-semibold focus:border-warning focus:outline-none"
+              />
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Valor da Inscrição (R$)</label>
+              <input
+                v-model="edicaoModalidade.valor"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Ex.: 50,00"
                 class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-semibold focus:border-warning focus:outline-none"
               />
             </div>
@@ -700,6 +715,17 @@ function faixaEtaria(min: number | null, max: number | null) {
               type="number"
               min="1"
               placeholder="Sem limite"
+              class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-semibold focus:border-amber-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Valor da Inscrição (R$)</label>
+            <input
+              v-model="novaModalidade.valor"
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="Ex.: 50,00"
               class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-semibold focus:border-amber-500 focus:outline-none"
             />
           </div>
