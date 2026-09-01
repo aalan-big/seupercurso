@@ -687,6 +687,34 @@ async function onInscrever() {
           </div>
         </div>
 
+        <!-- Inscrições Esgotadas / Encerradas -->
+        <div v-else-if="eventoSelecionado.status === 'INSCRICOES_ENCERRADAS' || eventoSelecionado.status === 'FINALIZADO'" class="max-w-2xl mx-auto bg-white border border-slate-200 rounded-3xl p-8 sm:p-10 shadow-xl text-center space-y-6 text-slate-800">
+          <div class="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto border border-red-200">
+            <AlertTriangle class="w-9 h-9" />
+          </div>
+
+          <div class="space-y-2">
+            <span class="inline-block px-3.5 py-1 bg-red-100 text-red-800 border border-red-200 rounded-full text-xs font-black uppercase tracking-wider">
+              {{ eventoSelecionado.status === 'INSCRICOES_ENCERRADAS' ? 'Inscrições Esgotadas' : 'Evento Finalizado' }}
+            </span>
+            <h1 class="text-2xl sm:text-3xl font-black text-slate-900">{{ eventoSelecionado.nome }}</h1>
+            <p class="text-sm font-semibold text-slate-500 max-w-md mx-auto">
+              {{ eventoSelecionado.status === 'INSCRICOES_ENCERRADAS' ? 'As vagas e inscrições para este evento foram esgotadas pelo organizador.' : 'Este evento já foi realizado e encerrado.' }}
+            </p>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-center gap-4 text-xs font-semibold text-slate-600 pt-3 border-t border-slate-100">
+            <span class="flex items-center gap-1.5"><Calendar class="w-4 h-4 text-orange-500" /> {{ formatarData(eventoSelecionado.dataInicio) }}</span>
+            <span class="flex items-center gap-1.5"><MapPin class="w-4 h-4 text-orange-500" /> {{ eventoSelecionado.local }} - {{ eventoSelecionado.cidade }}/{{ eventoSelecionado.estado }}</span>
+          </div>
+
+          <div class="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
+            <NuxtLink to="/" class="px-6 py-3 bg-orange-600 hover:bg-orange-500 text-white font-bold text-sm rounded-xl transition shadow-lg">
+              Ver Outros Eventos Abertos
+            </NuxtLink>
+          </div>
+        </div>
+
         <!-- Fluxo de Checkout em Passos -->
         <div v-else class="space-y-8">
           

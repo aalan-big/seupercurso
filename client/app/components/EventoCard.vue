@@ -19,6 +19,9 @@ function formatarData(iso: string) {
 function formatarPreco(valor: number | null) {
   return valor === null ? null : `R$ ${valor.toFixed(2)}`
 }
+
+const estaEsgotado = computed(() => props.evento.status === 'INSCRICOES_ENCERRADAS')
+const estaFinalizado = computed(() => props.evento.status === 'FINALIZADO')
 </script>
 
 <template>
@@ -32,6 +35,7 @@ function formatarPreco(valor: number | null) {
         :src="bannerUrlFormatada"
         :alt="props.evento.nome"
         class="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+        :class="{ 'grayscale-30 brightness-90': estaEsgotado || estaFinalizado }"
       />
       <div
         v-else
@@ -39,10 +43,25 @@ function formatarPreco(valor: number | null) {
       >
         <Footprints :size="48" />
       </div>
+
       <span
         class="absolute left-4 top-4 flex items-center gap-1.5 rounded-full bg-white/95 backdrop-blur-xs px-3.5 py-1.5 text-xs font-extrabold uppercase tracking-wider text-primary shadow-md"
       >
         <Calendar :size="14" /> {{ formatarData(props.evento.dataInicio) }}
+      </span>
+
+      <!-- Badge de Inscrições Esgotadas no Topo -->
+      <span
+        v-if="estaEsgotado"
+        class="absolute right-4 top-4 flex items-center gap-1 rounded-full bg-red-600 text-white px-3.5 py-1.5 text-xs font-black uppercase tracking-wider shadow-md"
+      >
+        Esgotado
+      </span>
+      <span
+        v-else-if="estaFinalizado"
+        class="absolute right-4 top-4 flex items-center gap-1 rounded-full bg-slate-800 text-white px-3.5 py-1.5 text-xs font-black uppercase tracking-wider shadow-md"
+      >
+        Finalizado
       </span>
     </div>
     <div class="p-6">
@@ -56,8 +75,17 @@ function formatarPreco(valor: number | null) {
       <div class="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
         <div>
           <span class="block text-[11px] font-bold uppercase tracking-wider text-slate-400">Inscrições</span>
-          <p class="text-base font-extrabold text-warning">
-            <template v-if="props.evento.valorApartirDe !== null && props.evento.valorApartirDe !== undefined">
+          <p
+            class="text-base font-extrabold"
+            :class="estaEsgotado ? 'text-red-600' : estaFinalizado ? 'text-slate-500' : 'text-warning'"
+          >
+            <template v-if="estaEsgotado">
+              Inscrições Esgotadas
+            </template>
+            <template v-else-if="estaFinalizado">
+              Evento Finalizado
+            </template>
+            <template v-else-if="props.evento.valorApartirDe !== null && props.evento.valorApartirDe !== undefined">
               <template v-if="props.evento.valorApartirDe === 0">
                 Gratuito
               </template>
@@ -70,8 +98,18 @@ function formatarPreco(valor: number | null) {
             </template>
           </p>
         </div>
-        <span class="flex items-center gap-1.5 rounded-xl bg-slate-100 px-4 py-2.5 text-xs font-extrabold uppercase tracking-wide text-primary transition group-hover:bg-primary group-hover:text-white">
+
+        <span
+          v-if="!estaEsgotado && !estaFinalizado"
+          class="flex items-center gap-1.5 rounded-xl bg-slate-100 px-4 py-2.5 text-xs font-extrabold uppercase tracking-wide text-primary transition group-hover:bg-primary group-hover:text-white"
+        >
           Garantir Vaga <ArrowRight :size="14" />
+        </span>
+        <span
+          v-else
+          class="flex items-center gap-1.5 rounded-xl bg-slate-100 px-4 py-2.5 text-xs font-extrabold uppercase tracking-wide text-slate-500 transition group-hover:bg-slate-200"
+        >
+          Ver Detalhes <ArrowRight :size="14" />
         </span>
       </div>
     </div>

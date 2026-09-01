@@ -76,7 +76,15 @@ export class EventoService {
     const agora = new Date();
 
     const eventos = await this.prisma.evento.findMany({
-      where: { status: StatusEvento.PUBLICADO },
+      where: {
+        status: {
+          in: [
+            StatusEvento.PUBLICADO,
+            StatusEvento.INSCRICOES_ENCERRADAS,
+            StatusEvento.FINALIZADO,
+          ],
+        },
+      },
       select: {
         ...RESUMO_SELECT,
         lotes: {
@@ -122,7 +130,15 @@ export class EventoService {
     let targetId = id;
     if (!isUuid) {
       const todosEventos = await this.prisma.evento.findMany({
-        where: { status: StatusEvento.PUBLICADO },
+        where: {
+          status: {
+            in: [
+              StatusEvento.PUBLICADO,
+              StatusEvento.INSCRICOES_ENCERRADAS,
+              StatusEvento.FINALIZADO,
+            ],
+          },
+        },
         select: { id: true },
       });
       const encontrado = todosEventos.find((e) => e.id.toLowerCase().startsWith(id.toLowerCase()));
@@ -132,7 +148,16 @@ export class EventoService {
     }
 
     const evento = await this.prisma.evento.findFirst({
-      where: { id: targetId, status: StatusEvento.PUBLICADO },
+      where: {
+        id: targetId,
+        status: {
+          in: [
+            StatusEvento.PUBLICADO,
+            StatusEvento.INSCRICOES_ENCERRADAS,
+            StatusEvento.FINALIZADO,
+          ],
+        },
+      },
       select: {
         ...RESUMO_SELECT,
         modalidades: {
