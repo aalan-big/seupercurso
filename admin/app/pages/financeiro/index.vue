@@ -8,9 +8,18 @@ const financeiro = ref<FinanceiroAdmin | null>(null)
 const carregando = ref(true)
 const erro = ref('')
 
+const statusPermissao = ref('default')
+const testando = ref(false)
+const feedbackMensagem = ref('')
+
 onMounted(async () => {
   erro.value = ''
   carregando.value = true
+
+  if (typeof window !== 'undefined' && 'Notification' in window) {
+    statusPermissao.value = Notification.permission
+  }
+
   try {
     financeiro.value = await buscar()
   } catch (e) {
@@ -45,12 +54,38 @@ function exportarRelatorioGlobalCSV() {
   document.body.removeChild(link)
 }
 
-async function dispararNotificacaoTeste() {
+async function ativarENotificar() {
+  testando.value = true
+  feedbackMensagem.value = 'Solicitando autorização do iPhone/Android...'
   const { $notificacoes } = useNuxtApp() as any
   if ($notificacoes) {
     await $notificacoes.solicitarPermissao()
-    await $notificacoes.testarNotificacaoBackend(15.00)
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      statusPermissao.value = Notification.permission
+    }
+    if (statusPermissao.value === 'granted') {
+      feedbackMensagem.value = 'Notificações ativadas com sucesso! Disparando teste...'
+      await $notificacoes.testarNotificacaoBackend(15.00)
+      feedbackMensagem.value = 'Pronto! Notificação enviada para a tela de bloqueio da Apple. Bloqueie o celular para ver!'
+    } else {
+      feedbackMensagem.value = 'Aviso: Permissão não concedida. Certifique-se de tocar em Permitir.'
+    }
   }
+  testando.value = false
+}
+
+async function testarPushBloqueio() {
+  testando.value = true
+  feedbackMensagem.value = 'Enviando notificação Apple Push...'
+  const { $notificacoes } = useNuxtApp() as any
+  if ($notificacoes) {
+    await $notificacoes.testarNotificacaoBackend(15.00)
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      statusPermissao.value = Notification.permission
+    }
+    feedbackMensagem.value = 'Notificação enviada! Bloqueie a tela do celular para ver o banner nativo com som.'
+  }
+  testando.value = false
 }
 </script>
 
@@ -73,20 +108,69 @@ async function dispararNotificacaoTeste() {
       <div class="flex items-center gap-3">
         <button
           type="button"
-          class="inline-flex items-center gap-2 rounded-xl bg-orange-600 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-orange-700 transition"
-          @click="dispararNotificacaoTeste"
-        >
-          <Zap :size="16" /> Testar Notificação de Comissão
-        </button>
-
-        <button
-          type="button"
           :disabled="!financeiro || financeiro.porOrganizador.length === 0"
           class="inline-flex items-center gap-2 rounded-xl bg-slate-800 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-slate-900 transition disabled:opacity-40"
           @click="exportarRelatorioGlobalCSV"
         >
           <BarChart2 :size="16" /> Exportar Relatório Global (CSV)
         </button>
+      </div>
+    </div>
+
+    <!-- Card de Controle de Notificações na Tela de Bloqueio (Apple Push / Android / PC) -->
+    <div class="rounded-2xl border border-orange-200 bg-gradient-to-r from-orange-50/90 via-amber-50/70 to-white p-5 shadow-xs">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center gap-3.5">
+          <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-md shadow-orange-500/20">
+            <Zap :size="22" />
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 class="font-extrabold text-sm text-slate-900 uppercase tracking-tight">Notificações na Tela de Bloqueio (iPhone / Android)</h3>
+              <span
+                v-if="statusPermissao === 'granted'"
+                class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-black text-emerald-800 border border-emerald-200"
+              >
+                ✅ ATIVAS
+              </span>
+              <span
+                v-else
+                class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-200"
+              >
+                ⚠️ PENDENTE DE ATIVAÇÃO
+              </span>
+            </div>
+            <p class="text-xs text-slate-600 mt-0.5">
+              Receba avisos instantâneos com som de dinheiro mesmo com o celular no bolso ou tela desligada.
+            </p>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            v-if="statusPermissao !== 'granted'"
+            type="button"
+            :disabled="testando"
+            class="inline-flex items-center gap-2 rounded-xl bg-orange-600 hover:bg-orange-700 active:scale-[0.98] px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-md shadow-orange-600/25 transition disabled:opacity-50"
+            @click="ativarENotificar"
+          >
+            <Zap :size="16" /> {{ testando ? 'Ativando...' : 'Ativar Notificações no iPhone' }}
+          </button>
+
+          <button
+            type="button"
+            :disabled="testando"
+            class="inline-flex items-center gap-2 rounded-xl bg-slate-900 hover:bg-black active:scale-[0.98] px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-sm transition disabled:opacity-50"
+            @click="testarPushBloqueio"
+          >
+            <RefreshCw :size="15" :class="{ 'animate-spin': testando }" />
+            {{ testando ? 'Enviando...' : 'Testar na Tela de Bloqueio' }}
+          </button>
+        </div>
+      </div>
+
+      <div v-if="feedbackMensagem" class="mt-3.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs font-semibold text-emerald-900 flex items-center gap-2">
+        <span>🔔</span> {{ feedbackMensagem }}
       </div>
     </div>
 
