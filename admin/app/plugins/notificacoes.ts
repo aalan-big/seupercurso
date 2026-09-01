@@ -24,18 +24,60 @@ export default defineNuxtPlugin(() => {
     return base
   }
 
-  const solicitarPermissao = async () => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      if (Notification.permission === 'default') {
-        try {
-          await Notification.requestPermission()
-        } catch (e) {}
-      }
+  function urlB64ToUint8Array(base64String: string) {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+    const rawData = window.atob(base64)
+    const outputArray = new Uint8Array(rawData.length)
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i)
     }
-    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+    return outputArray
+  }
+
+  const solicitarPermissao = async () => {
+    if (typeof window === 'undefined') return
+
+    let permissao = 'default'
+    if ('Notification' in window) {
       try {
-        await navigator.serviceWorker.register('/sw.js')
+        permissao = await Notification.requestPermission()
       } catch (e) {}
+    }
+
+    if (permissao === 'granted' && 'serviceWorker' in navigator && 'PushManager' in window) {
+      try {
+        const reg = await navigator.serviceWorker.register('/sw.js')
+        await navigator.serviceWorker.ready
+
+        const baseURL = getApiBase()
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+        if (token.value) headers.Authorization = `Bearer ${token.value}`
+
+        const res = await fetch(`${baseURL}/admin/push/public-key`, { headers })
+        if (res.ok) {
+          const { publicKey } = await res.json()
+          if (publicKey) {
+            let subscription = await reg.pushManager.getSubscription()
+            if (!subscription) {
+              subscription = await reg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlB64ToUint8Array(publicKey),
+              })
+            }
+
+            if (subscription) {
+              await fetch(`${baseURL}/admin/push/inscrever`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(subscription),
+              })
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Erro ao registrar Web Push nativo:', e)
+      }
     }
   }
 
@@ -160,11 +202,27 @@ export default defineNuxtPlugin(() => {
 
   setInterval(checarNotificacoesFallback, 8000)
 
+  const testarNotificacaoBackend = async (valorTaxa = 15.0) => {
+    dispararNotificacaoPush(valorTaxa)
+    await solicitarPermissao()
+    try {
+      const baseURL = getApiBase()
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (token.value) headers.Authorization = `Bearer ${token.value}`
+      await fetch(`${baseURL}/admin/testar-notificacao`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ valorTaxa }),
+      })
+    } catch (e) {}
+  }
+
   return {
     provide: {
       notificacoes: {
         solicitarPermissao,
         dispararNotificacaoPush,
+        testarNotificacaoBackend,
         conectarStream,
       },
     },

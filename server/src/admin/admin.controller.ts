@@ -38,9 +38,21 @@ export class AdminController {
     return this.notificacaoAdminService.getHistorico();
   }
 
+  @Get('push/public-key')
+  obterPushPublicKey() {
+    return { publicKey: this.notificacaoAdminService.getPublicKey() };
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('push/inscrever')
+  inscreverPush(@Body() subscription: any) {
+    this.notificacaoAdminService.salvarSubscription(subscription);
+    return { sucesso: true, mensagem: 'Dispositivo registrado para Web Push com sucesso!' };
+  }
+
   @HttpCode(HttpStatus.OK)
   @Post('testar-notificacao')
-  testarNotificacao(@Body() body: { valorTaxa?: number }) {
+  async testarNotificacao(@Body() body: { valorTaxa?: number }) {
     const valorTaxa = body.valorTaxa || 15.00;
     this.notificacaoAdminService.notificarComissao(valorTaxa, valorTaxa * 10);
     return { sucesso: true, mensagem: `Notificação enviada: R$ ${valorTaxa.toFixed(2)}` };

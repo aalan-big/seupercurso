@@ -7,19 +7,34 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('push', (event) => {
-  let data = { title: 'Seu Percurso', body: 'Nova comissão recebida!', icon: '/icone_notificacao.jpg' };
+  let data = {
+    title: 'Seu Percurso',
+    body: 'Nova comissão recebida!',
+    icon: '/icone_notificacao.jpg',
+    url: '/financeiro',
+  };
+
   try {
     if (event.data) {
-      data = event.data.json();
+      const parsed = event.data.json();
+      data = { ...data, ...parsed };
     }
-  } catch (e) {}
+  } catch (e) {
+    try {
+      data.body = event.data.text();
+    } catch (err) {}
+  }
 
   const options = {
     body: data.body || 'Nova comissão recebida!',
-    icon: '/icone_notificacao.jpg',
-    badge: '/icone_notificacao.jpg',
-    vibrate: [200, 100, 200, 100, 200],
-    data: { url: '/' },
+    icon: data.icon || '/icone_notificacao.jpg',
+    badge: data.badge || '/icone_notificacao.jpg',
+    vibrate: [300, 100, 300, 100, 300],
+    tag: 'comissao_' + Date.now(),
+    renotify: true,
+    data: {
+      url: data.data?.url || data.url || '/financeiro',
+    },
   };
 
   event.waitUntil(
@@ -29,15 +44,17 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const urlToOpen = event.notification.data?.url || '/financeiro';
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
-        if (client.url && 'focus' in client) {
+        if ('focus' in client) {
           return client.focus();
         }
       }
       if (clients.openWindow) {
-        return clients.openWindow('/');
+        return clients.openWindow(urlToOpen);
       }
     })
   );

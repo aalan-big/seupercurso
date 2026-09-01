@@ -45,11 +45,11 @@ function exportarRelatorioGlobalCSV() {
   document.body.removeChild(link)
 }
 
-function dispararNotificacaoTeste() {
+async function dispararNotificacaoTeste() {
   const { $notificacoes } = useNuxtApp() as any
   if ($notificacoes) {
-    $notificacoes.solicitarPermissao()
-    $notificacoes.dispararNotificacaoPush(15.00)
+    await $notificacoes.solicitarPermissao()
+    await $notificacoes.testarNotificacaoBackend(15.00)
   }
 }
 </script>
