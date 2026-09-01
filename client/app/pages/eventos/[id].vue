@@ -623,7 +623,7 @@ async function onInscrever() {
       <div v-else-if="erro || !eventoSelecionado" class="py-16 text-center text-rose-400">
         <AlertTriangle class="w-12 h-12 mx-auto mb-3" />
         <p class="font-bold">{{ erro || 'Evento não encontrado.' }}</p>
-        <NuxtLink to="/eventos" class="mt-4 inline-block text-sm text-orange-400 underline">Voltar para a lista de eventos</NuxtLink>
+        <NuxtLink to="/" class="mt-4 inline-block text-sm text-orange-400 underline">Voltar para a lista de eventos</NuxtLink>
       </div>
 
       <template v-else>

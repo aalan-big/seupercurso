@@ -57,7 +57,7 @@ async function onReenviar() {
         <h1 class="text-xl font-extrabold uppercase tracking-tight text-primary">E-mail confirmado!</h1>
         <p class="text-sm text-slate-500">Sua conta está verificada. Já pode se inscrever nos eventos.</p>
         <NuxtLink
-          to="/eventos"
+          to="/"
           class="mt-2 rounded-xl bg-warning px-6 py-3 text-sm font-bold uppercase tracking-wide text-primary transition hover:brightness-95"
         >
           Ver eventos
