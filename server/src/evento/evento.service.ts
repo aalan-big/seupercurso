@@ -80,17 +80,35 @@ export class EventoService {
       select: {
         ...RESUMO_SELECT,
         lotes: {
-          where: { inicioVenda: { lte: agora }, fimVenda: { gte: agora } },
-          select: { precos: { select: { valor: true } } },
+          select: {
+            inicioVenda: true,
+            fimVenda: true,
+            precos: { select: { valor: true } },
+          },
         },
       },
       orderBy: { dataInicio: 'asc' },
     });
 
     return eventos.map(({ lotes, ...evento }) => {
-      const valores = lotes.flatMap((lote) =>
+      // 1. Tenta pegar preços dos lotes vigentes no momento atual
+      const lotesVigentes = lotes.filter((l) => {
+        const inicio = new Date(l.inicioVenda);
+        const fim = new Date(l.fimVenda);
+        return inicio <= agora && fim >= agora;
+      });
+
+      let valores = lotesVigentes.flatMap((lote) =>
         lote.precos.map((preco) => Number(preco.valor)),
       );
+
+      // 2. Se não houver lote no momento exato, pega o menor preço de qualquer lote do evento
+      if (valores.length === 0) {
+        valores = lotes.flatMap((lote) =>
+          lote.precos.map((preco) => Number(preco.valor)),
+        );
+      }
+
       return {
         ...evento,
         valorApartirDe: valores.length > 0 ? Math.min(...valores) : null,

@@ -57,10 +57,17 @@ function formatarPreco(valor: number | null) {
         <div>
           <span class="block text-[11px] font-bold uppercase tracking-wider text-slate-400">Inscrições</span>
           <p class="text-base font-extrabold text-warning">
-            <template v-if="formatarPreco(props.evento.valorApartirDe)">
-              A partir de {{ formatarPreco(props.evento.valorApartirDe) }}
+            <template v-if="props.evento.valorApartirDe !== null && props.evento.valorApartirDe !== undefined">
+              <template v-if="props.evento.valorApartirDe === 0">
+                Gratuito
+              </template>
+              <template v-else>
+                A partir de {{ formatarPreco(props.evento.valorApartirDe) }}
+              </template>
             </template>
-            <template v-else>Em breve</template>
+            <template v-else>
+              Inscrições Abertas
+            </template>
           </p>
         </div>
         <span class="flex items-center gap-1.5 rounded-xl bg-slate-100 px-4 py-2.5 text-xs font-extrabold uppercase tracking-wide text-primary transition group-hover:bg-primary group-hover:text-white">
