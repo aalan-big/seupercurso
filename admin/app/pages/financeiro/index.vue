@@ -154,7 +154,7 @@ async function testarPushBloqueio() {
             class="inline-flex items-center gap-2 rounded-xl bg-orange-600 hover:bg-orange-700 active:scale-[0.98] px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-md shadow-orange-600/25 transition disabled:opacity-50"
             @click="ativarENotificar"
           >
-            <Zap :size="16" /> {{ testando ? 'Ativando...' : 'Ativar Notificações no iPhone' }}
+            <Zap :size="16" /> {{ testando ? 'Ativando...' : 'Ativar Notificação nesse Aparelho' }}
           </button>
 
           <button
