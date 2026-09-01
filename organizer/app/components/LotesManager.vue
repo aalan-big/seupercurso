@@ -115,15 +115,25 @@ function onInputPreco(e: Event) {
   input.value = mascararMoeda(input.value)
 }
 
-async function onSalvarPreco(loteId: string, modalidadeId: string, e: Event) {
-  const input = e.target as HTMLInputElement
+const statusSalvoPreco = reactive<Record<string, string>>({})
+
+async function onSalvarPreco(loteId: string, modalidadeId: string) {
+  const chave = `${loteId}_${modalidadeId}`
+  const input = document.getElementById(`input_preco_${loteId}_${modalidadeId}`) as HTMLInputElement
+  if (!input) return
   const valor = Number(input.value.replace(/\./g, '').replace(',', '.'))
-  if (!input.value || Number.isNaN(valor)) return
+  if (Number.isNaN(valor)) return
 
   erro.value = ''
+  statusSalvoPreco[chave] = 'salvando'
   try {
     await definirPreco(props.eventoId, loteId, modalidadeId, valor)
+    statusSalvoPreco[chave] = 'salvo'
+    setTimeout(() => {
+      if (statusSalvoPreco[chave] === 'salvo') statusSalvoPreco[chave] = ''
+    }, 3000)
   } catch (err) {
+    statusSalvoPreco[chave] = 'erro'
     erro.value = extrairErro(err)
   }
 }
@@ -145,7 +155,7 @@ function formatarData(iso: string) {
 
     <template v-else>
       <div v-if="lotes.length === 0" class="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-        Nenhum lote cadastrado ainda. Sem lote e preço, o evento fica com "Em breve" no site.
+        Nenhum lote cadastrado ainda. Sem lote e preço, o evento fica sem preço no site.
       </div>
 
       <div v-else class="flex flex-col gap-4">
@@ -234,12 +244,12 @@ function formatarData(iso: string) {
           <!-- Tabela/Cards de Preços por Modalidade (Mobile Friendly) -->
           <div class="mt-4 flex flex-col gap-2.5 border-t border-slate-200 pt-3">
             <p class="text-[11px] font-black uppercase tracking-wider text-amber-950 flex items-center gap-1">
-              <DollarSign :size="14" class="text-amber-950" /> <span>Preço das Modalidades neste Lote (Digite e troque de campo para salvar):</span>
+              <DollarSign :size="14" class="text-amber-950" /> <span>Preço das Modalidades neste Lote:</span>
             </p>
             <div
               v-for="modalidade in modalidades"
               :key="modalidade.id"
-              class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-2xl border border-amber-200 bg-amber-50/50 p-3 shadow-xs"
+              class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50/50 p-3.5 shadow-xs"
             >
               <div class="flex items-center gap-2">
                 <span class="rounded-lg bg-amber-200/60 px-2 py-0.5 text-xs font-black text-amber-950 inline-flex items-center gap-1"><Footprints :size="13" class="text-amber-950" /> {{ modalidade.distanciaKm }} km</span>
@@ -248,14 +258,25 @@ function formatarData(iso: string) {
               <div class="flex items-center gap-2 self-end sm:self-auto">
                 <label class="text-xs font-bold text-slate-600">Valor (R$):</label>
                 <input
+                  :id="`input_preco_${lote.id}_${modalidade.id}`"
                   :value="precoAtual(lote, modalidade.id)"
                   type="text"
                   inputmode="decimal"
                   placeholder="0,00"
-                  class="w-32 rounded-xl border-2 border-amber-400 bg-white px-3 py-2 text-xs font-black text-slate-900 shadow-xs focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+                  class="w-28 rounded-xl border-2 border-amber-400 bg-white px-3 py-2 text-xs font-black text-slate-900 shadow-xs focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
                   @input="onInputPreco"
-                  @change="(e) => onSalvarPreco(lote.id, modalidade.id, e)"
+                  @blur="onSalvarPreco(lote.id, modalidade.id)"
+                  @keyup.enter="onSalvarPreco(lote.id, modalidade.id)"
                 />
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-1 rounded-xl bg-amber-500 hover:bg-amber-600 px-3 py-2 text-xs font-bold text-white shadow-xs transition active:scale-95 cursor-pointer"
+                  @click="onSalvarPreco(lote.id, modalidade.id)"
+                >
+                  <span v-if="statusSalvoPreco[`${lote.id}_${modalidade.id}`] === 'salvo'">✓ Salvo!</span>
+                  <span v-else-if="statusSalvoPreco[`${lote.id}_${modalidade.id}`] === 'salvando'">...</span>
+                  <span v-else>Salvar</span>
+                </button>
               </div>
             </div>
           </div>
