@@ -15,13 +15,13 @@ const notificacoes = ref([
 const naoLidas = computed(() => notificacoes.value.filter(n => !n.lida).length)
 
 const iniciais = computed(() => {
-  if (!user.value?.nome && !user.value?.email) return 'AA'
+  if (!user.value?.nome && !user.value?.email) return 'AD'
   if (user.value?.nome) {
     const partes = user.value.nome.trim().split(' ')
     if (partes.length >= 2) return `${partes[0][0]}${partes[1][0]}`.toUpperCase()
     return user.value.nome.slice(0, 2).toUpperCase()
   }
-  return user.value?.email.slice(0, 2).toUpperCase() || 'AA'
+  return user.value?.email.slice(0, 2).toUpperCase() || 'AD'
 })
 
 function marcarTodasLidas() {
@@ -210,10 +210,10 @@ async function onSair() {
           </div>
           <div class="hidden text-left leading-tight sm:block">
             <span class="block text-xs font-black text-slate-900">
-              {{ user?.nome || 'Aalan Alves' }}
+              {{ user?.nome || 'Administrador' }}
             </span>
             <span class="block text-[10px] font-semibold text-slate-400">
-              {{ user?.email || 'aalanallvesgt@gmail.com' }}
+              {{ user?.email || '' }}
             </span>
           </div>
           <span class="hidden text-xs text-slate-400 sm:inline">▾</span>
@@ -222,8 +222,8 @@ async function onSair() {
         <!-- Dropdown de Ações do Perfil -->
         <div v-if="perfilAberto" class="absolute right-0 mt-3 w-[calc(100vw-1.5rem)] max-w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-xl z-50">
           <div class="p-3 border-b border-slate-100 text-xs">
-            <p class="font-black text-slate-900">{{ user?.nome || 'Aalan Alves' }}</p>
-            <p class="text-[11px] text-slate-500 font-mono">{{ user?.email || 'aalanallvesgt@gmail.com' }}</p>
+            <p class="font-black text-slate-900">{{ user?.nome || 'Administrador' }}</p>
+            <p class="text-[11px] text-slate-500 font-mono">{{ user?.email || '' }}</p>
             <span class="mt-1 inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
               <AppIcon name="crown" size="11" /> Administrador Master
             </span>

@@ -47,7 +47,11 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="flex h-screen overflow-hidden bg-slate-50 w-full max-w-full">
+  <div v-if="verificando" class="flex h-screen items-center justify-center bg-slate-50">
+    <span class="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-primary"></span>
+  </div>
+
+  <div v-else class="flex h-screen overflow-hidden bg-slate-50 w-full max-w-full">
     <AppSidebar :aberto="menuAberto" @fechar="menuAberto = false" />
 
     <div class="flex min-h-0 flex-1 flex-col min-w-0 max-w-full overflow-x-hidden">
@@ -88,7 +92,7 @@ onUnmounted(() => {
       </div>
 
       <main class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-8 w-full max-w-full">
-        <slot v-if="!verificando" />
+        <slot />
       </main>
     </div>
   </div>

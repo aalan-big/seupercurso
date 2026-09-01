@@ -1,5 +1,5 @@
 <script setup lang="ts">
-onMounted(() => navigateTo('/dashboard'))
+definePageMeta({ redirect: '/dashboard' })
 </script>
 
 <template>

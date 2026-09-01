@@ -1,17 +1,11 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'auth' })
 
-const { token, login } = useAuth()
+const { login } = useAuth()
 
 const form = reactive({ email: '', password: '' })
 const erro = ref('')
 const carregando = ref(false)
-
-onMounted(() => {
-  if (token.value) {
-    navigateTo('/organizadores')
-  }
-})
 
 async function onSubmit() {
   erro.value = ''

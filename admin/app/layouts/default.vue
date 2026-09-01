@@ -14,6 +14,10 @@ onMounted(async () => {
   try {
     if (!user.value) await fetchMe()
   } catch {
+    // Sessao invalida ou API fora do ar: limpa o token para o middleware
+    // nao devolver a rota para /dashboard e criar um loop de redirect.
+    token.value = null
+    user.value = null
     await navigateTo('/login')
     return
   }
@@ -23,7 +27,11 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex h-screen overflow-hidden bg-slate-50 relative">
+  <div v-if="verificando" class="flex h-screen items-center justify-center bg-slate-50">
+    <span class="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-primary"></span>
+  </div>
+
+  <div v-else class="flex h-screen overflow-hidden bg-slate-50 relative">
     <!-- Toast Flutuante de Notificação no Celular / Desktop -->
     <div
       v-if="toastNotificacao"
@@ -55,7 +63,7 @@ onMounted(async () => {
       <AppHeader @abrir-menu="menuAberto = true" />
 
       <main class="min-h-0 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 sm:p-8">
-        <slot v-if="!verificando" />
+        <slot />
       </main>
     </div>
   </div>
