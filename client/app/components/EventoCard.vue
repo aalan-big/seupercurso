@@ -75,16 +75,34 @@ const estaFinalizado = computed(() => props.evento.status === 'FINALIZADO')
 
       <div class="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
         <div>
-          <span class="block text-[11px] font-bold uppercase tracking-wider text-slate-400">Inscrições</span>
+          <span
+            v-if="estaEsgotado"
+            class="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-red-600"
+          >
+            <span class="h-1.5 w-1.5 rounded-full bg-red-600"></span> Inscrições Esgotadas
+          </span>
+          <span
+            v-else-if="estaFinalizado"
+            class="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-slate-500"
+          >
+            <span class="h-1.5 w-1.5 rounded-full bg-slate-500"></span> Evento Finalizado
+          </span>
+          <span
+            v-else
+            class="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-emerald-600"
+          >
+            <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Inscrições Abertas
+          </span>
+
           <p
-            class="text-base font-extrabold"
+            class="text-base font-black mt-0.5"
             :class="estaEsgotado ? 'text-red-600' : estaFinalizado ? 'text-slate-500' : 'text-warning'"
           >
             <template v-if="estaEsgotado">
               Inscrições Esgotadas
             </template>
             <template v-else-if="estaFinalizado">
-              Evento Finalizado
+              Evento Encerrado
             </template>
             <template v-else-if="props.evento.valorApartirDe !== null && props.evento.valorApartirDe !== undefined">
               <template v-if="props.evento.valorApartirDe === 0">
@@ -95,7 +113,7 @@ const estaFinalizado = computed(() => props.evento.status === 'FINALIZADO')
               </template>
             </template>
             <template v-else>
-              Inscrições Abertas
+              Consulte valores
             </template>
           </p>
         </div>
