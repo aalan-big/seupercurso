@@ -23,6 +23,12 @@ onMounted(async () => {
   }
 
   verificando.value = false
+
+  const { $notificacoes } = useNuxtApp() as any
+  if ($notificacoes) {
+    $notificacoes.conectarStream()
+    $notificacoes.solicitarPermissao()
+  }
 })
 </script>
 

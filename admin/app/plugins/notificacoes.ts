@@ -16,15 +16,23 @@ export default defineNuxtPlugin(() => {
   const config = useRuntimeConfig()
   const token = useCookie<string | null>('rotapass_admin_token', { default: () => null })
 
-  let eventSource: EventSource | null = null
+  const getApiBase = () => {
+    let base = (config.public.apiBase as string) || 'http://localhost:3000'
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      base = 'https://api.seupercurso.esp.br'
+    }
+    return base
+  }
 
   const solicitarPermissao = async () => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      try {
-        await Notification.requestPermission()
-      } catch (e) {}
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        try {
+          await Notification.requestPermission()
+        } catch (e) {}
+      }
     }
-    if ('serviceWorker' in navigator) {
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
       try {
         await navigator.serviceWorker.register('/sw.js')
       } catch (e) {}
@@ -44,8 +52,15 @@ export default defineNuxtPlugin(() => {
       toastNotificacao.value = null
     }, 6000)
 
+    // Vibração no celular
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate([200, 100, 200, 100, 300])
+      } catch (e) {}
+    }
+
     // 1. Notificação Nativa do Sistema Operacional (Barra Nativa do Celular via Service Worker)
-    if ('Notification' in window && Notification.permission === 'granted') {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.ready.then((reg) => {
           reg.showNotification('Seu Percurso', {
@@ -75,6 +90,7 @@ export default defineNuxtPlugin(() => {
       }
     }
 
+    // Som de Caixa Registradora / Moedas
     try {
       const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)()
       const osc = audioCtx.createOscillator()
@@ -94,8 +110,9 @@ export default defineNuxtPlugin(() => {
   const conectarStream = () => {
     if (!token.value || eventSource) return
 
-    const baseURL = config.public.apiBase || 'http://localhost:3000'
-    const sseUrl = `${baseURL}/admin/notificacoes-stream`
+    const baseURL = getApiBase()
+    const tokenParam = token.value ? `?token=${encodeURIComponent(token.value)}` : ''
+    const sseUrl = `${baseURL}/admin/notificacoes-stream${tokenParam}`
 
     try {
       eventSource = new EventSource(sseUrl)
@@ -122,7 +139,7 @@ export default defineNuxtPlugin(() => {
   const checarNotificacoesFallback = async () => {
     if (!token.value) return
     try {
-      const baseURL = config.public.apiBase || 'http://localhost:3000'
+      const baseURL = getApiBase()
       const res = await fetch(`${baseURL}/admin/notificacoes-historico`, {
         headers: { Authorization: `Bearer ${token.value}` },
       })

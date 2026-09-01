@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StatusInscricao, StatusPagamento, StatusSolicitacaoArte } from '../generated/prisma/enums';
 
 import { EmailService } from '../email/email.service';
+import { NotificacaoAdminService } from '../admin/notificacao-admin.service';
 
 @Controller('pagamento/webhook')
 export class WebhookController {
@@ -13,6 +14,7 @@ export class WebhookController {
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
     private readonly configService: ConfigService,
+    private readonly notificacaoAdminService: NotificacaoAdminService,
   ) {}
 
   @Post('asaas')
@@ -125,6 +127,13 @@ export class WebhookController {
           inscricaoId: inscricao.id,
           valorTotal: Number(payment.value || 0).toFixed(2),
         });
+      }
+
+      // 4. Dispara notificação em tempo real da comissão para o Painel Admin (Web Push / SSE)
+      const valorTotalNum = Number(payment.value || 0);
+      const comissaoPlataforma = valorTotalNum * 0.10;
+      if (comissaoPlataforma > 0) {
+        this.notificacaoAdminService.notificarComissao(comissaoPlataforma, valorTotalNum);
       }
     }
 
