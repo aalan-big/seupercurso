@@ -94,17 +94,12 @@ export class EventoService {
             precos: { select: { valor: true } },
           },
         },
-        modalidades: {
-          select: {
-            precos: { select: { valor: true } },
-          },
-        },
       },
       orderBy: { dataInicio: 'asc' },
     });
 
-    return eventos.map(({ lotes, modalidades, ...evento }) => {
-      // 1. Tenta pegar preços dos lotes vigentes no momento atual
+    return eventos.map(({ lotes, ...evento }) => {
+      // 1. Tenta pegar preços dos lotes vigentes no momento atual deste evento
       const lotesVigentes = (lotes || []).filter((l) => {
         const inicio = new Date(l.inicioVenda);
         const fim = new Date(l.fimVenda);
@@ -115,17 +110,10 @@ export class EventoService {
         (lote.precos || []).map((preco) => Number(preco.valor)),
       ).filter((v) => !isNaN(v) && v > 0);
 
-      // 2. Se não houver lote no momento exato, pega o menor preço de qualquer lote do evento
+      // 2. Se não houver lote vigente no momento exato, pega o menor preço de qualquer lote cadastrado deste evento
       if (valores.length === 0 && lotes) {
         valores = lotes.flatMap((lote) =>
           (lote.precos || []).map((preco) => Number(preco.valor)),
-        ).filter((v) => !isNaN(v) && v > 0);
-      }
-
-      // 3. Se ainda não achou pelos lotes, busca direto pelos preços das modalidades
-      if (valores.length === 0 && modalidades) {
-        valores = modalidades.flatMap((mod) =>
-          (mod.precos || []).map((preco) => Number(preco.valor)),
         ).filter((v) => !isNaN(v) && v > 0);
       }
 
