@@ -3,9 +3,13 @@ export function useApi() {
   const tokenOrg = useCookie<string | null>('rotapass_organizer_token', { default: () => null })
   const tokenClient = useCookie<string | null>('seupercurso_token', { default: () => null })
 
-  let baseURL = config.public.apiBase as string
+  let baseURL = (config.public.apiBase as string) || 'http://localhost:3000'
   if (typeof window !== 'undefined' && window.location.hostname) {
-    baseURL = `http://${window.location.hostname}:3000`
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      baseURL = `http://${window.location.hostname}:3000`
+    } else {
+      baseURL = `${window.location.origin}/api`
+    }
   }
 
   return $fetch.create({
