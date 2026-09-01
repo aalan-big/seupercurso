@@ -347,47 +347,47 @@ function onFotoLivenessCapturada(file: File) {
 </script>
 
 <template>
-  <div v-if="!verificando">
-    <div class="mb-6 flex items-center gap-2">
+  <div v-if="!verificando" class="pb-20 sm:pb-10">
+    <div class="mb-6 flex items-center justify-between gap-1.5 sm:gap-2">
       <button
         type="button"
-        class="flex items-center gap-2 text-xs font-bold uppercase tracking-wide cursor-pointer hover:opacity-80 transition"
+        class="flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs font-black uppercase tracking-wider cursor-pointer hover:opacity-80 transition shrink-0"
         :class="step >= 1 ? 'text-primary' : 'text-slate-400'"
         @click="step = 1"
       >
         <span
-          class="flex h-6 w-6 items-center justify-center rounded-full"
-          :class="step >= 1 ? 'bg-primary text-white' : 'bg-slate-200 text-slate-500'"
+          class="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold"
+          :class="step >= 1 ? 'bg-primary text-white shadow-xs' : 'bg-slate-200 text-slate-500'"
         >
           1
         </span>
         Dados
       </button>
-      <div class="h-0.5 flex-1" :class="step >= 2 ? 'bg-primary' : 'bg-slate-200'"></div>
+      <div class="h-0.5 flex-1 min-w-[8px]" :class="step >= 2 ? 'bg-primary' : 'bg-slate-200'"></div>
       <button
         type="button"
-        class="flex items-center gap-2 text-xs font-bold uppercase tracking-wide cursor-pointer hover:opacity-80 transition"
+        class="flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs font-black uppercase tracking-wider cursor-pointer hover:opacity-80 transition shrink-0"
         :class="step >= 2 ? 'text-primary' : 'text-slate-400'"
         @click="step = 2"
       >
         <span
-          class="flex h-6 w-6 items-center justify-center rounded-full"
-          :class="step >= 2 ? 'bg-primary text-white' : 'bg-slate-200 text-slate-500'"
+          class="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold"
+          :class="step >= 2 ? 'bg-primary text-white shadow-xs' : 'bg-slate-200 text-slate-500'"
         >
           2
         </span>
         Endereço
       </button>
-      <div class="h-0.5 flex-1" :class="step >= 3 ? 'bg-primary' : 'bg-slate-200'"></div>
+      <div class="h-0.5 flex-1 min-w-[8px]" :class="step >= 3 ? 'bg-primary' : 'bg-slate-200'"></div>
       <button
         type="button"
-        class="flex items-center gap-2 text-xs font-bold uppercase tracking-wide cursor-pointer hover:opacity-80 transition"
+        class="flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs font-black uppercase tracking-wider cursor-pointer hover:opacity-80 transition shrink-0"
         :class="step >= 3 ? 'text-primary' : 'text-slate-400'"
         @click="step = 3"
       >
         <span
-          class="flex h-6 w-6 items-center justify-center rounded-full"
-          :class="step >= 3 ? 'bg-primary text-white' : 'bg-slate-200 text-slate-500'"
+          class="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold"
+          :class="step >= 3 ? 'bg-primary text-white shadow-xs' : 'bg-slate-200 text-slate-500'"
         >
           3
         </span>
@@ -395,10 +395,10 @@ function onFotoLivenessCapturada(file: File) {
       </button>
     </div>
 
-    <h1 class="text-2xl font-extrabold uppercase tracking-tight text-primary">
+    <h1 class="text-xl sm:text-2xl font-black uppercase tracking-tight text-primary">
       {{ step === 1 ? 'Solicitar cadastro de organizador' : step === 2 ? 'Endereço' : 'Documento de identidade' }}
     </h1>
-    <p class="mt-1 text-sm text-slate-500">
+    <p class="mt-1.5 text-xs sm:text-sm text-slate-500 leading-relaxed">
       {{
         step === 1
           ? 'Precisamos confirmar quem é você antes de liberar a criação de eventos — sua conta vai lidar com pagamentos de inscrições.'
@@ -411,14 +411,14 @@ function onFotoLivenessCapturada(file: File) {
     <button
       v-if="step === 3"
       type="button"
-      class="mt-2 text-xs font-bold text-amber-700 hover:text-amber-900 underline flex items-center gap-1.5 transition"
+      class="mt-3 w-full rounded-xl bg-amber-50/80 border border-amber-200/80 p-2.5 text-xs font-bold text-amber-900 hover:bg-amber-100/70 transition flex items-center justify-center gap-1.5 text-center leading-tight"
       @click="step = 1"
     >
-      <Pencil :size="14" class="text-amber-700" /> Deseja cadastrar como Empresa (CNPJ) ou alterar os dados iniciais? Clique aqui
+      <Pencil :size="13" class="text-amber-700 shrink-0" />
+      <span>Deseja alterar dados iniciais ou cadastrar CNPJ? <span class="underline text-amber-700 font-extrabold">Clique aqui</span></span>
     </button>
 
-
-    <p v-if="erro" class="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    <p v-if="erro" class="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold text-red-700">
       {{ erro }}
     </p>
 
@@ -734,49 +734,89 @@ function onFotoLivenessCapturada(file: File) {
       </div>
 
       <!-- 1. Foto do Rosto (Selfie) -->
-      <div class="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 space-y-3">
-        <label class="text-sm font-bold text-slate-800 flex items-center gap-2">
-          <AppIcon name="user" size="16" class="text-indigo-600" /> 1. Foto do Rosto (Prova de Vida Ao Vivo)
+      <div class="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5 space-y-3.5 shadow-xs">
+        <label class="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-2">
+          <AppIcon name="user" size="16" class="text-indigo-600 shrink-0" /> 1. Foto do Rosto (Prova de Vida Ao Vivo)
         </label>
-        <p class="text-xs text-slate-500">A foto do seu rosto deve ser capturada ao vivo pela câmera interativa para validação antifraude.</p>
+        <p class="text-xs text-slate-500 leading-relaxed">A foto do seu rosto deve ser capturada ao vivo pela câmera interativa para validação antifraude biométrica.</p>
 
         <button
           type="button"
-          class="w-full rounded-xl bg-warning py-3.5 text-xs font-black uppercase tracking-wider text-primary shadow-md hover:brightness-95 transition flex items-center justify-center gap-2"
+          class="w-full rounded-2xl bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 hover:brightness-105 active:scale-[0.99] p-3.5 sm:p-4 text-white shadow-lg shadow-orange-500/25 transition-all flex items-center gap-3 text-left cursor-pointer group"
           @click="mostrarLiveness = true"
         >
-          <AppIcon name="camera" size="16" class="text-primary" /> Tirar Selfie Ao Vivo (Prova de Vida 3D)
+          <div class="h-10 w-10 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition">
+            <AppIcon name="camera" size="20" class="text-white" />
+          </div>
+          <div class="flex-1 min-w-0">
+            <span class="block text-xs sm:text-sm font-black uppercase tracking-wider text-white leading-tight">Tirar Selfie Ao Vivo</span>
+            <span class="block text-[10px] sm:text-[11px] font-bold text-white/90 leading-tight mt-0.5">Prova de vida com validação 3D</span>
+          </div>
+          <span class="text-[10px] sm:text-xs font-black bg-white text-orange-600 px-3 py-1.5 rounded-xl shrink-0 uppercase tracking-wider shadow-xs">
+            {{ fotoRostoArquivo ? 'Refazer' : 'Abrir' }}
+          </span>
         </button>
 
-        <p v-if="fotoRostoArquivo" class="text-xs font-bold text-emerald-600 text-center bg-emerald-50 py-2 rounded-xl border border-emerald-200 flex items-center justify-center gap-1">
-          <AppIcon name="check" size="14" /> Selfie capturada com Prova de Vida: {{ fotoRostoArquivo.name }}
-        </p>
+        <div v-if="fotoRostoArquivo" class="text-xs font-bold text-emerald-700 bg-emerald-50 py-2.5 px-3 rounded-xl border border-emerald-200 flex items-center gap-2">
+          <div class="h-5 w-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
+            <AppIcon name="check" size="12" class="text-white" />
+          </div>
+          <span class="truncate flex-1">Selfie 3D validada: <strong>{{ fotoRostoArquivo.name }}</strong></span>
+        </div>
       </div>
 
       <!-- 2. Documento Oficial (RG ou CNH) -->
-      <div class="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 space-y-2">
-        <label class="text-sm font-bold text-slate-800 flex items-center gap-2">
-          <AppIcon name="documento" size="16" class="text-amber-600" /> 2. Documento Oficial (RG ou CNH)
+      <div class="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5 space-y-3.5 shadow-xs">
+        <label class="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-2">
+          <AppIcon name="documento" size="16" class="text-amber-600 shrink-0" /> 2. Documento Oficial (RG ou CNH)
         </label>
-        <p class="text-xs text-slate-500">Envie foto legível da frente/verso do RG ou CNH (ou arquivo em PDF).</p>
-        <input
-          type="file"
-          accept="image/*,application/pdf"
-          required
-          class="block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-white file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-100 border border-slate-200 rounded-xl p-1"
-          @change="onSelecionarDocumento"
-        />
-        <p v-if="documentoArquivo" class="text-xs font-bold text-emerald-600 flex items-center gap-1">
-          <AppIcon name="check" size="14" /> Documento selecionado: {{ documentoArquivo.name }}
-        </p>
+        <p class="text-xs text-slate-500 leading-relaxed">Envie foto legível da frente/verso do RG ou CNH (ou arquivo em PDF).</p>
+        
+        <div class="relative">
+          <input
+            id="doc-upload-onboarding"
+            type="file"
+            accept="image/*,application/pdf"
+            required
+            class="sr-only"
+            @change="onSelecionarDocumento"
+          />
+          <label
+            for="doc-upload-onboarding"
+            class="flex items-center gap-3 p-3.5 rounded-2xl border-2 border-dashed border-slate-300 hover:border-orange-500 bg-white cursor-pointer transition group"
+            :class="documentoArquivo ? 'border-emerald-400 bg-emerald-50/30' : ''"
+          >
+            <div
+              class="h-10 w-10 rounded-xl flex items-center justify-center shrink-0 transition group-hover:scale-105"
+              :class="documentoArquivo ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-50 text-amber-600'"
+            >
+              <AppIcon :name="documentoArquivo ? 'check' : 'documento'" size="20" />
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-xs font-bold text-slate-800 truncate">
+                {{ documentoArquivo ? documentoArquivo.name : 'Selecionar foto ou PDF do documento' }}
+              </p>
+              <p class="text-[10px] text-slate-400 font-medium">
+                {{ documentoArquivo ? `${(documentoArquivo.size / 1024 / 1024).toFixed(2)} MB anexado` : 'Toque para escolher da câmera ou galeria' }}
+              </p>
+            </div>
+            <span
+              class="text-[11px] font-black px-3 py-1.5 rounded-xl shrink-0 uppercase tracking-wider shadow-xs"
+              :class="documentoArquivo ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700 group-hover:bg-orange-50 group-hover:text-orange-700'"
+            >
+              {{ documentoArquivo ? 'Alterar' : 'Escolher' }}
+            </span>
+          </label>
+        </div>
       </div>
 
       <button
         type="submit"
         :disabled="carregando"
-        class="mt-2 rounded-xl bg-slate-900 px-4 py-3.5 text-sm font-black uppercase tracking-wide text-white transition hover:bg-primary disabled:opacity-50"
+        class="mt-2 w-full rounded-2xl bg-slate-900 hover:bg-slate-800 active:scale-[0.99] py-4 px-4 text-xs sm:text-sm font-black uppercase tracking-wider text-white shadow-xl shadow-slate-900/10 transition disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
       >
-        {{ carregando ? 'Enviando documentos...' : 'Enviar solicitação completa' }}
+        <span v-if="carregando" class="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white"></span>
+        <span>{{ carregando ? 'Enviando documentos...' : 'Enviar solicitação completa' }}</span>
       </button>
     </form>
 

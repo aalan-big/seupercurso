@@ -218,10 +218,10 @@ async function onEnviarDocumento() {
             <button
               v-if="!bloqueadoParaEnvio"
               type="button"
-              class="w-full rounded-2xl bg-warning py-3.5 text-xs font-black uppercase tracking-wider text-primary shadow-sm hover:brightness-95 transition flex items-center justify-center gap-2"
+              class="w-full rounded-2xl bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 hover:brightness-105 active:scale-[0.99] py-3.5 px-4 text-xs font-black uppercase tracking-wider text-white shadow-md shadow-orange-500/25 transition-all flex items-center justify-center gap-2.5"
               @click="mostrarLiveness = true"
             >
-              <AppIcon name="camera" size="16" class="text-primary" /> {{ (fotoRostoUrlFormatted || fotoArquivo) ? 'Refazer Selfie Ao Vivo' : 'Tirar Selfie Ao Vivo' }}
+              <AppIcon name="camera" size="18" class="text-white" /> {{ (fotoRostoUrlFormatted || fotoArquivo) ? 'Refazer Selfie Ao Vivo' : 'Tirar Selfie Ao Vivo' }}
             </button>
 
             <!-- Botão de Salvar Foto se houver nova captura -->

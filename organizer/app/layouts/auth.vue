@@ -38,8 +38,8 @@ onUnmounted(() => clearInterval(intervaloFotos))
       </div>
     </div>
 
-    <div class="flex flex-col justify-center px-6 py-16 sm:px-12 lg:px-20">
-      <div class="mx-auto w-full max-w-sm">
+    <div class="flex flex-col justify-center px-4 py-8 sm:px-12 sm:py-16 lg:px-20 min-h-screen">
+      <div class="mx-auto w-full max-w-md">
         <slot />
       </div>
     </div>
