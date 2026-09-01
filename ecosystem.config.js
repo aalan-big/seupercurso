@@ -11,6 +11,10 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 3000,
+        CLIENT_URL: 'https://seupercurso.esp.br',
+        ORGANIZER_URL: 'https://organizador.seupercurso.esp.br',
+        ADMIN_URL: 'https://admin.seupercurso.esp.br',
+        API_URL: 'https://api.seupercurso.esp.br',
       },
     },
     {
