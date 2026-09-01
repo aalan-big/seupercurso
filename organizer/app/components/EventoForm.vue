@@ -50,16 +50,15 @@ const estadosBr = [
 const statusOpcoes = computed(() => {
   const opcoes = [{ valor: 'RASCUNHO', label: 'Rascunho' }]
 
-  if (props.evento?.status === 'PUBLICADO') {
-    opcoes.push({ valor: 'PUBLICADO', label: 'Publicado' })
+  if (props.evento?.status === 'PUBLICADO' || props.evento?.status === 'INSCRICOES_ENCERRADAS') {
+    opcoes.push({ valor: 'PUBLICADO', label: 'Publicado (Inscrições Abertas)' })
+    opcoes.push({ valor: 'INSCRICOES_ENCERRADAS', label: 'Inscrições encerradas / Esgotadas' })
   } else {
     opcoes.push({ valor: 'AGUARDANDO_APROVACAO', label: 'Enviar pra revisão' })
+    opcoes.push({ valor: 'INSCRICOES_ENCERRADAS', label: 'Inscrições encerradas' })
   }
 
-  opcoes.push(
-    { valor: 'INSCRICOES_ENCERRADAS', label: 'Inscrições encerradas' },
-    { valor: 'CANCELADO', label: 'Cancelado' }
-  )
+  opcoes.push({ valor: 'CANCELADO', label: 'Cancelado' })
   return opcoes
 })
 

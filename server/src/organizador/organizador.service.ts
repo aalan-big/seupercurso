@@ -365,13 +365,21 @@ export class OrganizadorService {
 
     if (
       dto.status &&
-      dto.status !== evento.status &&
-      (dto.status === StatusEvento.PUBLICADO ||
-        dto.status === StatusEvento.FINALIZADO)
+      dto.status !== evento.status
     ) {
-      throw new ForbiddenException(
-        'Só a equipe da plataforma pode publicar ou finalizar um evento. Envie pra revisão (status "Aguardando aprovação") e aguarde.',
-      );
+      if (dto.status === StatusEvento.FINALIZADO) {
+        throw new ForbiddenException(
+          'Só a equipe da plataforma pode finalizar um evento.',
+        );
+      }
+      if (
+        dto.status === StatusEvento.PUBLICADO &&
+        evento.status !== StatusEvento.INSCRICOES_ENCERRADAS
+      ) {
+        throw new ForbiddenException(
+          'Só a equipe da plataforma pode aprovar e publicar um novo evento pela primeira vez. Envie pra revisão (status "Aguardando aprovação") e aguarde.',
+        );
+      }
     }
 
     this.validarPeriodo(
