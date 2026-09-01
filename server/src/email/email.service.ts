@@ -139,6 +139,11 @@ export class EmailService {
     return { enviado: true, mock: true };
   }
 
+  private getAppUrl(): string {
+    const defaultUrl = process.env.NODE_ENV === 'production' ? 'https://seupercurso.esp.br' : 'http://localhost:3001';
+    return this.configService.get<string>('CLIENT_URL', defaultUrl) || defaultUrl;
+  }
+
   /**
    * Layout HTML padrão no estilo Seu Percurso (Laranja / Branco / Clean)
    */
@@ -148,7 +153,7 @@ export class EmailService {
     conteudoHtml: string;
   }): string {
     const anoAtual = new Date().getFullYear();
-    const appUrl = this.configService.get<string>('CLIENT_URL', 'http://localhost:3001');
+    const appUrl = this.getAppUrl();
 
     const logoUrl = 'https://i.imgur.com/rMu2lvw.png';
     const logoHtml = `<img src="${logoUrl}" alt="Seu Percurso" style="height: 56px; max-width: 240px; object-fit: contain; margin: 0 auto 10px; display: block;" />`;
@@ -207,7 +212,7 @@ export class EmailService {
   }
 
   private montarHtmlVerificacao(params: EnviarVerificacaoEmailParams): string {
-    const appUrl = this.configService.get<string>('CLIENT_URL', 'http://localhost:3001');
+    const appUrl = this.getAppUrl();
     const linkVerificacao = `${appUrl}/verificar-email?token=${encodeURIComponent(params.token)}`;
 
     const conteudoHtml = `
@@ -252,7 +257,7 @@ export class EmailService {
   }
 
   private montarHtmlRecuperacaoSenha(params: EnviarRecuperacaoSenhaParams): string {
-    const appUrl = this.configService.get<string>('CLIENT_URL', 'http://localhost:3001');
+    const appUrl = this.getAppUrl();
     const linkRedefinicao = `${appUrl}/redefinir-senha?token=${encodeURIComponent(params.token)}`;
 
     const conteudoHtml = `
@@ -338,7 +343,7 @@ export class EmailService {
    * 3. Confirmação de Inscrição Única ou em Lote (Com QR Codes Individuais por Atleta)
    */
   async enviarConfirmacaoInscricaoBatch(params: EnviarConfirmacaoBatchParams) {
-    const appUrl = this.configService.get<string>('CLIENT_URL', 'http://localhost:3001');
+    const appUrl = this.getAppUrl();
 
     const atletasHtml = params.atletas
       .map(
