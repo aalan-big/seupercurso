@@ -907,9 +907,6 @@ async function onInscrever() {
                       <p v-if="mod.vagasRestantes !== undefined && mod.vagasRestantes !== null && mod.vagasRestantes <= 0" class="text-xs font-bold text-rose-500">
                         Vagas esgotadas
                       </p>
-                      <p v-else-if="mod.vagasRestantes !== undefined && mod.vagasRestantes !== null && mod.vagasRestantes <= 10" class="text-xs font-bold text-amber-600">
-                        Só {{ mod.vagasRestantes }} {{ mod.vagasRestantes === 1 ? 'vaga' : 'vagas' }} restantes
-                      </p>
                     </button>
                   </div>
                 </div>
@@ -938,12 +935,6 @@ async function onInscrever() {
                         <p class="text-sm font-semibold">{{ cat.nome }}</p>
                         <p v-if="motivoInelegibilidadeParaAtleta(cat, item)" class="text-xs text-rose-500 mt-0.5">
                           {{ motivoInelegibilidadeParaAtleta(cat, item) }}
-                        </p>
-                        <p
-                          v-else-if="cat.vagasRestantes !== undefined && cat.vagasRestantes !== null && cat.vagasRestantes <= 10"
-                          class="text-xs text-amber-600 mt-0.5"
-                        >
-                          Só {{ cat.vagasRestantes }} {{ cat.vagasRestantes === 1 ? 'vaga' : 'vagas' }} restantes
                         </p>
                       </div>
                       <Check v-if="item.categoriaId === cat.id" class="w-4 h-4 text-orange-500" />
