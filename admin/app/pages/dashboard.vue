@@ -95,6 +95,25 @@ const dadosEventos = computed(() =>
     <h1 class="text-2xl font-extrabold uppercase tracking-tight text-primary">Dashboard</h1>
     <p class="mt-1 text-sm text-slate-500">Visão geral da plataforma.</p>
 
+    <!-- Banner de Acesso Rápido ao Financeiro & Notificações na Tela de Bloqueio -->
+    <div class="mt-4 rounded-2xl border border-orange-200 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 p-4 sm:p-5 text-white shadow-md shadow-orange-500/15 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/20 text-white backdrop-blur-xs">
+          <AppIcon name="card" size="20" />
+        </div>
+        <div>
+          <h3 class="text-sm font-black uppercase tracking-tight text-white">Gestão Financeira & Comissões</h3>
+          <p class="text-[11px] text-orange-100">Controle de comissões, saldo Asaas e teste de notificações push no iPhone.</p>
+        </div>
+      </div>
+      <NuxtLink
+        to="/financeiro"
+        class="inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-orange-600 shadow-sm hover:bg-orange-50 active:scale-95 transition"
+      >
+        Ir para o Financeiro →
+      </NuxtLink>
+    </div>
+
     <p v-if="erro" class="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
       {{ erro }}
     </p>

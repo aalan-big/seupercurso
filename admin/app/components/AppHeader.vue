@@ -76,16 +76,16 @@ async function onSair() {
     @click="fecharTodos"
   ></div>
 
-  <header class="sticky top-0 z-40 flex h-16 w-full items-center justify-between gap-2 border-b border-slate-200 bg-white/95 px-3 shadow-2xs backdrop-blur-md sm:px-6">
+  <header class="sticky top-0 z-40 flex h-auto min-h-16 w-full items-center justify-between gap-2 border-b border-slate-200 bg-white/95 px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] shadow-2xs backdrop-blur-md sm:px-6">
     <!-- Esquerda: Menu Mobile, Título da Plataforma & Indicador Master -->
     <div class="flex min-w-0 items-center gap-3">
       <button
         type="button"
-        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition md:hidden"
+        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 hover:bg-slate-200 active:scale-95 transition md:hidden cursor-pointer"
         title="Abrir menu"
         @click="emit('abrir-menu')"
       >
-        <AppIcon name="menu" size="18" />
+        <AppIcon name="menu" size="20" />
       </button>
 
       <div class="flex min-w-0 items-center gap-2">
