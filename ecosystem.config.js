@@ -24,6 +24,8 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 3001,
+        NUXT_PUBLIC_API_BASE: 'https://api.seupercurso.esp.br',
+        NUXT_PUBLIC_ORGANIZER_BASE: 'https://organizador.seupercurso.esp.br',
       },
     },
     {
@@ -37,6 +39,8 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 3002,
+        NUXT_PUBLIC_API_BASE: 'https://api.seupercurso.esp.br',
+        NUXT_PUBLIC_CLIENT_BASE: 'https://seupercurso.esp.br',
       },
     },
     {
@@ -50,6 +54,7 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 3003,
+        NUXT_PUBLIC_API_BASE: 'https://api.seupercurso.esp.br',
       },
     },
   ],

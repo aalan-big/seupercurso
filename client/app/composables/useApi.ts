@@ -23,7 +23,7 @@ export function useApi() {
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
       baseURL = `http://${window.location.hostname}:3000`
     } else {
-      baseURL = `${window.location.origin}/api`
+      baseURL = (config.public.apiBase as string) || 'https://api.seupercurso.esp.br'
     }
   }
 

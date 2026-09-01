@@ -5,7 +5,7 @@ export function urlFoto(caminho: string | null | undefined, apiBase: string): st
       if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
         return caminho.replace('localhost', window.location.hostname)
       } else {
-        return caminho.replace(/http:\/\/localhost:3000/, window.location.origin)
+        return caminho.replace(/http:\/\/localhost:3000/, 'https://api.seupercurso.esp.br')
       }
     }
     return caminho
@@ -16,7 +16,7 @@ export function urlFoto(caminho: string | null | undefined, apiBase: string): st
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
       base = base.replace('localhost', window.location.hostname)
     } else {
-      base = window.location.origin
+      base = 'https://api.seupercurso.esp.br'
     }
   }
 
