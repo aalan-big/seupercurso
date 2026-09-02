@@ -129,10 +129,7 @@ export class ClienteService {
   }
 
   async updatePessoaFisica(usuarioId: string, dto: UpdateClientePfDto) {
-    if (dto.cpf) {
-      dto.cpf = dto.cpf.replace(/\D/g, '');
-    }
-
+    // O CPF nao vem mais no DTO: trocar exige solicitacao com documento.
     const cliente = await this.prisma.cliente.findUnique({
       where: { usuarioId },
       include: { pf: true },

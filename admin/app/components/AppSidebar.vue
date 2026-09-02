@@ -42,6 +42,10 @@ const linkClasse = 'flex items-center gap-2 rounded-lg px-3 py-2 text-slate-600 
       <NuxtLink to="/organizadores" :class="linkClasse" active-class="bg-warning/10 text-primary font-bold" @click="emit('fechar')">
         <AppIcon name="organizadores" size="18" class="text-slate-500" /> Organizadores
       </NuxtLink>
+
+      <NuxtLink to="/alteracoes-documento" :class="linkClasse" active-class="bg-warning/10 text-primary font-bold" @click="emit('fechar')">
+        <AppIcon name="shield" size="18" /> Alteração de CPF/CNPJ
+      </NuxtLink>
       <NuxtLink to="/eventos" :class="linkClasse" active-class="bg-warning/10 text-primary font-bold" @click="emit('fechar')">
         <AppIcon name="eventos" size="18" class="text-slate-500" /> Eventos
       </NuxtLink>

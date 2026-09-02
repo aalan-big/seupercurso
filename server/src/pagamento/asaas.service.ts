@@ -139,10 +139,15 @@ export class AsaasService {
     return [{ walletId, percentualValue: percentual }];
   }
 
-  private getHeaders() {
+  /**
+   * Cabeçalhos da API. Sem `apiKey` usa a chave da plataforma; com ela, a
+   * requisição acontece dentro da subconta do organizador — é assim que o saque
+   * sai do saldo dele e não do nosso.
+   */
+  private getHeaders(apiKey?: string | null) {
     return {
       'Content-Type': 'application/json',
-      access_token: this.apiKey,
+      access_token: apiKey || this.apiKey,
     };
   }
 
@@ -152,7 +157,11 @@ export class AsaasService {
   async criarSubcontaOrganizador(params: CriarSubcontaParams) {
     if (!this.apiKey) {
       this.logger.warn('ASAAS_API_KEY não configurada. Usando walletId de mock.');
-      return { accountId: `acc_mock_${Date.now()}`, walletId: `wal_mock_${Date.now()}` };
+      return {
+        accountId: `acc_mock_${Date.now()}`,
+        walletId: `wal_mock_${Date.now()}`,
+        apiKey: null,
+      };
     }
 
     if (!params.rendaFaturamentoMensal || params.rendaFaturamentoMensal <= 0) {
@@ -206,9 +215,18 @@ export class AsaasService {
         throw new BadRequestException(data.errors?.[0]?.description || 'Erro ao criar subconta Asaas.');
       }
 
+      // O Asaas devolve a apiKey da subconta uma única vez, na criação. Sem
+      // guardá-la, não há como o organizador sacar o próprio saldo pelo site.
+      if (!data.apiKey) {
+        this.logger.warn(
+          `Subconta ${data.id} criada sem apiKey na resposta do Asaas; o saque pelo site ficará indisponível.`,
+        );
+      }
+
       return {
         accountId: data.id,
         walletId: data.walletId || data.id,
+        apiKey: (data.apiKey as string | undefined) || null,
       };
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
@@ -351,20 +369,37 @@ export class AsaasService {
   }
 
   /**
-   * Realiza o saque/transferência via PIX da subconta do organizador para a chave PIX dele
-   * Omitimos scheduleDate para que o Asaas execute a transferência imediatamente em vez de agendar e expirar.
+   * Transfere o saldo da subconta do organizador para a chave PIX dele.
+   *
+   * Roda com a apiKey da subconta: o dinheiro sai do saldo que o split creditou
+   * ao organizador, não do caixa da plataforma. A chave de destino é sempre o
+   * CPF/CNPJ do titular, então o Banco Central garante que o crédito cai na
+   * conta dessa mesma pessoa, em qualquer banco.
    */
-  async solicitarSaquePix(params: { valor: number; chavePix: string; walletId?: string | null }) {
+  async solicitarSaquePix(params: {
+    valor: number;
+    cpfCnpjTitular: string;
+    apiKeySubconta: string;
+  }) {
+    const documento = params.cpfCnpjTitular.replace(/\D/g, '');
+
+    if (documento.length !== 11 && documento.length !== 14) {
+      throw new BadRequestException(
+        'CPF/CNPJ do titular inválido para a transferência.',
+      );
+    }
+
     const body = {
       value: params.valor,
-      pixAddressKey: params.chavePix,
+      pixAddressKey: documento,
+      pixAddressKeyType: documento.length === 11 ? 'CPF' : 'CNPJ',
       description: 'Saque de Vendas de Inscrições - SeuPercurso',
     };
 
     try {
       const response = await fetch(`${this.apiBaseUrl}/transfers`, {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: this.getHeaders(params.apiKeySubconta),
         body: JSON.stringify(body),
       });
 
@@ -384,6 +419,31 @@ export class AsaasService {
       if (error instanceof BadRequestException) throw error;
       this.logger.error(`Falha ao solicitar saque no Asaas: ${error.message || error}`);
       throw new BadRequestException('Não foi possível processar a transferência PIX no momento. Tente novamente mais tarde.');
+    }
+  }
+
+  /**
+   * Saldo real da subconta do organizador. É a única fonte confiável do quanto
+   * ele pode sacar — nosso cálculo de repasse não conhece taxas, estornos nem
+   * o prazo de liberação do cartão.
+   */
+  async consultarSaldoSubconta(apiKeySubconta: string): Promise<number | null> {
+    if (!apiKeySubconta) return null;
+
+    try {
+      const res = await fetch(`${this.apiBaseUrl}/finance/balance`, {
+        headers: this.getHeaders(apiKeySubconta),
+      });
+      if (!res.ok) {
+        this.logger.warn(`Nao foi possivel consultar o saldo da subconta: HTTP ${res.status}`);
+        return null;
+      }
+
+      const data = await res.json();
+      return Number(data.balance ?? 0);
+    } catch (err) {
+      this.logger.warn(`Falha ao consultar saldo da subconta no Asaas: ${err}`);
+      return null;
     }
   }
 

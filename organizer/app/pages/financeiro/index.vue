@@ -16,7 +16,7 @@ const solicitandoSaque = ref(false)
 const erroSaque = ref('')
 const comprovanteSaque = ref<{ transferId: string; chaveDestino: string; valor: number; saldoRestante?: number } | null>(null)
 
-onMounted(async () => {
+async function carregar() {
   erro.value = ''
   carregando.value = true
   try {
@@ -27,27 +27,54 @@ onMounted(async () => {
   } finally {
     carregando.value = false
   }
-})
+}
+
+onMounted(carregar)
 
 function formatarValor(valor: number) {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
+const valorSaque = ref<number | string>('')
+
+const saqueLiberado = computed(
+  () => !!financeiro.value && !financeiro.value.bloqueioSaque && financeiro.value.saldoDisponivel > 0
+)
+
+watch(
+  () => financeiro.value?.saldoDisponivel,
+  (saldo) => {
+    if (saldo && !valorSaque.value) valorSaque.value = saldo
+  }
+)
+
 async function realizarSaquePix() {
-  if (!financeiro.value || financeiro.value.saldoDisponivel <= 0) return
+  if (!financeiro.value || !saqueLiberado.value) return
+
+  const valor = Number(valorSaque.value)
+  if (!valor || valor <= 0) {
+    erroSaque.value = 'Informe o valor a sacar.'
+    return
+  }
+  if (valor > financeiro.value.saldoDisponivel) {
+    erroSaque.value = 'Valor maior que o saldo disponível.'
+    return
+  }
+
   solicitandoSaque.value = true
   erroSaque.value = ''
   comprovanteSaque.value = null
 
   try {
-    const res = await api<{ sucesso: boolean; transferId: string; chaveDestino: string; valor: number }>(
+    const res = await api<{ sucesso: boolean; transferId: string; chaveDestino: string; valor: number; saldoRestante?: number }>(
       '/organizadores/me/financeiro/saque',
       {
         method: 'POST',
-        body: { valor: financeiro.value.saldoDisponivel }
+        body: { valor }
       }
     )
     comprovanteSaque.value = res
+    await carregar()
   } catch (e) {
     erroSaque.value = extrairErro(e)
   } finally {
@@ -154,14 +181,17 @@ function exportarRelatorioCSV() {
             </div>
             <p class="mt-2 text-3xl font-black text-white">{{ formatarValor(financeiro.saldoDisponivel) }}</p>
             <p class="mt-1 text-[11px] text-emerald-100 flex items-center gap-1.5">
-              <Lock :size="12" /> Trava de Titularidade Ativa: Repasse restrito ao mesmo CPF/CNPJ
+              <Lock :size="12" /> Saldo na sua subconta Asaas — saque só para o CPF/CNPJ cadastrado
+            </p>
+            <p v-if="financeiro.bloqueioSaque" class="mt-2 rounded-lg bg-white/15 px-3 py-2 text-[11px] font-semibold leading-relaxed">
+              {{ financeiro.bloqueioSaque }}
             </p>
           </div>
 
           <!-- Botão de Saque em Destaque -->
           <button
             type="button"
-            :disabled="financeiro.saldoDisponivel <= 0"
+            :disabled="!saqueLiberado"
             class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-white py-3 text-xs font-black uppercase tracking-wider text-emerald-950 shadow hover:bg-emerald-50 transition active:scale-[0.99] disabled:opacity-50"
             @click="modalSaqueAberto = true"
           >
@@ -182,7 +212,7 @@ function exportarRelatorioCSV() {
               <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-800">D+0 (Na hora)</span>
             </div>
             <p class="text-[11px] text-slate-500 mt-1 leading-relaxed">
-              O dinheiro cai na sua Subconta Asaas imediatamente após o pagamento pelo atleta e já fica liberado para saque instantâneo.
+              O dinheiro cai na sua subconta Asaas assim que o atleta paga e já fica liberado para saque.
             </p>
           </div>
         </div>
@@ -194,11 +224,11 @@ function exportarRelatorioCSV() {
           <div>
             <div class="flex items-center gap-2">
               <h3 class="text-xs font-black uppercase text-slate-800">Pagamentos via Cartão de Crédito</h3>
-              <span class="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-black text-blue-800">D+2 a D+30</span>
+              <span class="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-black text-blue-800">D+30</span>
             </div>
             <p class="text-[11px] text-slate-500 mt-1 leading-relaxed">
-              <strong>Com antecipação ativa:</strong> liberado em até <strong>2 dias úteis (D+2)</strong>.<br />
-              <strong>Sem antecipação:</strong> liberado em <strong>30 dias</strong> (à vista) ou a cada 30 dias por parcela.
+              Liberado em <strong>30 dias</strong> na compra à vista, ou uma parcela a cada 30 dias
+              no parcelado. O saldo só aparece como disponível depois da liberação pelo Asaas.
             </p>
           </div>
         </div>
@@ -250,7 +280,7 @@ function exportarRelatorioCSV() {
                 <td class="px-5 py-4 font-black text-emerald-600">{{ formatarValor(evento.repasse) }}</td>
                 <td class="px-5 py-4 text-center">
                   <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-bold text-emerald-800">
-                    <Circle :size="10" class="fill-emerald-500 text-emerald-500" /> D+0 PIX / D+2 Cartão
+                    <Circle :size="10" class="fill-emerald-500 text-emerald-500" /> D+0 PIX / D+30 Cartão
                   </span>
                 </td>
               </tr>
@@ -306,15 +336,36 @@ function exportarRelatorioCSV() {
               <p class="text-3xl font-black text-emerald-900">{{ formatarValor(financeiro.saldoDisponivel) }}</p>
             </div>
 
+            <div>
+              <label class="mb-1 block text-[11px] font-bold uppercase text-slate-600">Valor a sacar</label>
+              <input
+                v-model="valorSaque"
+                type="number"
+                min="0.01"
+                step="0.01"
+                :max="financeiro.saldoDisponivel"
+                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-bold focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+              />
+            </div>
+
             <div class="rounded-xl bg-slate-50 p-3 text-[11px] text-slate-600 space-y-1">
-              <div class="flex justify-between">
-                <span class="font-bold text-slate-500">Destino do Pagamento:</span>
-                <span class="font-bold text-slate-900">{{ organizador?.chavePix || 'Chave do Cadastro' }}</span>
+              <div class="flex justify-between gap-3">
+                <span class="font-bold text-slate-500 shrink-0">Destino:</span>
+                <span class="font-bold text-slate-900 text-right">
+                  Chave PIX do seu CPF/CNPJ cadastrado
+                </span>
               </div>
               <div class="flex justify-between">
                 <span class="font-bold text-slate-500">Taxa de Saque:</span>
                 <span class="font-bold text-emerald-700">Isento (Gratuito)</span>
               </div>
+            </div>
+
+            <div class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-900">
+              <strong>Por que não dá para escolher a conta:</strong> a transferência sai sempre
+              para a chave PIX do CPF/CNPJ do seu cadastro, em qualquer banco. Assim o próprio
+              sistema bancário garante que o dinheiro cai em conta sua, e não de terceiros.
+              Para trocar o CPF/CNPJ é preciso abrir uma solicitação com foto do documento.
             </div>
           </div>
 

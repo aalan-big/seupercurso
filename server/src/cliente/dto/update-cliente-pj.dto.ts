@@ -1,6 +1,11 @@
 import { IsOptional, IsString, Matches, MinLength } from 'class-validator';
-import { IsCNPJ } from '../../common/validators/is-cnpj.validator';
 
+
+/**
+ * O CNPJ nao entra aqui de proposito: ele define para qual conta o organizador
+ * consegue sacar. Trocar exige solicitacao com foto do documento e aprovacao do
+ * admin (SolicitacaoAlteracaoDocumento).
+ */
 export class UpdateClientePjDto {
   @IsOptional()
   @IsString()
@@ -10,11 +15,6 @@ export class UpdateClientePjDto {
   @IsOptional()
   @IsString()
   nomeFantasia?: string;
-
-  @IsOptional()
-  @IsString()
-  @IsCNPJ()
-  cnpj?: string;
 
   @IsOptional()
   @IsString()

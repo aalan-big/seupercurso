@@ -8,18 +8,18 @@ import {
   MinLength,
 } from 'class-validator';
 import { Genero } from '../../generated/prisma/enums';
-import { IsCPF } from '../../common/validators/is-cpf.validator';
 
+
+/**
+ * O CPF nao entra aqui de proposito: ele define para qual conta o organizador
+ * consegue sacar. Trocar exige solicitacao com foto do documento e aprovacao do
+ * admin (SolicitacaoAlteracaoDocumento).
+ */
 export class UpdateClientePfDto {
   @IsOptional()
   @IsString()
   @MinLength(3)
   nomeCompleto?: string;
-
-  @IsOptional()
-  @IsString()
-  @IsCPF()
-  cpf?: string;
 
   @IsOptional()
   @IsDateString()

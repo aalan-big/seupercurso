@@ -17,6 +17,12 @@ import { AdminService } from './admin.service';
 import { NotificacaoAdminService } from './notificacao-admin.service';
 import { MotivoDto } from './dto/motivo.dto';
 import { ComissaoDto } from './dto/comissao.dto';
+import { AlteracaoDocumentoService } from '../cliente/alteracao-documento.service';
+import {
+  CurrentAdmin,
+  type AuthenticatedAdmin,
+} from '../admin-auth/decorators/current-admin.decorator';
+import { StatusSolicitacaoDocumento } from '../generated/prisma/enums';
 
 @UseGuards(AdminJwtGuard)
 @Controller('admin')
@@ -24,7 +30,37 @@ export class AdminController {
   constructor(
     private readonly adminService: AdminService,
     private readonly notificacaoAdminService: NotificacaoAdminService,
+    private readonly alteracaoDocumentoService: AlteracaoDocumentoService,
   ) {}
+
+  /**
+   * Troca de CPF/CNPJ do titular. Como esse dado determina para qual conta o
+   * organizador saca, cada pedido e revisado manualmente contra a foto do
+   * documento enviada.
+   */
+  @Get('alteracoes-documento')
+  listarAlteracoesDocumento(@Query('status') status?: StatusSolicitacaoDocumento) {
+    return this.alteracaoDocumentoService.listarParaAdmin(status);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('alteracoes-documento/:id/aprovar')
+  aprovarAlteracaoDocumento(
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+    @Param('id') id: string,
+  ) {
+    return this.alteracaoDocumentoService.aprovar(admin.adminId, id);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('alteracoes-documento/:id/rejeitar')
+  rejeitarAlteracaoDocumento(
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+    @Param('id') id: string,
+    @Body() dto: MotivoDto,
+  ) {
+    return this.alteracaoDocumentoService.rejeitar(admin.adminId, id, dto.motivo);
+  }
 
   @Sse('notificacoes-stream')
   notificacoesStream(): Observable<MessageEvent> {

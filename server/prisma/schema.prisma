@@ -127,6 +127,8 @@ model Cliente {
   inscricoes  Inscricao[]
   dependentes Dependente[]
   pedidos     Pedido[]
+
+  solicitacoesAlteracaoDocumento SolicitacaoAlteracaoDocumento[]
 }
 
 model ClientePf {
@@ -578,4 +580,39 @@ model Saque {
   organizador Organizador @relation(fields: [organizadorId], references: [id])
 
   @@index([organizadorId, status])
+}
+
+enum StatusSolicitacaoDocumento {
+  PENDENTE
+  APROVADA
+  REJEITADA
+}
+
+enum TipoDocumentoTitular {
+  CPF
+  CNPJ
+}
+
+/// CPF/CNPJ deixou de ser editavel direto no perfil: ele define para qual conta
+/// o organizador pode sacar. Toda troca passa por aqui, com foto do documento e
+/// aprovacao do admin, e congela os saques enquanto estiver pendente.
+model SolicitacaoAlteracaoDocumento {
+  id             String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clienteId      String                     @db.Uuid
+  tipo           TipoDocumentoTitular
+  documentoAtual String
+  documentoNovo  String
+  arquivoUrl     String
+  motivo         String?
+  status         StatusSolicitacaoDocumento @default(PENDENTE)
+  motivoRejeicao String?
+  revisadoEm     DateTime?
+  revisadoPorId  String?                    @db.Uuid
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+
+  cliente Cliente @relation(fields: [clienteId], references: [id])
+
+  @@index([clienteId, status])
+  @@index([status])
 }

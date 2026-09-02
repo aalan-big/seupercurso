@@ -19,8 +19,10 @@ import {
   StatusPagamento,
   StatusResultado,
   StatusSaque,
+  StatusSolicitacaoDocumento,
 } from '../generated/prisma/enums';
 import { montarSerieDiaria } from '../common/montar-serie-diaria';
+import { cifrarCredencial, decifrarCredencial } from '../common/cripto-credencial';
 import { CreateEventoDto } from './dto/create-evento.dto';
 import { UpdateEventoDto } from './dto/update-evento.dto';
 import { CreateModalidadeDto } from './dto/create-modalidade.dto';
@@ -289,18 +291,60 @@ export class OrganizadorService {
     const totalRepasse = totalArrecadado - comissaoPlataforma;
     const totalSacado = Number(saquesAgregados._sum.valor ?? 0);
 
+    // O saldo sacável é o da subconta no Asaas, não o nosso cálculo: só ele
+    // conhece taxas, estornos e o prazo de liberação do cartão.
+    const apiKeySubconta = decifrarCredencial(organizador.asaasApiKey);
+    const saldoAsaas = apiKeySubconta
+      ? await this.asaasService.consultarSaldoSubconta(apiKeySubconta)
+      : null;
+
+    const bloqueio = await this.motivoBloqueioSaque(organizador.clienteId, organizador);
+
     return {
       comissaoPercentual: percentual,
       totalArrecadado,
       comissaoPlataforma,
       totalRepasse,
       totalSacado,
-      saldoDisponivel: Number(Math.max(0, totalRepasse - totalSacado).toFixed(2)),
+      /** Saldo real na subconta Asaas; null quando a subconta ainda não existe. */
+      saldoAsaas,
+      saldoDisponivel: saldoAsaas ?? 0,
+      subcontaAtiva: !!apiKeySubconta,
+      bloqueioSaque: bloqueio,
       porEvento: Array.from(porEvento.values()).map((e) => ({
         ...e,
         repasse: e.totalArrecadado - e.comissaoPlataforma,
       })),
     };
+  }
+
+  /**
+   * Motivo que impede o saque agora, ou null quando está liberado.
+   * Uma troca de CPF/CNPJ pendente congela os saques: é justamente o cenário em
+   * que alguém tentaria redirecionar o dinheiro para outro titular.
+   */
+  private async motivoBloqueioSaque(
+    clienteId: string,
+    organizador: { asaasApiKey: string | null; asaasWalletId: string | null },
+  ): Promise<string | null> {
+    if (!organizador.asaasWalletId) {
+      return 'Sua conta de recebimento ainda não foi criada. Complete os dados bancários.';
+    }
+
+    if (!organizador.asaasApiKey) {
+      return 'Sua conta de recebimento está sem credencial de acesso. Contate o suporte.';
+    }
+
+    const trocaPendente = await this.prisma.solicitacaoAlteracaoDocumento.findFirst({
+      where: { clienteId, status: StatusSolicitacaoDocumento.PENDENTE },
+      select: { id: true },
+    });
+
+    if (trocaPendente) {
+      return 'Há uma solicitação de alteração de CPF/CNPJ em análise. Os saques ficam bloqueados até a conclusão.';
+    }
+
+    return null;
   }
 
   async criarEvento(usuarioId: string, dto: CreateEventoDto) {
@@ -1638,12 +1682,12 @@ export class OrganizadorService {
       throw new NotFoundException('Organizador não encontrado.');
     }
 
-    const temDadosBancarios = !!(organizador.chavePix || organizador.conta);
+    // A chave PIX de destino nao e mais escolhida pelo organizador: o saque vai
+    // sempre para o CPF/CNPJ do cadastro. O que falta checar aqui e a renda.
     const temRenda = Number(organizador.rendaFaturamentoMensal ?? 0) > 0;
     if (
       organizador.asaasWalletId ||
       organizador.status !== StatusOrganizador.APROVADO ||
-      !temDadosBancarios ||
       !temRenda
     ) {
       return organizador;
@@ -1685,6 +1729,8 @@ export class OrganizadorService {
       data: {
         asaasAccountId: asaasSub.accountId,
         asaasWalletId: asaasSub.walletId,
+        // Cifrada: dá acesso ao saldo do organizador no Asaas.
+        asaasApiKey: asaasSub.apiKey ? cifrarCredencial(asaasSub.apiKey) : null,
       },
     });
   }
@@ -1703,30 +1749,41 @@ export class OrganizadorService {
       throw new BadRequestException('CPF ou CNPJ do titular não encontrado no cadastro.');
     }
 
-    // Trava de Titularidade: A chave PIX deve obrigatoriamente corresponder ao CPF/CNPJ do organizador
-    const chavePixOrganizador = (organizador.chavePix || cpfCnpjTitular).replace(/\D/g, '');
+    // Trava de titularidade: o destino não é escolhido pelo organizador — é
+    // sempre a chave PIX do CPF/CNPJ cadastrado. Como a chave é o próprio
+    // documento, o Banco Central garante que o crédito cai em conta desse mesmo
+    // titular, em qualquer banco. Não há como direcionar para terceiro.
+    const chaveDestinoFinal = cpfCnpjTitular;
 
-    // Se a chave for CPF/CNPJ numérico, verifica se bate rigorosamente com o titular
-    if (chavePixOrganizador.length >= 11 && chavePixOrganizador !== cpfCnpjTitular) {
-      throw new BadRequestException(
-        `🔒 Trava de Segurança de Titularidade: Por conformidade bancária e fiscal, saques via PIX só são permitidos para contas do mesmo CPF/CNPJ do titular (${cliente?.pf?.cpf || cliente?.pj?.cnpj}). Não são permitidos saques para terceiros.`,
-      );
+    const bloqueio = await this.motivoBloqueioSaque(organizador.clienteId, organizador);
+    if (bloqueio) {
+      throw new BadRequestException(bloqueio);
     }
 
-    const chaveDestinoFinal = organizador.chavePix || cpfCnpjTitular;
+    const apiKeySubconta = decifrarCredencial(organizador.asaasApiKey);
+    if (!apiKeySubconta) {
+      throw new BadRequestException(
+        'Não foi possível acessar sua conta de recebimento. Contate o suporte.',
+      );
+    }
 
     if (!Number.isFinite(valor) || valor <= 0) {
       throw new BadRequestException('Informe um valor de saque válido.');
     }
 
-    // Trava de saldo: antes o valor não era confrontado com o repasse disponível,
-    // então qualquer quantia podia ser solicitada.
-    const financeiro = await this.obterFinanceiro(usuarioId);
+    // Trava de saldo, agora contra o saldo real da subconta no Asaas.
     const valorArredondado = Number(valor.toFixed(2));
+    const saldoAsaas = await this.asaasService.consultarSaldoSubconta(apiKeySubconta);
 
-    if (valorArredondado > financeiro.saldoDisponivel) {
+    if (saldoAsaas === null) {
       throw new BadRequestException(
-        `Saldo insuficiente. Disponível para saque: R$ ${financeiro.saldoDisponivel.toFixed(2)}.`,
+        'Não foi possível consultar seu saldo no momento. Tente novamente em instantes.',
+      );
+    }
+
+    if (valorArredondado > saldoAsaas) {
+      throw new BadRequestException(
+        `Saldo insuficiente. Disponível para saque: R$ ${saldoAsaas.toFixed(2)}.`,
       );
     }
 
@@ -1745,8 +1802,8 @@ export class OrganizadorService {
     try {
       resSaque = await this.asaasService.solicitarSaquePix({
         valor: valorArredondado,
-        chavePix: chaveDestinoFinal,
-        walletId: organizador.asaasWalletId,
+        cpfCnpjTitular: chaveDestinoFinal,
+        apiKeySubconta,
       });
     } catch (err) {
       // Libera o saldo reservado: saques FALHOU não entram no total sacado.
@@ -1787,9 +1844,7 @@ export class OrganizadorService {
         saqueId: saque.id,
         transferId: resSaque.transferId,
         chaveDestino: chaveDestinoFinal,
-        saldoRestante: Number(
-          (financeiro.saldoDisponivel - valorArredondado).toFixed(2),
-        ),
+        saldoRestante: Number((saldoAsaas - valorArredondado).toFixed(2)),
         organizadorId: organizador.id,
       },
       usuarioId,
@@ -1801,9 +1856,7 @@ export class OrganizadorService {
       transferId: resSaque.transferId,
       chaveDestino: `CPF/CNPJ Titular: ${cliente?.pf?.cpf || cliente?.pj?.cnpj} (${chaveDestinoFinal})`,
       valor: valorArredondado,
-      saldoRestante: Number(
-        (financeiro.saldoDisponivel - valorArredondado).toFixed(2),
-      ),
+      saldoRestante: Number((saldoAsaas - valorArredondado).toFixed(2)),
     };
   }
 

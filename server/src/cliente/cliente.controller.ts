@@ -25,11 +25,66 @@ import { CreateClientePjDto } from './dto/create-cliente-pj.dto';
 import { CreateEnderecoDto } from './dto/create-endereco.dto';
 import { UpdateClientePfDto } from './dto/update-cliente-pf.dto';
 import { UpdateClientePjDto } from './dto/update-cliente-pj.dto';
+import { SolicitarAlteracaoDocumentoDto } from './dto/solicitar-alteracao-documento.dto';
+import { AlteracaoDocumentoService } from './alteracao-documento.service';
 
 @UseGuards(JwtAuthGuard)
 @Controller('clientes/me')
 export class ClienteController {
-  constructor(private readonly clienteService: ClienteService) {}
+  constructor(
+    private readonly clienteService: ClienteService,
+    private readonly alteracaoDocumentoService: AlteracaoDocumentoService,
+  ) {}
+
+  /**
+   * CPF/CNPJ nao e editavel no perfil: e ele que define para qual conta o
+   * organizador consegue sacar. A troca passa por aqui, com foto do documento,
+   * e so vale depois da aprovacao do admin.
+   */
+  @Get('alteracao-documento')
+  listarAlteracoesDocumento(@CurrentUser() user: AuthenticatedUser) {
+    return this.alteracaoDocumentoService.listarMinhas(user.userId);
+  }
+
+  @HttpCode(HttpStatus.CREATED)
+  @Post('alteracao-documento')
+  @UseInterceptors(
+    FileInterceptor('documento', {
+      storage: diskStorage({
+        destination: './uploads/documentos',
+        filename: (_req, file, callback) => {
+          const sufixo = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+          callback(null, `doc-titular-${sufixo}${extname(file.originalname)}`);
+        },
+      }),
+      limits: { fileSize: 10 * 1024 * 1024 },
+      fileFilter: (_req, file, callback) => {
+        if (!file.mimetype.startsWith('image/') && file.mimetype !== 'application/pdf') {
+          callback(new BadRequestException('Envie uma imagem ou um PDF.'), false);
+          return;
+        }
+        callback(null, true);
+      },
+    }),
+  )
+  solicitarAlteracaoDocumento(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SolicitarAlteracaoDocumentoDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException(
+        'Envie a foto do documento que comprova o novo CPF/CNPJ.',
+      );
+    }
+
+    return this.alteracaoDocumentoService.solicitar(
+      user.userId,
+      dto.documentoNovo,
+      `/uploads/documentos/${file.filename}`,
+      dto.motivo,
+    );
+  }
 
   @Get()
   getMe(@CurrentUser() user: AuthenticatedUser) {

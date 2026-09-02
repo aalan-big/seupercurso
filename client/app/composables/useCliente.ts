@@ -79,9 +79,9 @@ export interface CreateEnderecoInput {
   pais?: string
 }
 
+/** O CPF nao entra aqui: trocar exige solicitacao com documento aprovada pelo admin. */
 export interface UpdateClientePfInput {
   nomeCompleto?: string
-  cpf?: string
   dataNascimento?: string
   genero?: 'MASCULINO' | 'FEMININO' | 'OUTRO'
   pcd?: boolean

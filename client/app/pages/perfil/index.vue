@@ -238,7 +238,9 @@ async function salvarAtleta() {
 
   salvandoAtleta.value = true
   try {
-    await updatePessoaFisica({ ...atletaForm })
+    // O CPF nao e mais aceito no update: trocar exige solicitacao com documento.
+    const { cpf: _cpf, ...dadosEditaveis } = atletaForm
+    await updatePessoaFisica({ ...dadosEditaveis })
     if (atletaForm.pcd && documentoPcd.value) {
       await uploadDocumentoPcd(documentoPcd.value)
     }
@@ -468,12 +470,15 @@ async function salvarEndereco() {
               <label class="mb-1 block text-sm font-semibold text-slate-700">CPF</label>
               <input
                 :value="atletaForm.cpf"
-                @input="formatarCpf"
                 type="text"
-                inputmode="numeric"
-                required
-                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+                readonly
+                disabled
+                class="w-full cursor-not-allowed rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-500"
               />
+              <p class="mt-1.5 text-xs text-slate-500">
+                O CPF define para qual conta um organizador pode sacar, por isso não é editável
+                aqui. Para corrigir, solicite a alteração enviando a foto do documento.
+              </p>
             </div>
             <div>
               <label class="mb-1 block text-sm font-semibold text-slate-700">Nascimento</label>

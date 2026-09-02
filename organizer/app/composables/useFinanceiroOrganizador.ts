@@ -14,8 +14,14 @@ export interface FinanceiroOrganizador {
   totalRepasse: number
   /** Soma dos saques ja solicitados (processando + concluidos). */
   totalSacado: number
-  /** Repasse ainda disponivel para saque: totalRepasse - totalSacado. */
+  /** Saldo real na subconta Asaas; null quando a subconta ainda nao existe. */
+  saldoAsaas: number | null
+  /** O que pode ser sacado agora (espelha saldoAsaas). */
   saldoDisponivel: number
+  /** false enquanto a subconta do organizador nao estiver criada. */
+  subcontaAtiva: boolean
+  /** Motivo que impede o saque agora, ou null quando esta liberado. */
+  bloqueioSaque: string | null
   porEvento: ResumoEventoFinanceiro[]
 }
 
