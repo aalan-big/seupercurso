@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MetodoPagamento } from '../generated/prisma/enums';
+import { PrismaService } from '../prisma/prisma.service';
 
 /** Tarifa cobrada pelo gateway: um percentual sobre a transação mais um valor fixo. */
 export interface TarifaGateway {
@@ -38,7 +39,31 @@ export interface TabelaTarifas {
 export class TarifaService {
   private readonly logger = new Logger(TarifaService.name);
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {}
+
+  /**
+   * Comissao repassada ao atleta como taxa de servico, quando o organizador
+   * escolheu nao absorve-la. Zero quando ele absorve — o padrao.
+   */
+  async calcularTaxaServico(valorBase: number, eventoId?: string): Promise<number> {
+    if (!eventoId || !valorBase || valorBase <= 0) return 0;
+
+    const evento = await this.prisma.evento.findUnique({
+      where: { id: eventoId },
+      select: {
+        comissaoPagaPeloAtleta: true,
+        organizador: { select: { comissaoPercentual: true } },
+      },
+    });
+
+    if (!evento?.comissaoPagaPeloAtleta) return 0;
+
+    const percentual = Number(evento.organizador?.comissaoPercentual ?? 10);
+    return Number((valorBase * (percentual / 100)).toFixed(2));
+  }
 
   obterTabela(): TabelaTarifas {
     return {

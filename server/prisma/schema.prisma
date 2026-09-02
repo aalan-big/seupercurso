@@ -254,6 +254,10 @@ model Evento {
   taxaRepassadaAtleta     Boolean      @default(false)
   aceitaPix               Boolean      @default(true)
   aceitaCartao            Boolean      @default(true)
+  /// Quem paga a comissao da plataforma. Falso (padrao): sai do repasse do
+  /// organizador. Verdadeiro: e somada ao valor pago pelo atleta, como taxa
+  /// de servico, e o organizador recebe o preco cheio da inscricao.
+  comissaoPagaPeloAtleta  Boolean      @default(false)
   dataInicio              DateTime
   dataFim                 DateTime
   local                   String

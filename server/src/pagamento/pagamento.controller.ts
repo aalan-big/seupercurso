@@ -36,22 +36,32 @@ export class PagamentoController {
    * lugares e qualquer mudanca de tarifa exigia lembrar de todos.
    */
   @Get('tarifas')
-  obterTarifas(@Query('valorBase') valorBase?: string) {
+  async obterTarifas(
+    @Query('valorBase') valorBase?: string,
+    @Query('eventoId') eventoId?: string,
+  ) {
     const base = Number(valorBase);
     const tabela = this.tarifaService.obterTabela();
 
+    if (!Number.isFinite(base) || base <= 0) return tabela;
+
+    // A comissao entra no valor do atleta apenas quando o organizador escolheu
+    // repassa-la; e o que o checkout mostra como "taxa de servico".
+    const taxaServico = await this.tarifaService.calcularTaxaServico(
+      base,
+      eventoId,
+    );
+    const comTaxa = Number((base + taxaServico).toFixed(2));
+
     return {
       ...tabela,
-      ...(Number.isFinite(base) && base > 0
-        ? {
-            pixTotal: this.tarifaService.calcularValorCobrado(
-              base,
-              MetodoPagamento.PIX,
-            ),
-            pixTarifa: this.tarifaService.estimarTarifa(base, MetodoPagamento.PIX),
-            parcelamento: this.tarifaService.calcularOpcoesParcelamento(base),
-          }
-        : {}),
+      taxaServico,
+      pixTotal: this.tarifaService.calcularValorCobrado(
+        comTaxa,
+        MetodoPagamento.PIX,
+      ),
+      pixTarifa: this.tarifaService.estimarTarifa(comTaxa, MetodoPagamento.PIX),
+      parcelamento: this.tarifaService.calcularOpcoesParcelamento(comTaxa),
     };
   }
 

@@ -70,6 +70,14 @@ export class UpdateEventoDto {
   @IsBoolean()
   aceitaCartao?: boolean;
 
+  /**
+   * Quem paga a comissão da plataforma: false (padrão) desconta do repasse do
+   * organizador; true soma ao valor do atleta como taxa de serviço.
+   */
+  @IsOptional()
+  @IsBoolean()
+  comissaoPagaPeloAtleta?: boolean;
+
   @IsOptional()
   @IsNumber()
   @Min(0.01)

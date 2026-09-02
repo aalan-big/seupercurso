@@ -118,7 +118,7 @@ watch(
       return
     }
     try {
-      tarifas.value = await buscarTarifas(base)
+      tarifas.value = await buscarTarifas(base, inscricaoAtualPagamento.value?.categoria?.modalidade?.evento?.id)
     } catch {
       tarifas.value = null
     }

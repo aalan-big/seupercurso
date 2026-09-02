@@ -1164,6 +1164,14 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                 </div>
 
                 <div
+                  v-if="taxaServico > 0"
+                  class="flex justify-between items-center text-xs font-semibold text-slate-500"
+                >
+                  <span>Taxa de serviço</span>
+                  <span>R$ {{ Number(taxaServico).toFixed(2) }}</span>
+                </div>
+
+                <div
                   v-if="metodoPagamentoSelecionado === 'PIX' && taxaPix > 0"
                   class="flex justify-between items-center text-xs font-semibold text-slate-500"
                 >

@@ -9,6 +9,8 @@ export interface TabelaTarifas {
   cartao: { percentual: number; fixo: number }
   maxParcelas: number
   valorMinimoParcela: number
+  /** Comissao repassada ao atleta, quando o organizador escolheu nao absorve-la. */
+  taxaServico?: number
   /** Presentes quando `valorBase` e informado. */
   pixTotal?: number
   pixTarifa?: number
@@ -25,9 +27,9 @@ export interface TabelaTarifas {
 export function useTarifas() {
   const api = useApi()
 
-  async function buscar(valorBase?: number) {
+  async function buscar(valorBase?: number, eventoId?: string) {
     return api<TabelaTarifas>('/pagamentos/tarifas', {
-      query: valorBase && valorBase > 0 ? { valorBase } : undefined
+      query: valorBase && valorBase > 0 ? { valorBase, eventoId } : undefined
     })
   }
 

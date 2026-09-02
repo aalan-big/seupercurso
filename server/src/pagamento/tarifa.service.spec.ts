@@ -1,7 +1,7 @@
 import { TarifaService } from './tarifa.service';
 import { MetodoPagamento } from '../generated/prisma/enums';
 
-const svc = new TarifaService({ get: () => undefined } as any);
+const svc = new TarifaService({ get: () => undefined } as any, {} as any);
 
 describe('auditoria do repasse da tarifa', () => {
   const casos = [20, 50, 80, 150];
@@ -63,5 +63,27 @@ describe('auditoria do repasse da tarifa', () => {
     expect(applicationFee).toBe(15);
     // O organizador fica com o valor da inscricao menos a comissao.
     expect(organizador).toBe(135);
+  });
+
+  it('quando o organizador repassa, o atleta paga a comissao e ele recebe o preco cheio', () => {
+    const base = 100;
+    const comissao = 10;
+
+    // Absorvendo: o atleta paga so a inscricao + tarifa.
+    const absorve = svc.calcularValorCobrado(base, MetodoPagamento.PIX);
+    const sobraAbsorve = absorve - absorve * 0.0099;
+    const organizadorAbsorve = Number((sobraAbsorve - comissao).toFixed(2));
+
+    // Repassando: a comissao entra no valor cobrado como taxa de servico.
+    const repassa = svc.calcularValorCobrado(base + comissao, MetodoPagamento.PIX);
+    const sobraRepassa = repassa - repassa * 0.0099;
+    const organizadorRepassa = Number((sobraRepassa - comissao).toFixed(2));
+
+    console.log('ABSORVE  atleta paga ' + absorve.toFixed(2) + ' | organizador recebe ' + organizadorAbsorve.toFixed(2));
+    console.log('REPASSA  atleta paga ' + repassa.toFixed(2) + ' | organizador recebe ' + organizadorRepassa.toFixed(2));
+
+    expect(organizadorAbsorve).toBe(90);
+    expect(organizadorRepassa).toBe(100);
+    // Nos dois casos a plataforma recebe os mesmos R$ 10.
   });
 });

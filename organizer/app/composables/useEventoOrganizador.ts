@@ -62,6 +62,7 @@ export interface EventoOrganizador {
   taxaRepassadaAtleta: boolean
   aceitaPix: boolean
   aceitaCartao: boolean
+  comissaoPagaPeloAtleta: boolean
   dataInicio: string
   dataFim: string
   local: string
@@ -81,6 +82,7 @@ export interface EventoOrganizadorInput {
   descricao?: string
   aceitaPix?: boolean
   aceitaCartao?: boolean
+  comissaoPagaPeloAtleta?: boolean
   regulamentoUrl?: string
   termoResponsabilidade?: string
   retiradaKitLocal?: string

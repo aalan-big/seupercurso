@@ -139,10 +139,17 @@ export class PagamentoService {
 
     const parcelas = Math.max(1, dto.parcelas || 1);
 
-    // A tarifa do gateway é repassada ao atleta, de modo que sobre exatamente o
-    // valor da inscrição para dividir entre organizador e plataforma.
+    // Quem paga a comissão é escolha do organizador, por evento. Absorvendo,
+    // ela sai do repasse dele; repassando, vira taxa de serviço somada ao valor
+    // do atleta e o organizador recebe o preço cheio da inscrição.
+    const valorAntesDaTarifa = evento.comissaoPagaPeloAtleta
+      ? Number((valorBaseTotal + comissaoPlataforma).toFixed(2))
+      : valorBaseTotal;
+
+    // A tarifa do gateway é sempre do atleta, nos dois casos: o gross-up faz
+    // sobrar exatamente o valor a dividir entre organizador e plataforma.
     const valorCobrado = this.tarifaService.calcularValorCobrado(
-      valorBaseTotal,
+      valorAntesDaTarifa,
       dto.metodo,
       parcelas,
     );
@@ -239,6 +246,7 @@ export class PagamentoService {
         valorBase: valorBaseTotal,
         valorCobrado,
         comissaoPlataforma,
+        comissaoPagaPeloAtleta: evento.comissaoPagaPeloAtleta,
         gateway: this.gateway.nome,
       },
       usuarioId,

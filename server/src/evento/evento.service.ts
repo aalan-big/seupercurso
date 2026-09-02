@@ -18,6 +18,7 @@ const RESUMO_SELECT = {
   taxaRepassadaAtleta: true,
   aceitaPix: true,
   aceitaCartao: true,
+  comissaoPagaPeloAtleta: true,
 } as const;
 
 @Injectable()

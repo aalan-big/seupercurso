@@ -84,6 +84,7 @@ const form = reactive({
   taxaRepassadaAtleta: props.evento?.taxaRepassadaAtleta ?? true,
   aceitaPix: props.evento?.aceitaPix ?? true,
   aceitaCartao: props.evento?.aceitaCartao ?? true,
+  comissaoPagaPeloAtleta: props.evento?.comissaoPagaPeloAtleta ?? false,
   status: props.evento?.status ?? 'RASCUNHO'
 })
 
@@ -238,6 +239,7 @@ const temAlteracoes = computed(() => {
     form.taxaRepassadaAtleta !== (props.evento.taxaRepassadaAtleta ?? true) ||
     form.aceitaPix !== (props.evento.aceitaPix ?? true) ||
     form.aceitaCartao !== (props.evento.aceitaCartao ?? true) ||
+    form.comissaoPagaPeloAtleta !== (props.evento.comissaoPagaPeloAtleta ?? false) ||
     form.status !== (props.evento.status ?? 'RASCUNHO')
   )
 })
@@ -270,6 +272,7 @@ watch(
       form.taxaRepassadaAtleta = ev.taxaRepassadaAtleta ?? true
       form.aceitaPix = ev.aceitaPix ?? true
       form.aceitaCartao = ev.aceitaCartao ?? true
+      form.comissaoPagaPeloAtleta = ev.comissaoPagaPeloAtleta ?? false
       form.status = ev.status ?? 'RASCUNHO'
     }
   },
@@ -310,7 +313,8 @@ function onSubmit() {
     permiteTransferencia: form.permiteTransferencia,
     taxaRepassadaAtleta: form.taxaRepassadaAtleta,
     aceitaPix: form.aceitaPix,
-    aceitaCartao: form.aceitaCartao
+    aceitaCartao: form.aceitaCartao,
+    comissaoPagaPeloAtleta: form.comissaoPagaPeloAtleta
   }
   if (props.modoEdicao) payload.status = form.status
   emit('submit', payload, arquivoRegulamento.value)
@@ -362,6 +366,59 @@ function onSubmit() {
             <p class="text-[11px] text-slate-500 font-normal">Permite pagamento parcelado via cartão.</p>
           </div>
         </label>
+      </div>
+
+      <!-- Quem paga a comissão da plataforma -->
+      <div class="pt-4 mt-4 border-t border-slate-200 space-y-3">
+        <p class="text-xs font-bold text-slate-800">Taxa da plataforma</p>
+        <p class="text-xs text-slate-600">
+          Escolha quem paga a comissão do SeuPercurso sobre este evento:
+        </p>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label
+            class="flex items-start gap-3 rounded-xl border p-3.5 cursor-pointer transition bg-white shadow-2xs"
+            :class="!form.comissaoPagaPeloAtleta ? 'border-amber-500 ring-2 ring-amber-500/20' : 'border-slate-200 opacity-60'"
+          >
+            <input
+              v-model="form.comissaoPagaPeloAtleta"
+              type="radio"
+              :value="false"
+              class="mt-0.5 h-4 w-4 text-amber-500 accent-amber-500"
+            />
+            <div class="text-xs">
+              <p class="font-extrabold text-slate-900">Eu absorvo</p>
+              <p class="text-[11px] text-slate-500 font-normal">
+                O atleta paga o preço da inscrição e a comissão sai do seu repasse.
+                Numa inscrição de R$ 100, você recebe R$ 90.
+              </p>
+            </div>
+          </label>
+
+          <label
+            class="flex items-start gap-3 rounded-xl border p-3.5 cursor-pointer transition bg-white shadow-2xs"
+            :class="form.comissaoPagaPeloAtleta ? 'border-amber-500 ring-2 ring-amber-500/20' : 'border-slate-200 opacity-60'"
+          >
+            <input
+              v-model="form.comissaoPagaPeloAtleta"
+              type="radio"
+              :value="true"
+              class="mt-0.5 h-4 w-4 text-amber-500 accent-amber-500"
+            />
+            <div class="text-xs">
+              <p class="font-extrabold text-slate-900">O atleta paga</p>
+              <p class="text-[11px] text-slate-500 font-normal">
+                A comissão aparece como taxa de serviço no checkout e você recebe o preço
+                cheio. Numa inscrição de R$ 100, o atleta paga R$ 110 e você recebe R$ 100.
+              </p>
+            </div>
+          </label>
+        </div>
+
+        <p class="text-[11px] text-slate-500">
+          Em qualquer uma das opções, a tarifa do meio de pagamento é sempre somada ao
+          valor do atleta.
+        </p>
       </div>
     </div>
 
