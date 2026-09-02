@@ -4,18 +4,11 @@ export interface Organizador {
   status: 'PENDENTE' | 'APROVADO' | 'REJEITADO' | 'SUSPENSO'
   plano: string | null
   comissaoPercentual: string
-  chavePix: string | null
-  banco: string | null
-  agencia: string | null
-  conta: string | null
-  tipoConta: string | null
-  rendaFaturamentoMensal: string | null
-  tipoEmpresa: 'MEI' | 'LIMITED' | 'INDIVIDUAL' | 'ASSOCIATION' | null
-  emailRecebimento: string | null
   tipoPessoa?: 'PF' | 'PJ'
-  /** E-mail de login, usado como padrao da conta de recebimento. */
-  emailLogin?: string
-  asaasWalletId: string | null
+  emailLogin?: string | null
+  /** Conexao com o Mercado Pago; null enquanto o organizador nao autorizar. */
+  mpUserId: string | null
+  mpConectadoEm: string | null
   fotoRostoUrl: string | null
   documentoIdentidadeUrl: string | null
   motivoRevisao: string | null
@@ -61,23 +54,6 @@ export function useOrganizador() {
     return res
   }
 
-  async function atualizarDadosBancarios(input: {
-    chavePix?: string
-    banco?: string
-    agencia?: string
-    conta?: string
-    tipoConta?: string
-    rendaFaturamentoMensal?: number
-    tipoEmpresa?: string
-    emailRecebimento?: string
-  }) {
-    const res = await api<Organizador>('/organizadores/me/dados-bancarios', {
-      method: 'PATCH',
-      body: input
-    })
-    organizador.value = res
-    return res
-  }
 
   return {
     organizador,
@@ -85,6 +61,5 @@ export function useOrganizador() {
     fetchMe,
     uploadFotoRosto,
     uploadDocumentoIdentidade,
-    atualizarDadosBancarios
   }
 }

@@ -13,26 +13,14 @@ export interface FinanceiroOrganizador {
   comissaoPercentual: number
   totalArrecadado: number
   comissaoPlataforma: number
-  totalRepasse: number
-  /** Tarifas do gateway ja descontadas antes da divisao do split. */
+  /** Tarifas do gateway, ja embutidas no valor pago pelo atleta. */
   totalTaxaGateway: number
-  /** Soma dos saques ja solicitados (processando + concluidos). */
-  totalSacado: number
-  /** Saldo real na subconta Asaas; null quando a subconta ainda nao existe. */
-  saldoAsaas: number | null
-  /** O que pode ser sacado agora (espelha saldoAsaas). */
-  saldoDisponivel: number
-  /** false enquanto a subconta do organizador nao estiver criada. */
-  subcontaAtiva: boolean
-  /** Situacao da analise da subconta no Asaas; null quando nao ha subconta. */
-  statusSubconta: {
-    geral: string | null
-    documentacao: string | null
-    dadosComerciais: string | null
-    dadosBancarios: string | null
-  } | null
-  /** Motivo que impede o saque agora, ou null quando esta liberado. */
-  bloqueioSaque: string | null
+  totalRepasse: number
+  /** false enquanto o organizador nao autorizar a conta no Mercado Pago. */
+  contaConectada: boolean
+  conectadoEm: string | null
+  /** O que impede as vendas agora, ou null quando esta tudo certo. */
+  pendencia: string | null
   porEvento: ResumoEventoFinanceiro[]
 }
 

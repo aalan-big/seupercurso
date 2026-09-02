@@ -18,11 +18,10 @@ import {
   StatusOrganizador,
   StatusPagamento,
   StatusResultado,
-  StatusSaque,
   StatusSolicitacaoDocumento,
 } from '../generated/prisma/enums';
 import { montarSerieDiaria } from '../common/montar-serie-diaria';
-import { cifrarCredencial, decifrarCredencial } from '../common/cripto-credencial';
+import { MercadoPagoOAuthService } from '../pagamento/mercadopago/mercadopago-oauth.service';
 import { CreateEventoDto } from './dto/create-evento.dto';
 import { UpdateEventoDto } from './dto/update-evento.dto';
 import { CreateModalidadeDto } from './dto/create-modalidade.dto';
@@ -33,7 +32,6 @@ import { CreateLoteDto } from './dto/create-lote.dto';
 import { UpdateLoteDto } from './dto/update-lote.dto';
 import { DefinirPrecoDto } from './dto/definir-preco.dto';
 import { CreateCupomDto } from './dto/create-cupom.dto';
-import { UpdateDadosBancariosDto } from './dto/update-dados-bancarios.dto';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
 
@@ -55,7 +53,6 @@ function paraSegundos(tempo?: string): number | undefined {
   return undefined;
 }
 
-import { AsaasService } from '../pagamento/asaas.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { CategoriaAuditLog, NivelAuditLog } from '../generated/prisma/enums';
 
@@ -63,8 +60,8 @@ import { CategoriaAuditLog, NivelAuditLog } from '../generated/prisma/enums';
 export class OrganizadorService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly asaasService: AsaasService,
     private readonly auditLogService: AuditLogService,
+    private readonly mpOAuthService: MercadoPagoOAuthService,
   ) {}
 
   async solicitarCadastro(usuarioId: string) {
@@ -270,9 +267,8 @@ export class OrganizadorService {
 
     for (const pagamento of pagamentos) {
       const valor = Number(pagamento.valor);
-      // O Asaas desconta a tarifa antes de dividir, entao a comissao e o
-      // repasse incidem sobre o liquido. Calcular sobre o bruto fazia o painel
-      // prometer um repasse maior do que o saldo que aparece na subconta.
+      // A tarifa do gateway ja esta embutida no valor pago pelo atleta, entao
+      // comissao e repasse incidem sobre o liquido efetivamente recebido.
       const taxa = Number(pagamento.taxaGateway ?? 0);
       const baseDivisivel = Math.max(0, valor - taxa);
       const comissao = baseDivisivel * (percentual / 100);
@@ -297,97 +293,31 @@ export class OrganizadorService {
       porEvento.set(evento.id, atual);
     }
 
-    // Saques já solicitados precisam sair do saldo — sem isso o mesmo repasse
-    // poderia ser retirado várias vezes.
-    const saquesAgregados = await this.prisma.saque.aggregate({
-      where: {
-        organizadorId: organizador.id,
-        status: { in: [StatusSaque.PROCESSANDO, StatusSaque.CONCLUIDO] },
-      },
-      _sum: { valor: true },
-    });
-
     // Repasse real: bruto menos a tarifa do gateway e menos a comissao.
     const totalRepasse = totalArrecadado - totalTaxaGateway - comissaoPlataforma;
-    const totalSacado = Number(saquesAgregados._sum.valor ?? 0);
 
-    // O saldo sacável é o da subconta no Asaas, não o nosso cálculo: só ele
-    // conhece taxas, estornos e o prazo de liberação do cartão.
-    const apiKeySubconta = decifrarCredencial(organizador.asaasApiKey);
-    const [saldoAsaas, statusSubconta] = apiKeySubconta
-      ? await Promise.all([
-          this.asaasService.consultarSaldoSubconta(apiKeySubconta),
-          this.asaasService.consultarStatusSubconta(apiKeySubconta),
-        ])
-      : [null, null];
-
-    const bloqueio = await this.motivoBloqueioSaque(
-      organizador.clienteId,
-      organizador,
-      statusSubconta,
-    );
+    // Com o Mercado Pago o dinheiro cai direto na conta do organizador, entao
+    // nao existe saldo em custodia nossa nem fluxo de saque: o que ele precisa
+    // saber aqui e se a conta esta conectada para as vendas acontecerem.
+    const contaConectada = !!organizador.mpAccessToken;
 
     return {
       comissaoPercentual: percentual,
       totalArrecadado,
       comissaoPlataforma,
-      /** Tarifas do gateway ja descontadas antes da divisao do split. */
+      /** Tarifas do gateway, ja embutidas no valor pago pelo atleta. */
       totalTaxaGateway: Number(totalTaxaGateway.toFixed(2)),
       totalRepasse,
-      totalSacado,
-      /** Saldo real na subconta Asaas; null quando a subconta ainda não existe. */
-      saldoAsaas,
-      saldoDisponivel: saldoAsaas ?? 0,
-      subcontaAtiva: !!apiKeySubconta,
-      /** Situacao da analise da subconta no Asaas (KYC do gateway). */
-      statusSubconta,
-      bloqueioSaque: bloqueio,
+      contaConectada,
+      conectadoEm: organizador.mpConectadoEm,
+      pendencia: contaConectada
+        ? null
+        : 'Conecte sua conta do Mercado Pago para receber as inscrições. Enquanto isso, seus eventos não conseguem vender.',
       porEvento: Array.from(porEvento.values()).map((e) => ({
         ...e,
         repasse: e.totalArrecadado - e.taxaGateway - e.comissaoPlataforma,
       })),
     };
-  }
-
-  /**
-   * Motivo que impede o saque agora, ou null quando está liberado.
-   * Uma troca de CPF/CNPJ pendente congela os saques: é justamente o cenário em
-   * que alguém tentaria redirecionar o dinheiro para outro titular.
-   */
-  private async motivoBloqueioSaque(
-    clienteId: string,
-    organizador: { asaasApiKey: string | null; asaasWalletId: string | null },
-    statusSubconta?: {
-      geral: string | null;
-      documentacao: string | null;
-    } | null,
-  ): Promise<string | null> {
-    if (!organizador.asaasWalletId) {
-      return 'Sua conta de recebimento ainda não foi criada. Complete os dados bancários.';
-    }
-
-    if (!organizador.asaasApiKey) {
-      return 'Sua conta de recebimento está sem credencial de acesso. Contate o suporte.';
-    }
-
-    // O Asaas analisa os documentos da subconta antes de liberar PIX. Sem este
-    // aviso o organizador so descobria o bloqueio ao confirmar a transferencia.
-    if (statusSubconta?.geral && statusSubconta.geral !== 'APPROVED') {
-      return statusSubconta.documentacao === 'REJECTED'
-        ? 'O Asaas recusou os documentos da sua conta de recebimento. Verifique o e-mail cadastrado e reenvie a documentação.'
-        : 'Sua conta de recebimento ainda está em análise pelo Asaas. Envie a documentação pelo e-mail que o Asaas mandou e aguarde a aprovação para sacar.';
-    }
-
-    const trocaPendente = await this.prisma.solicitacaoAlteracaoDocumento.findFirst({
-      where: { clienteId, status: StatusSolicitacaoDocumento.PENDENTE },
-      select: { id: true },
-    });
-
-    if (trocaPendente) {
-      return 'Há uma solicitação de alteração de CPF/CNPJ em análise. Os saques ficam bloqueados até a conclusão.';
-    }
-
-    return null;
   }
 
   async criarEvento(usuarioId: string, dto: CreateEventoDto) {
@@ -1681,231 +1611,54 @@ export class OrganizadorService {
   }
 
 
-  async atualizarDadosBancarios(usuarioId: string, dto: UpdateDadosBancariosDto) {
-    const organizador = await this.getOrganizadorOuFalhar(usuarioId);
-
-    const atualizado = await this.prisma.organizador.update({
-      where: { id: organizador.id },
-      data: { ...dto },
-    });
-
-    // Sem esse dado o Asaas recusa a subconta e o organizador ficaria sem
-    // receber o split, sem nenhum aviso — por isso falhamos de forma explícita.
-    if (
-      !atualizado.asaasWalletId &&
-      Number(atualizado.rendaFaturamentoMensal ?? 0) <= 0
-    ) {
-      throw new BadRequestException(
-        'Informe a renda mensal (pessoa física) ou o faturamento mensal (pessoa jurídica). O Asaas exige esse dado para abrir sua conta de recebimento.',
-      );
-    }
-
-    const clientePj = await this.prisma.clientePj.findUnique({
-      where: { clienteId: organizador.clienteId },
-      select: { id: true },
-    });
-
-    if (clientePj && !atualizado.asaasWalletId && !atualizado.tipoEmpresa) {
-      throw new BadRequestException(
-        'Informe a natureza jurídica da empresa (MEI, LTDA, Empresário Individual ou Associação). O Asaas exige esse dado para abrir a conta de recebimento de pessoa jurídica.',
-      );
-    }
-
-    // A subconta Asaas só é criada depois que o admin aprovar o organizador.
-    return this.garantirSubcontaAsaas(organizador.id);
-  }
-
-  // Cria a subconta Asaas assim que o organizador estiver aprovado e já tiver dados bancários salvos.
-  // Chamado tanto ao salvar dados bancários quanto no momento em que o admin aprova o cadastro.
-  async garantirSubcontaAsaas(organizadorId: string) {
-    const organizador = await this.prisma.organizador.findUnique({
-      where: { id: organizadorId },
-    });
-    if (!organizador) {
-      throw new NotFoundException('Organizador não encontrado.');
-    }
-
-    // A chave PIX de destino nao e mais escolhida pelo organizador: o saque vai
-    // sempre para o CPF/CNPJ do cadastro. O que falta checar aqui e a renda.
-    const temRenda = Number(organizador.rendaFaturamentoMensal ?? 0) > 0;
-    if (
-      organizador.asaasWalletId ||
-      organizador.status !== StatusOrganizador.APROVADO ||
-      !temRenda
-    ) {
-      return organizador;
-    }
-
-    const cliente = await this.prisma.cliente.findUnique({
-      where: { id: organizador.clienteId },
-      include: { pf: true, pj: true, usuario: true, enderecos: true },
-    });
-
-    const nome = cliente?.pf?.nomeCompleto || cliente?.pj?.razaoSocial || cliente?.usuario.email || 'Organizador Eventos';
-    const cpfCnpj = cliente?.pf?.cpf || cliente?.pj?.cnpj || '00000000000';
-    // O Asaas exige e-mail único por conta: quem já tem conta lá (inclusive a
-    // conta-mãe da plataforma) precisa de um e-mail dedicado para a subconta.
-    const email =
-      organizador.emailRecebimento ||
-      cliente?.usuario.email ||
-      'organizador@seupercurso.com.br';
-    const endereco = cliente?.enderecos[0];
-
-    // PJ sem natureza jurídica seria recusado pelo Asaas; espera o dado chegar.
-    if (cliente?.pj && !organizador.tipoEmpresa) {
-      return organizador;
-    }
-
-    const asaasSub = await this.asaasService.criarSubcontaOrganizador({
-      nome,
-      email,
-      cpfCnpj,
-      rendaFaturamentoMensal: Number(organizador.rendaFaturamentoMensal),
-      tipoEmpresa: organizador.tipoEmpresa,
-      chavePix: organizador.chavePix ?? undefined,
-      telefone: cliente?.pf?.celular || cliente?.pj?.celularComercial,
-      dataNascimento: cliente?.pf?.dataNascimento?.toISOString().slice(0, 10),
-      cep: endereco?.cep,
-      logradouro: endereco?.logradouro,
-      numero: endereco?.numero,
-      complemento: endereco?.complemento ?? undefined,
-      bairro: endereco?.bairro,
-    });
-
-    return this.prisma.organizador.update({
-      where: { id: organizador.id },
-      data: {
-        asaasAccountId: asaasSub.accountId,
-        asaasWalletId: asaasSub.walletId,
-        // Cifrada: dá acesso ao saldo do organizador no Asaas.
-        asaasApiKey: asaasSub.apiKey ? cifrarCredencial(asaasSub.apiKey) : null,
-      },
-    });
-  }
-
-  async solicitarSaque(usuarioId: string, valor: number) {
+  /** URL para o organizador autorizar a nossa aplicacao no Mercado Pago. */
+  async obterUrlConexaoMercadoPago(usuarioId: string) {
     const organizador = await this.getOrganizadorAprovadoOuFalhar(usuarioId);
 
-    const cliente = await this.prisma.cliente.findUnique({
-      where: { id: organizador.clienteId },
-      include: { pf: true, pj: true },
-    });
+    return {
+      url: this.mpOAuthService.montarUrlAutorizacao(organizador.id),
+    };
+  }
 
-    const cpfCnpjTitular = (cliente?.pf?.cpf || cliente?.pj?.cnpj || '').replace(/\D/g, '');
+  /**
+   * Conclui a conexao com o codigo devolvido pelo Mercado Pago.
+   *
+   * O `state` da autorizacao carrega o id do organizador; conferimos contra o
+   * usuario logado para ninguem conectar a conta de outra pessoa.
+   */
+  async conectarMercadoPago(usuarioId: string, code: string, state: string) {
+    const organizador = await this.getOrganizadorAprovadoOuFalhar(usuarioId);
 
-    if (!cpfCnpjTitular) {
-      throw new BadRequestException('CPF ou CNPJ do titular não encontrado no cadastro.');
+    if (state && state !== organizador.id) {
+      throw new ForbiddenException('Autorização não pertence a este organizador.');
     }
 
-    // Trava de titularidade: o destino não é escolhido pelo organizador — é
-    // sempre a chave PIX do CPF/CNPJ cadastrado. Como a chave é o próprio
-    // documento, o Banco Central garante que o crédito cai em conta desse mesmo
-    // titular, em qualquer banco. Não há como direcionar para terceiro.
-    const chaveDestinoFinal = cpfCnpjTitular;
-
-    const bloqueio = await this.motivoBloqueioSaque(organizador.clienteId, organizador);
-    if (bloqueio) {
-      throw new BadRequestException(bloqueio);
-    }
-
-    const apiKeySubconta = decifrarCredencial(organizador.asaasApiKey);
-    if (!apiKeySubconta) {
-      throw new BadRequestException(
-        'Não foi possível acessar sua conta de recebimento. Contate o suporte.',
-      );
-    }
-
-    if (!Number.isFinite(valor) || valor <= 0) {
-      throw new BadRequestException('Informe um valor de saque válido.');
-    }
-
-    // Trava de saldo, agora contra o saldo real da subconta no Asaas.
-    const valorArredondado = Number(valor.toFixed(2));
-    const saldoAsaas = await this.asaasService.consultarSaldoSubconta(apiKeySubconta);
-
-    if (saldoAsaas === null) {
-      throw new BadRequestException(
-        'Não foi possível consultar seu saldo no momento. Tente novamente em instantes.',
-      );
-    }
-
-    if (valorArredondado > saldoAsaas) {
-      throw new BadRequestException(
-        `Saldo insuficiente. Disponível para saque: R$ ${saldoAsaas.toFixed(2)}.`,
-      );
-    }
-
-    // Registra o saque antes de chamar o gateway para que o saldo já fique
-    // reservado — duas solicitações simultâneas não podem sacar o mesmo dinheiro.
-    const saque = await this.prisma.saque.create({
-      data: {
-        organizadorId: organizador.id,
-        valor: valorArredondado,
-        chaveDestino: chaveDestinoFinal,
-        status: StatusSaque.PROCESSANDO,
-      },
-    });
-
-    let resSaque: { transferId: string; status: string; valor: number };
-    try {
-      resSaque = await this.asaasService.solicitarSaquePix({
-        valor: valorArredondado,
-        cpfCnpjTitular: chaveDestinoFinal,
-        apiKeySubconta,
-      });
-    } catch (err) {
-      // Libera o saldo reservado: saques FALHOU não entram no total sacado.
-      await this.prisma.saque.update({
-        where: { id: saque.id },
-        data: {
-          status: StatusSaque.FALHOU,
-          motivoFalha: err instanceof Error ? err.message : String(err),
-        },
-      });
-
-      this.auditLogService.log({
-        categoria: CategoriaAuditLog.FINANCEIRO,
-        nivel: NivelAuditLog.ERROR,
-        mensagem: `Falha ao processar saque PIX de R$ ${valorArredondado.toFixed(2)}`,
-        detalhes: {
-          saqueId: saque.id,
-          organizadorId: organizador.id,
-          erro: err instanceof Error ? err.message : String(err),
-        },
-        usuarioId,
-      });
-
-      throw err;
-    }
-
-    await this.prisma.saque.update({
-      where: { id: saque.id },
-      data: { status: StatusSaque.CONCLUIDO, transferId: resSaque.transferId },
-    });
+    const atualizado = await this.mpOAuthService.conectar(organizador.id, code);
 
     this.auditLogService.log({
       categoria: CategoriaAuditLog.FINANCEIRO,
       nivel: NivelAuditLog.SUCCESS,
-      mensagem: `Solicitação de Saque PIX de R$ ${valorArredondado.toFixed(2)} processada`,
-      detalhes: {
-        valor: valorArredondado,
-        saqueId: saque.id,
-        transferId: resSaque.transferId,
-        chaveDestino: chaveDestinoFinal,
-        saldoRestante: Number((saldoAsaas - valorArredondado).toFixed(2)),
-        organizadorId: organizador.id,
-      },
+      mensagem: 'Conta do Mercado Pago conectada',
+      detalhes: { organizadorId: organizador.id, mpUserId: atualizado.mpUserId },
       usuarioId,
     });
 
-    return {
-      sucesso: true,
-      mensagem: `Saque de R$ ${valorArredondado.toFixed(2)} enviado para processamento via PIX com trava de titularidade ativada.`,
-      transferId: resSaque.transferId,
-      chaveDestino: `CPF/CNPJ Titular: ${cliente?.pf?.cpf || cliente?.pj?.cnpj} (${chaveDestinoFinal})`,
-      valor: valorArredondado,
-      saldoRestante: Number((saldoAsaas - valorArredondado).toFixed(2)),
-    };
+    return { conectado: true, conectadoEm: atualizado.mpConectadoEm };
+  }
+
+  async desconectarMercadoPago(usuarioId: string) {
+    const organizador = await this.getOrganizadorOuFalhar(usuarioId);
+    await this.mpOAuthService.desconectar(organizador.id);
+
+    this.auditLogService.log({
+      categoria: CategoriaAuditLog.FINANCEIRO,
+      nivel: NivelAuditLog.WARN,
+      mensagem: 'Conta do Mercado Pago desconectada; o organizador para de vender',
+      detalhes: { organizadorId: organizador.id },
+      usuarioId,
+    });
+
+    return { conectado: false };
   }
 
   private async getOrganizadorOuFalhar(usuarioId: string) {

@@ -7,7 +7,8 @@ import {
 import { Test } from '@nestjs/testing';
 import { PagamentoService } from './pagamento.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { AsaasService } from './asaas.service';
+import { GATEWAY_PAGAMENTO } from './gateway.port';
+import { MercadoPagoOAuthService } from './mercadopago/mercadopago-oauth.service';
 import { EmailService } from '../email/email.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificacaoAdminService } from '../admin/notificacao-admin.service';
@@ -17,7 +18,8 @@ import { ConfigService } from '@nestjs/config';
 describe('PagamentoService', () => {
   let service: PagamentoService;
   let prisma: any;
-  let asaasService: any;
+  let gateway: any;
+  let mpOAuth: any;
   let emailService: any;
   let auditLogService: any;
   let notificacaoAdminService: any;
@@ -34,6 +36,7 @@ describe('PagamentoService', () => {
       modalidade: {
         eventoId: 'evento-1',
         evento: {
+          organizadorId: 'organizador-1',
           nome: 'Corrida Teste',
           dataInicio: new Date(),
           local: 'Rua Principal',
@@ -67,17 +70,21 @@ describe('PagamentoService', () => {
       $transaction: jest.fn(),
     };
 
-    asaasService = {
+    mpOAuth = { obterTokenValido: jest.fn().mockResolvedValue('TOKEN-ORG') };
+
+    gateway = {
+      nome: 'mercadopago',
       gerarCobrancaPix: jest.fn().mockResolvedValue({
-        asaasPaymentId: 'pay_asaas_123',
+        gatewayPaymentId: 'mp_123',
+        status: 'PENDENTE',
         pixCopiaECola: 'pix_copia_e_cola',
         pixQrCodeUrl: 'https://qr.url',
       }),
       processarPagamentoCartao: jest.fn().mockResolvedValue({
-        asaasPaymentId: 'pay_asaas_456',
+        gatewayPaymentId: 'mp_456',
         status: 'APROVADO',
       }),
-      consultarPagamento: jest.fn().mockResolvedValue(null),
+      consultarCobranca: jest.fn().mockResolvedValue(null),
     };
 
     emailService = {
@@ -96,7 +103,8 @@ describe('PagamentoService', () => {
       providers: [
         PagamentoService,
         { provide: PrismaService, useValue: prisma },
-        { provide: AsaasService, useValue: asaasService },
+        { provide: GATEWAY_PAGAMENTO, useValue: gateway },
+        { provide: MercadoPagoOAuthService, useValue: mpOAuth },
         { provide: EmailService, useValue: emailService },
         { provide: AuditLogService, useValue: auditLogService },
         { provide: NotificacaoAdminService, useValue: notificacaoAdminService },
@@ -156,18 +164,18 @@ describe('PagamentoService', () => {
       );
     });
 
-    it('cria o pagamento com o gateway asaas', async () => {
+    it('cria o pagamento no gateway configurado', async () => {
       const resultado = await service.create(usuarioId, dto);
 
       expect(prisma.pagamento.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             inscricaoId: inscricaoPadrao.id,
-            // 60 de inscricao + R$ 1,99 de tarifa de PIX, paga pelo atleta
-            valor: 61.99,
+            // 60 de inscricao + 0,99% de tarifa de PIX, paga pelo atleta
+            valor: 60.6,
             metodo: 'PIX',
             status: 'PENDENTE',
-            gateway: 'asaas',
+            gateway: 'mercadopago',
           }),
         }),
       );
@@ -194,7 +202,7 @@ describe('PagamentoService', () => {
       await expect(service.create(usuarioId, dto)).rejects.toThrow(
         BadRequestException,
       );
-      expect(asaasService.gerarCobrancaPix).not.toHaveBeenCalled();
+      expect(gateway.gerarCobrancaPix).not.toHaveBeenCalled();
     });
 
     it('recusa cartão quando o evento não aceita cartão', async () => {
@@ -220,43 +228,58 @@ describe('PagamentoService', () => {
           metodo: 'CARTAO_CREDITO' as const,
         }),
       ).rejects.toThrow(BadRequestException);
-      expect(asaasService.processarPagamentoCartao).not.toHaveBeenCalled();
+      expect(gateway.processarPagamentoCartao).not.toHaveBeenCalled();
     });
 
-    it('repassa ao organizador o valor base menos a comissão, sem os juros do cartão', async () => {
+    it('retém apenas a comissão da plataforma, cobrando na conta do organizador', async () => {
       await service.create(usuarioId, dto);
 
-      expect(asaasService.gerarCobrancaPix).toHaveBeenCalledWith(
-        // base 60, comissão 10% => 90% do líquido para o organizador
-        expect.objectContaining({ valorLiquidoOrganizador: 54 }),
+      expect(gateway.gerarCobrancaPix).toHaveBeenCalledWith(
+        // base 60, comissão de 10% => R$ 6 para a plataforma; o restante fica
+        // com o organizador, na conta dele
+        expect.objectContaining({
+          comissaoPlataforma: 6,
+          tokenRecebedor: 'TOKEN-ORG',
+        }),
       );
+    });
+
+    it('recusa a cobrança quando o organizador não conectou a conta', async () => {
+      mpOAuth.obterTokenValido.mockResolvedValue(null);
+
+      await expect(service.create(usuarioId, dto)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(gateway.gerarCobrancaPix).not.toHaveBeenCalled();
     });
 
     it('cobra a tarifa do gateway do atleta, acima do valor da inscrição', async () => {
       await service.create(usuarioId, dto);
 
-      expect(asaasService.gerarCobrancaPix).toHaveBeenCalledWith(
-        // base 60 + tarifa fixa de PIX de R$ 1,99
-        expect.objectContaining({ valor: 61.99, valorLiquidoEsperado: 60 }),
+      // 60 / (1 - 0,0099): o gross-up faz sobrar exatamente 60 apos a tarifa
+      expect(gateway.gerarCobrancaPix).toHaveBeenCalledWith(
+        expect.objectContaining({ valor: 60.6 }),
       );
     });
 
     it('entrega ao organizador o mesmo valor no PIX e no cartão', async () => {
       await service.create(usuarioId, dto);
-      const noPix = asaasService.gerarCobrancaPix.mock.calls[0][0];
+      const noPix = gateway.gerarCobrancaPix.mock.calls[0][0];
 
       await service.create(usuarioId, {
         inscricaoId: 'inscricao-1',
         metodo: 'CARTAO_CREDITO' as const,
         parcelas: 6,
+        tokenCartao: 'tok_123',
       });
-      const noCartao = asaasService.processarPagamentoCartao.mock.calls[0][0];
+      const noCartao = gateway.processarPagamentoCartao.mock.calls[0][0];
 
       // O repasse nao pode depender do meio de pagamento: a tarifa e sempre do
-      // atleta, entao o organizador recebe base menos comissao nos dois casos.
-      expect(noPix.valorLiquidoOrganizador).toBe(54);
-      expect(noCartao.valorLiquidoOrganizador).toBe(54);
-      expect(noCartao.valorTotal).toBeGreaterThan(noPix.valor);
+      // atleta, entao a comissao retida e a mesma nos dois casos.
+      expect(noPix.comissaoPlataforma).toBe(6);
+      expect(noCartao.comissaoPlataforma).toBe(6);
+      // O cartao e mais caro, entao o atleta paga mais por ele.
+      expect(noCartao.valor).toBeGreaterThan(noPix.valor);
     });
   });
 
@@ -267,7 +290,7 @@ describe('PagamentoService', () => {
       valor: '60',
       inscricaoId: inscricaoPadrao.id,
       pedidoId: null,
-      asaasPaymentId: 'pay_asaas_123',
+      gatewayPaymentId: 'mp_123',
     };
 
     it('não reprocessa um pagamento já aprovado (webhook duplicado)', async () => {
@@ -277,7 +300,7 @@ describe('PagamentoService', () => {
       });
 
       const resultado = await service.confirmarPagamento({
-        asaasPaymentId: 'pay_asaas_123',
+        gatewayPaymentId: 'mp_123',
         valorPago: 60,
         origem: 'webhook',
       });
@@ -293,7 +316,7 @@ describe('PagamentoService', () => {
       prisma.pagamento.findFirst.mockResolvedValue(pagamentoPendente);
 
       const resultado = await service.confirmarPagamento({
-        asaasPaymentId: 'pay_asaas_123',
+        gatewayPaymentId: 'mp_123',
         valorPago: 1,
         origem: 'webhook',
       });
@@ -313,7 +336,7 @@ describe('PagamentoService', () => {
       });
 
       const resultado = await service.confirmarPagamento({
-        asaasPaymentId: 'pay_asaas_123',
+        gatewayPaymentId: 'mp_123',
         valorPago: 60,
         origem: 'webhook',
       });
@@ -360,7 +383,7 @@ describe('PagamentoService', () => {
     });
 
     it('marca como EXPIRADO um PIX vencido que o gateway não recebeu', async () => {
-      asaasService.consultarPagamento = jest
+      gateway.consultarCobranca = jest
         .fn()
         .mockResolvedValue({ status: 'PENDING', valor: 60 });
 
@@ -370,7 +393,7 @@ describe('PagamentoService', () => {
         inscricaoId: inscricaoPadrao.id,
         inscricao: { clienteId },
         pedido: null,
-        asaasPaymentId: 'pay_asaas_123',
+        gatewayPaymentId: 'mp_123',
         expiraEm: new Date(Date.now() - 1000),
       });
 

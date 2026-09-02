@@ -1,0 +1,218 @@
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../../prisma/prisma.service';
+import {
+  cifrarCredencial,
+  decifrarCredencial,
+} from '../../common/cripto-credencial';
+
+const API = 'https://api.mercadopago.com';
+const AUTORIZACAO = 'https://auth.mercadopago.com/authorization';
+
+/** Renova o token com folga, para nunca cobrar com credencial vencida. */
+const DIAS_ANTES_DE_RENOVAR = 15;
+
+/**
+ * Conexão da conta Mercado Pago do organizador.
+ *
+ * Diferente do Asaas, não criamos conta para ninguém: o organizador autoriza a
+ * nossa aplicação e passamos a cobrar em nome dele, retendo a comissão. O
+ * dinheiro cai na conta dele, e é lá que ele saca — por isso não existe mais
+ * fluxo de saque no nosso lado.
+ */
+@Injectable()
+export class MercadoPagoOAuthService {
+  private readonly logger = new Logger(MercadoPagoOAuthService.name);
+  private readonly clientId: string;
+  private readonly clientSecret: string;
+  private readonly redirectUri: string;
+
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {
+    this.clientId = (this.configService.get<string>('MP_CLIENT_ID') || '').trim();
+    this.clientSecret = (
+      this.configService.get<string>('MP_CLIENT_SECRET') || ''
+    ).trim();
+    this.redirectUri = (
+      this.configService.get<string>('MP_REDIRECT_URI') || ''
+    ).trim();
+
+    if (!this.clientId || !this.clientSecret || !this.redirectUri) {
+      this.logger.error(
+        'MP_CLIENT_ID, MP_CLIENT_SECRET ou MP_REDIRECT_URI ausentes: organizadores não conseguirão conectar a conta.',
+      );
+    }
+  }
+
+  /**
+   * URL para onde mandar o organizador autorizar. O `state` é o id dele,
+   * usado no retorno para saber de quem é a autorização.
+   */
+  montarUrlAutorizacao(organizadorId: string): string {
+    if (!this.clientId || !this.redirectUri) {
+      throw new BadRequestException(
+        'Conexão com o Mercado Pago não configurada. Contate o suporte.',
+      );
+    }
+
+    const params = new URLSearchParams({
+      client_id: this.clientId,
+      response_type: 'code',
+      platform_id: 'mp',
+      state: organizadorId,
+      redirect_uri: this.redirectUri,
+    });
+
+    return `${AUTORIZACAO}?${params.toString()}`;
+  }
+
+  /** Troca o `code` do retorno pelo token do organizador e guarda cifrado. */
+  async conectar(organizadorId: string, code: string) {
+    const dados = await this.trocarToken({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: this.redirectUri,
+    });
+
+    const jaUsada = await this.prisma.organizador.findFirst({
+      where: { mpUserId: String(dados.user_id), id: { not: organizadorId } },
+      select: { id: true },
+    });
+
+    if (jaUsada) {
+      throw new BadRequestException(
+        'Esta conta do Mercado Pago já está conectada a outro organizador.',
+      );
+    }
+
+    return this.prisma.organizador.update({
+      where: { id: organizadorId },
+      data: this.montarDadosToken(dados),
+    });
+  }
+
+  /**
+   * Token válido do organizador, renovando quando estiver perto de vencer.
+   * Devolve null quando ele ainda não conectou a conta.
+   */
+  async obterTokenValido(organizadorId: string): Promise<string | null> {
+    const organizador = await this.prisma.organizador.findUnique({
+      where: { id: organizadorId },
+      select: {
+        mpAccessToken: true,
+        mpRefreshToken: true,
+        mpTokenExpiraEm: true,
+      },
+    });
+
+    if (!organizador?.mpAccessToken) return null;
+
+    const limite = new Date(
+      Date.now() + DIAS_ANTES_DE_RENOVAR * 24 * 60 * 60 * 1000,
+    );
+    const precisaRenovar =
+      !organizador.mpTokenExpiraEm || organizador.mpTokenExpiraEm < limite;
+
+    if (!precisaRenovar) {
+      return decifrarCredencial(organizador.mpAccessToken);
+    }
+
+    const refresh = decifrarCredencial(organizador.mpRefreshToken);
+    if (!refresh) {
+      this.logger.error(
+        `Organizador ${organizadorId} sem refresh_token legível; será preciso reconectar a conta.`,
+      );
+      return decifrarCredencial(organizador.mpAccessToken);
+    }
+
+    try {
+      const dados = await this.trocarToken({
+        grant_type: 'refresh_token',
+        refresh_token: refresh,
+      });
+
+      await this.prisma.organizador.update({
+        where: { id: organizadorId },
+        data: this.montarDadosToken(dados),
+      });
+
+      return dados.access_token;
+    } catch (err) {
+      // Token antigo ainda pode funcionar; falhar aqui pararia a venda.
+      this.logger.error(
+        `Falha ao renovar o token do organizador ${organizadorId}: ${err}`,
+      );
+      return decifrarCredencial(organizador.mpAccessToken);
+    }
+  }
+
+  async desconectar(organizadorId: string) {
+    return this.prisma.organizador.update({
+      where: { id: organizadorId },
+      data: {
+        mpUserId: null,
+        mpAccessToken: null,
+        mpRefreshToken: null,
+        mpTokenExpiraEm: null,
+        mpConectadoEm: null,
+      },
+    });
+  }
+
+  private montarDadosToken(dados: RespostaToken) {
+    return {
+      mpUserId: String(dados.user_id),
+      mpAccessToken: cifrarCredencial(dados.access_token),
+      mpRefreshToken: dados.refresh_token
+        ? cifrarCredencial(dados.refresh_token)
+        : null,
+      mpTokenExpiraEm: new Date(Date.now() + (dados.expires_in ?? 0) * 1000),
+      mpConectadoEm: new Date(),
+    };
+  }
+
+  private async trocarToken(
+    extra: Record<string, string>,
+  ): Promise<RespostaToken> {
+    let res: Response;
+    try {
+      res = await fetch(`${API}/oauth/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: this.clientId,
+          client_secret: this.clientSecret,
+          ...extra,
+        }),
+      });
+    } catch (err) {
+      this.logger.error(`Falha de rede no OAuth do Mercado Pago: ${err}`);
+      throw new BadRequestException(
+        'Não foi possível falar com o Mercado Pago. Tente novamente.',
+      );
+    }
+
+    const dados = await res.json().catch(() => ({}));
+
+    if (!res.ok || !dados.access_token) {
+      this.logger.error(
+        `OAuth do Mercado Pago recusado: ${res.status} ${JSON.stringify(dados)}`,
+      );
+      throw new BadRequestException(
+        dados.message ||
+          'O Mercado Pago recusou a autorização. Tente conectar a conta novamente.',
+      );
+    }
+
+    return dados as RespostaToken;
+  }
+}
+
+interface RespostaToken {
+  access_token: string;
+  refresh_token?: string;
+  user_id: number | string;
+  expires_in?: number;
+}

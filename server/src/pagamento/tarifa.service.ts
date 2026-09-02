@@ -10,8 +10,15 @@ export interface TarifaGateway {
 
 export interface TabelaTarifas {
   pix: TarifaGateway;
-  /** No cartão o percentual é por parcela. */
   cartao: TarifaGateway;
+  /**
+   * Acréscimo percentual por parcela além da taxa base do cartão.
+   *
+   * O Asaas cobrava por parcela; o Mercado Pago cobra uma taxa única e trata
+   * parcelamento à parte. Fica configurável para o modelo não ficar preso ao
+   * gateway da vez.
+   */
+  cartaoPercentualPorParcela: number;
   maxParcelas: number;
   valorMinimoParcela: number;
 }
@@ -36,13 +43,17 @@ export class TarifaService {
   obterTabela(): TabelaTarifas {
     return {
       pix: {
-        percentual: this.numero('TARIFA_PIX_PERCENTUAL', 0),
-        fixo: this.numero('TARIFA_PIX_FIXA', 1.99),
+        percentual: this.numero('TARIFA_PIX_PERCENTUAL', 0.0099),
+        fixo: this.numero('TARIFA_PIX_FIXA', 0),
       },
       cartao: {
-        percentual: this.numero('TARIFA_CARTAO_PERCENTUAL', 0.0299),
-        fixo: this.numero('TARIFA_CARTAO_FIXA', 0.49),
+        percentual: this.numero('TARIFA_CARTAO_PERCENTUAL', 0.0398),
+        fixo: this.numero('TARIFA_CARTAO_FIXA', 0),
       },
+      cartaoPercentualPorParcela: this.numero(
+        'TARIFA_CARTAO_PERCENTUAL_PARCELA',
+        0,
+      ),
       maxParcelas: this.numero('MAX_PARCELAS', 12),
       valorMinimoParcela: this.numero('VALOR_MINIMO_PARCELA', 15),
     };
@@ -112,9 +123,12 @@ export class TarifaService {
 
     if (metodo !== MetodoPagamento.CARTAO_CREDITO) return tabela.pix;
 
-    // No cartão o gateway cobra o percentual por parcela.
+    // Taxa base do cartão mais o custo do parcelamento, quando houver.
+    const extraParcelas =
+      tabela.cartaoPercentualPorParcela * Math.max(0, parcelas - 1);
+
     return {
-      percentual: tabela.cartao.percentual * Math.max(1, parcelas),
+      percentual: tabela.cartao.percentual + extraParcelas,
       fixo: tabela.cartao.fixo,
     };
   }

@@ -74,8 +74,6 @@ export class AdminService {
       data: { status: StatusOrganizador.APROVADO, motivoRevisao: null },
     });
 
-    // Se o organizador já tinha preenchido os dados bancários antes de ser aprovado, cria a subconta Asaas agora.
-    await this.organizadorService.garantirSubcontaAsaas(organizador.id);
 
     return this.prisma.organizador.findUnique({
       where: { id },

@@ -1,12 +1,13 @@
 import {
   BadRequestException,
+  Inject,
   ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { AsaasService } from '../pagamento/asaas.service';
+import { GATEWAY_PAGAMENTO, type GatewayPagamento } from '../pagamento/gateway.port';
 import { TarifaService } from '../pagamento/tarifa.service';
 import { MetodoPagamento } from '../generated/prisma/enums';
 import { StatusSolicitacaoArte } from '../generated/prisma/enums';
@@ -30,7 +31,7 @@ const SOLICITACAO_INCLUDE = {
 export class ArteService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly asaasService: AsaasService,
+    @Inject(GATEWAY_PAGAMENTO) private readonly gateway: GatewayPagamento,
     private readonly tarifaService: TarifaService,
   ) {}
 
@@ -99,7 +100,8 @@ export class ArteService {
       MetodoPagamento.PIX,
     );
 
-    const pix = await this.asaasService.gerarCobrancaPix({
+    // Cobranca da plataforma, sem repasse: roda na nossa propria conta.
+    const pix = await this.gateway.gerarCobrancaPix({
       valor: valorCobrado,
       cliente: { nome, cpfCnpj, email },
       referenciaExterna: `arte:${solicitacao.id}`,
@@ -109,7 +111,7 @@ export class ArteService {
     return this.prisma.solicitacaoArte.update({
       where: { id: solicitacao.id },
       data: {
-        asaasPaymentId: pix.asaasPaymentId,
+        asaasPaymentId: pix.gatewayPaymentId,
         pixCopiaECola: pix.pixCopiaECola,
         pixQrCodeUrl: pix.pixQrCodeUrl,
       },

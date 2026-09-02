@@ -30,6 +30,8 @@ module.exports = {
         PORT: 3001,
         NUXT_PUBLIC_API_BASE: 'https://api.seupercurso.esp.br',
         NUXT_PUBLIC_ORGANIZER_BASE: 'https://organizador.seupercurso.esp.br',
+        // Preencher com a Public Key do Mercado Pago (painel de aplicacoes).
+        NUXT_PUBLIC_MP_PUBLIC_KEY: process.env.NUXT_PUBLIC_MP_PUBLIC_KEY || '',
       },
     },
     {

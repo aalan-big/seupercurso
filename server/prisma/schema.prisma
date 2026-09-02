@@ -198,11 +198,21 @@ model Organizador {
   fotoRostoUrl           String?
   documentoIdentidadeUrl String?
   motivoRevisao          String?
-  asaasAccountId         String?           @unique
-  asaasWalletId          String?
-  asaasApiKey            String?
-  createdAt              DateTime          @default(now())
-  updatedAt              DateTime          @updatedAt
+  /// Conexao com o Mercado Pago. O organizador autoriza nosso app via OAuth e o
+  /// dinheiro cai na conta dele; nos ficamos com a comissao (application_fee).
+  mpUserId               String?           @unique
+  mpAccessToken          String?
+  mpRefreshToken         String?
+  mpTokenExpiraEm        DateTime?
+  mpConectadoEm          DateTime?
+
+  /// Legado do Asaas. Mantido apenas para consulta historica de cobrancas
+  /// antigas; nada no codigo escreve ou le mais esses campos.
+  asaasAccountId String?  @unique
+  asaasWalletId  String?
+  asaasApiKey    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   cliente          Cliente           @relation(fields: [clienteId], references: [id])
   eventos          Evento[]
@@ -444,25 +454,25 @@ model Inscricao {
 
 // 1 inscrição (ou 1 pedido agrupado) pode ter N tentativas de pagamento.
 model Pagamento {
-  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  inscricaoId     String?         @db.Uuid
-  pedidoId        String?         @db.Uuid
-  valor           Decimal         @db.Decimal(10, 2)
-  metodo          MetodoPagamento
-  status          StatusPagamento @default(PENDENTE)
-  gateway         String?
-  codigoTransacao String?
-  asaasPaymentId  String?         @unique
-  pixQrCodeUrl    String?
-  pixCopiaECola   String?
-  dataPagamento   DateTime?
-  expiraEm        DateTime?
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  inscricaoId      String?         @db.Uuid
+  pedidoId         String?         @db.Uuid
+  valor            Decimal         @db.Decimal(10, 2)
+  metodo           MetodoPagamento
+  status           StatusPagamento @default(PENDENTE)
+  gateway          String?
+  codigoTransacao  String?
+  gatewayPaymentId String?         @unique
+  pixQrCodeUrl     String?
+  pixCopiaECola    String?
+  dataPagamento    DateTime?
+  expiraEm         DateTime?
   /// Valor liquido informado pelo Asaas (valor - tarifa). So existe apos a
   /// confirmacao; nosso calculo sozinho nao conhece a tarifa do gateway.
-  valorLiquido    Decimal?        @db.Decimal(10, 2)
+  valorLiquido     Decimal?        @db.Decimal(10, 2)
   /// Tarifa cobrada pelo gateway nesta transacao.
-  taxaGateway     Decimal?        @db.Decimal(10, 2)
-  createdAt       DateTime        @default(now())
+  taxaGateway      Decimal?        @db.Decimal(10, 2)
+  createdAt        DateTime        @default(now())
 
   inscricao Inscricao? @relation(fields: [inscricaoId], references: [id])
   pedido    Pedido?    @relation(fields: [pedidoId], references: [id])

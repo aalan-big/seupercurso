@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BarChart2, CheckCircle, PartyPopper, Settings, AlertTriangle, DollarSign, Tag, Lock, Banknote, Ticket, Circle, X, Zap } from 'lucide-vue-next'
+import { BarChart2, CheckCircle, Settings, AlertTriangle, DollarSign, Tag, Banknote, Ticket, Circle, CreditCard, Zap } from 'lucide-vue-next'
 import type { FinanceiroOrganizador } from '../../composables/useFinanceiroOrganizador'
 
 const { buscar } = useFinanceiroOrganizador()
@@ -10,11 +10,11 @@ const financeiro = ref<FinanceiroOrganizador | null>(null)
 const carregando = ref(true)
 const erro = ref('')
 
-// Modal Saque State
-const modalSaqueAberto = ref(false)
-const solicitandoSaque = ref(false)
-const erroSaque = ref('')
-const comprovanteSaque = ref<{ transferId: string; chaveDestino: string; valor: number; saldoRestante?: number } | null>(null)
+// Conexao com o Mercado Pago. Nao existe mais saque aqui: o dinheiro cai
+// direto na conta do organizador e ele saca no proprio Mercado Pago.
+const { obterUrlAutorizacao, desconectar } = useMercadoPagoConexao()
+const conectando = ref(false)
+const erroConexao = ref('')
 
 async function carregar() {
   erro.value = ''
@@ -35,62 +35,33 @@ function formatarValor(valor: number) {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-const valorSaque = ref<number | string>('')
-
-const saqueLiberado = computed(
-  () => !!financeiro.value && !financeiro.value.bloqueioSaque && financeiro.value.saldoDisponivel > 0
-)
-
-watch(
-  () => financeiro.value?.saldoDisponivel,
-  (saldo) => {
-    if (saldo && !valorSaque.value) valorSaque.value = saldo
-  }
-)
-
-function fecharModalSaque() {
-  modalSaqueAberto.value = false
-  erroSaque.value = ''
-}
-
-function onTeclaModal(e: KeyboardEvent) {
-  if (e.key === 'Escape' && modalSaqueAberto.value) fecharModalSaque()
-}
-
-onMounted(() => window.addEventListener('keydown', onTeclaModal))
-onBeforeUnmount(() => window.removeEventListener('keydown', onTeclaModal))
-
-async function realizarSaquePix() {
-  if (!financeiro.value || !saqueLiberado.value) return
-
-  const valor = Number(valorSaque.value)
-  if (!valor || valor <= 0) {
-    erroSaque.value = 'Informe o valor a sacar.'
-    return
-  }
-  if (valor > financeiro.value.saldoDisponivel) {
-    erroSaque.value = 'Valor maior que o saldo disponível.'
-    return
-  }
-
-  solicitandoSaque.value = true
-  erroSaque.value = ''
-  comprovanteSaque.value = null
-
+async function conectarMercadoPago() {
+  erroConexao.value = ''
+  conectando.value = true
   try {
-    const res = await api<{ sucesso: boolean; transferId: string; chaveDestino: string; valor: number; saldoRestante?: number }>(
-      '/organizadores/me/financeiro/saque',
-      {
-        method: 'POST',
-        body: { valor }
-      }
+    const { url } = await obterUrlAutorizacao()
+    window.location.href = url
+  } catch (e) {
+    erroConexao.value = extrairErro(e)
+    conectando.value = false
+  }
+}
+
+async function desconectarMercadoPago() {
+  if (
+    !confirm(
+      'Ao desconectar, seus eventos param de vender até você conectar de novo. Confirma?'
     )
-    comprovanteSaque.value = res
+  ) {
+    return
+  }
+
+  erroConexao.value = ''
+  try {
+    await desconectar()
     await carregar()
   } catch (e) {
-    erroSaque.value = extrairErro(e)
-  } finally {
-    solicitandoSaque.value = false
+    erroConexao.value = extrairErro(e)
   }
 }
 
@@ -121,7 +92,7 @@ function exportarRelatorioCSV() {
       <div>
         <h1 class="text-2xl font-black uppercase tracking-tight text-primary">Dashboard Financeiro & Vendas</h1>
         <p class="mt-1 text-xs text-slate-500">
-          Acompanhe suas vendas de inscrições, o repasse líquido a receber e solicite seus saques via PIX.
+          Acompanhe suas vendas de inscrições e o quanto já entrou na sua conta do Mercado Pago.
         </p>
       </div>
 
@@ -137,29 +108,14 @@ function exportarRelatorioCSV() {
       </div>
     </div>
 
-    <!-- Banner da Subconta Asaas -->
-    <div v-if="organizador?.asaasWalletId" class="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-5 text-xs text-emerald-900 flex flex-wrap items-center justify-between gap-4 shadow-xs">
-      <div class="flex items-center gap-3">
-        <CheckCircle :size="28" class="text-emerald-600" />
-        <div>
-          <p class="font-bold text-sm text-emerald-950">Subconta Asaas Ativa & Verificada</p>
-          <p class="text-[11px] text-emerald-800 mt-0.5">
-            Sua conta de repasse automático (Wallet: <code class="font-mono font-bold">{{ organizador.asaasWalletId }}</code>) está apta a receber solicitações de saques instantâneos via PIX.
-          </p>
-        </div>
-      </div>
-      <NuxtLink to="/dados-bancarios" class="rounded-xl bg-white/90 px-3 py-1.5 text-xs font-bold text-emerald-800 border border-emerald-200 hover:bg-white transition inline-flex items-center gap-1.5">
-        <Settings :size="14" /> Ver Dados Bancários
-      </NuxtLink>
-    </div>
+    <p v-if="carregando" class="py-12 text-center text-sm text-slate-400">Carregando...</p>
 
-    <p v-if="erro" class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-700 flex items-center gap-2">
-      <AlertTriangle :size="16" class="text-red-600" /> {{ erro }}
+    <p
+      v-else-if="erro"
+      class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+    >
+      {{ erro }}
     </p>
-
-    <div v-if="carregando" class="py-12 text-center text-xs text-slate-400">
-      Carregando métricas financeiras...
-    </div>
 
     <template v-else-if="financeiro">
       <!-- 4 Cards KPI Executivos -->
@@ -184,38 +140,61 @@ function exportarRelatorioCSV() {
           <p class="mt-1 text-[11px] text-slate-500">Taxa de intermediação do sistema</p>
         </div>
 
-        <!-- Card 3 & 4: Saldo Líquido a Receber + Botão de Saque com Trava de Titularidade -->
-        <div class="relative overflow-hidden rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-500 to-emerald-600 p-5 text-white shadow-sm transition hover:shadow-md sm:col-span-2 flex flex-col justify-between space-y-3">
+        <!-- Card 3 & 4: repasse acumulado + estado da conexão -->
+        <div
+          class="relative overflow-hidden rounded-2xl border p-5 shadow-sm sm:col-span-2 flex flex-col justify-between space-y-3"
+          :class="financeiro.contaConectada
+            ? 'border-emerald-200 bg-gradient-to-br from-emerald-500 to-emerald-600 text-white'
+            : 'border-amber-200 bg-gradient-to-br from-amber-500 to-amber-600 text-white'"
+        >
           <div>
             <div class="flex items-center justify-between">
-              <span class="text-xs font-bold uppercase tracking-wider text-emerald-100">Saldo Líquido Disponível</span>
-              <span class="rounded-lg bg-white/20 p-2 text-white"><Lock :size="16" /></span>
+              <span class="text-xs font-bold uppercase tracking-wider text-white/80">
+                Você recebeu
+              </span>
+              <span class="rounded-lg bg-white/20 p-2 text-white">
+                <component :is="financeiro.contaConectada ? CheckCircle : AlertTriangle" :size="16" />
+              </span>
             </div>
-            <p class="mt-2 text-3xl font-black text-white">{{ formatarValor(financeiro.saldoDisponivel) }}</p>
+            <p class="mt-2 text-3xl font-black text-white">{{ formatarValor(financeiro.totalRepasse) }}</p>
+            <p class="mt-1 text-[11px] text-white/85">
+              Direto na sua conta do Mercado Pago, a cada inscrição paga. O saque é feito
+              por lá, no app ou site do Mercado Pago.
+            </p>
             <p
               v-if="financeiro.totalTaxaGateway > 0"
-              class="mt-1 text-[11px] text-emerald-100"
+              class="mt-1 text-[11px] text-white/80"
             >
-              Já descontadas as tarifas do gateway
-              ({{ formatarValor(financeiro.totalTaxaGateway) }}), cobradas pelo Asaas antes
-              da divisão.
+              As tarifas do gateway ({{ formatarValor(financeiro.totalTaxaGateway) }}) já
+              estão embutidas no valor pago pelo atleta.
             </p>
-            <p class="mt-1 text-[11px] text-emerald-100 flex items-center gap-1.5">
-              <Lock :size="12" /> Saldo na sua subconta Asaas — saque só para o CPF/CNPJ cadastrado
-            </p>
-            <p v-if="financeiro.bloqueioSaque" class="mt-2 rounded-lg bg-white/15 px-3 py-2 text-[11px] font-semibold leading-relaxed">
-              {{ financeiro.bloqueioSaque }}
+            <p v-if="financeiro.pendencia" class="mt-2 rounded-lg bg-white/15 px-3 py-2 text-[11px] font-semibold leading-relaxed">
+              {{ financeiro.pendencia }}
             </p>
           </div>
 
-          <!-- Botão de Saque em Destaque -->
+          <p v-if="erroConexao" class="rounded-lg bg-white/15 px-3 py-2 text-[11px] font-bold">
+            {{ erroConexao }}
+          </p>
+
           <button
+            v-if="!financeiro.contaConectada"
             type="button"
-            :disabled="!saqueLiberado"
-            class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-white py-3 text-xs font-black uppercase tracking-wider text-emerald-950 shadow hover:bg-emerald-50 transition active:scale-[0.99] disabled:opacity-50"
-            @click="modalSaqueAberto = true"
+            :disabled="conectando"
+            class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-white py-3 text-xs font-black uppercase tracking-wider text-amber-950 shadow hover:bg-amber-50 transition active:scale-[0.99] disabled:opacity-50"
+            @click="conectarMercadoPago"
           >
-            <Banknote :size="16" /> <span>Solicitar Saque via PIX</span>
+            <Banknote :size="16" />
+            <span>{{ conectando ? 'Abrindo o Mercado Pago...' : 'Conectar conta do Mercado Pago' }}</span>
+          </button>
+
+          <button
+            v-else
+            type="button"
+            class="w-full rounded-xl border border-white/40 py-2.5 text-[11px] font-bold uppercase tracking-wider text-white/90 transition hover:bg-white/10"
+            @click="desconectarMercadoPago"
+          >
+            Desconectar conta
           </button>
         </div>
       </div>
@@ -232,7 +211,7 @@ function exportarRelatorioCSV() {
               <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-800">D+0 (Na hora)</span>
             </div>
             <p class="text-[11px] text-slate-500 mt-1 leading-relaxed">
-              O dinheiro cai na sua subconta Asaas assim que o atleta paga e já fica liberado para saque.
+              O dinheiro cai na sua conta do Mercado Pago assim que o atleta paga.
             </p>
           </div>
         </div>
@@ -247,8 +226,8 @@ function exportarRelatorioCSV() {
               <span class="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-black text-blue-800">D+30</span>
             </div>
             <p class="text-[11px] text-slate-500 mt-1 leading-relaxed">
-              Liberado em <strong>30 dias</strong> na compra à vista, ou uma parcela a cada 30 dias
-              no parcelado. O saldo só aparece como disponível depois da liberação pelo Asaas.
+              O prazo de liberação segue o que estiver configurado na sua conta do Mercado Pago —
+              você ajusta isso em Custos, no app deles.
             </p>
           </div>
         </div>
@@ -310,141 +289,5 @@ function exportarRelatorioCSV() {
       </div>
     </template>
 
-    <!-- MODAL DE SAQUE VIA PIX -->
-    <Teleport to="body">
-      <!--
-        overflow-y-auto + items-start: sem isso o modal mais alto que a tela
-        ficava centralizado, o cabecalho com o Fechar saia da area visivel e o
-        usuario ficava preso sem conseguir sair.
-      -->
-      <div
-        v-if="modalSaqueAberto && financeiro"
-        class="fixed inset-0 z-[300] flex items-start justify-center overflow-y-auto overscroll-contain p-4 sm:items-center"
-      >
-        <div class="fixed inset-0 bg-slate-950/75 backdrop-blur-xs" @click="fecharModalSaque"></div>
-
-        <div class="relative my-auto w-full max-w-md rounded-3xl bg-white shadow-2xl z-[301] p-6 space-y-5">
-          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div class="flex items-center gap-2">
-              <Banknote :size="22" class="text-emerald-600" />
-              <div>
-                <h3 class="font-black text-sm text-slate-900">Solicitar Saque do Saldo Líquido</h3>
-                <p class="text-[11px] text-slate-500">Transferência via PIX da Subconta Asaas</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              class="rounded-xl bg-slate-100 p-2 text-xs font-bold text-slate-500 hover:bg-slate-200 transition inline-flex items-center gap-1"
-              @click="fecharModalSaque"
-            >
-              <X :size="13" /> Fechar
-            </button>
-          </div>
-
-          <div v-if="erroSaque" class="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-700 flex items-center gap-2">
-            <AlertTriangle :size="14" class="text-red-600" /> {{ erroSaque }}
-          </div>
-
-          <!-- Comprovante de Sucesso -->
-          <div v-if="comprovanteSaque" class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-900 space-y-2 text-center">
-            <PartyPopper :size="36" class="mx-auto text-emerald-600" />
-            <p class="font-black text-sm text-emerald-950">Saque Solicitado com Sucesso!</p>
-            <p class="text-[11px] text-emerald-800">
-              O valor de <strong>{{ formatarValor(comprovanteSaque.valor) }}</strong> foi enviado para processamento no Asaas e cairá na sua chave PIX:
-            </p>
-            <div class="bg-white/80 p-2 rounded-xl border border-emerald-200 font-mono font-bold text-emerald-900">
-              {{ comprovanteSaque.chaveDestino }}
-            </div>
-            <p class="text-[10px] text-slate-400 font-mono pt-1">ID Transação: {{ comprovanteSaque.transferId }}</p>
-          </div>
-
-          <div v-else class="space-y-4 text-xs">
-            <div
-              v-if="financeiro.statusSubconta && financeiro.statusSubconta.geral !== 'APPROVED'"
-              class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-900"
-            >
-              <p class="font-black uppercase tracking-wider">Conta em análise no Asaas</p>
-              <p class="mt-1">
-                O Asaas ainda está analisando os documentos da sua conta de recebimento e só
-                libera o PIX depois de aprovar. Procure o e-mail do Asaas na caixa de entrada
-                do endereço cadastrado e conclua o envio da documentação.
-              </p>
-              <p class="mt-1.5 text-[10px] text-amber-700">
-                Documentação: {{ financeiro.statusSubconta.documentacao || '—' }} ·
-                Dados comerciais: {{ financeiro.statusSubconta.dadosComerciais || '—' }} ·
-                Dados bancários: {{ financeiro.statusSubconta.dadosBancarios || '—' }}
-              </p>
-            </div>
-
-            <div class="rounded-2xl bg-emerald-50 p-4 border border-emerald-200 space-y-1 text-center">
-              <span class="text-xs font-bold uppercase tracking-wider text-emerald-800">Valor Total Disponível</span>
-              <p class="text-3xl font-black text-emerald-900">{{ formatarValor(financeiro.saldoDisponivel) }}</p>
-            </div>
-
-            <div>
-              <label class="mb-1 block text-[11px] font-bold uppercase text-slate-600">Valor a sacar</label>
-              <input
-                v-model="valorSaque"
-                type="number"
-                min="0.01"
-                step="0.01"
-                :max="financeiro.saldoDisponivel"
-                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-bold focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-              />
-            </div>
-
-            <div class="rounded-xl bg-slate-50 p-3 text-[11px] text-slate-600 space-y-1">
-              <div class="flex justify-between gap-3">
-                <span class="font-bold text-slate-500 shrink-0">Destino:</span>
-                <span class="font-bold text-slate-900 text-right">
-                  Chave PIX do seu CPF/CNPJ cadastrado
-                </span>
-              </div>
-              <div class="flex justify-between">
-                <span class="font-bold text-slate-500">Taxa de Saque:</span>
-                <span class="font-bold text-emerald-700">Isento (Gratuito)</span>
-              </div>
-            </div>
-
-            <div class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-900">
-              <strong>Por que não dá para escolher a conta:</strong> a transferência sai sempre
-              para a chave PIX do CPF/CNPJ do seu cadastro, em qualquer banco. Assim o próprio
-              sistema bancário garante que o dinheiro cai em conta sua, e não de terceiros.
-              Para trocar o CPF/CNPJ é preciso abrir uma solicitação com foto do documento.
-            </div>
-          </div>
-
-          <div class="flex items-center justify-end gap-3 border-t border-slate-100 pt-3">
-            <button
-              v-if="!comprovanteSaque"
-              type="button"
-              class="rounded-xl border border-slate-300 px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 transition"
-              @click="fecharModalSaque"
-            >
-              Cancelar
-            </button>
-
-            <button
-              v-if="comprovanteSaque"
-              type="button"
-              class="w-full rounded-xl bg-slate-900 py-2.5 text-xs font-bold text-white transition"
-              @click="fecharModalSaque"
-            >
-              Concluir
-            </button>
-
-            <button
-              v-else
-              type="button"
-              :disabled="solicitandoSaque"
-              class="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-xs hover:bg-emerald-700 transition disabled:opacity-40"
-              @click="realizarSaquePix"
-            >
-              <Zap :size="14" /> {{ solicitandoSaque ? 'Processando Saque...' : 'Confirmar Transferência PIX' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
   </div>
 </template>

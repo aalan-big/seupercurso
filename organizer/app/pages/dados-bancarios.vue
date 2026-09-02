@@ -1,30 +1,22 @@
 <script setup lang="ts">
-import { CheckCircle, Lock, Clock } from 'lucide-vue-next'
+import { CheckCircle, AlertTriangle } from 'lucide-vue-next'
 import type { AlteracaoDocumento } from '../composables/useAlteracaoDocumento'
 
-const { organizador, fetchMe, atualizarDadosBancarios } = useOrganizador()
+/**
+ * Dados do titular.
+ *
+ * O recebimento passou a ser pela conta do proprio organizador no Mercado Pago,
+ * conectada na tela Financeiro — nao ha mais subconta nossa para abrir aqui.
+ * O que resta e o CPF/CNPJ do titular, que continua exigindo documento e
+ * aprovacao para mudar.
+ */
+const { organizador, fetchMe } = useOrganizador()
 
 const carregando = ref(true)
 const erro = ref('')
-const sucesso = ref('')
-const salvando = ref(false)
-
-const form = reactive({
-  banco: '',
-  agencia: '',
-  conta: '',
-  tipoConta: '',
-  // Exigidos pelo Asaas para abrir a conta de recebimento.
-  rendaFaturamentoMensal: '' as string | number,
-  tipoEmpresa: '',
-  emailRecebimento: ''
-})
-
-const emailLogin = computed(() => organizador.value?.emailLogin || '')
 
 const ehPessoaJuridica = computed(() => organizador.value?.tipoPessoa === 'PJ')
 
-// --- Troca de CPF/CNPJ ---
 const { listar: listarAlteracoes, solicitar: solicitarAlteracao } = useAlteracaoDocumento()
 const alteracoes = ref<AlteracaoDocumento[]>([])
 const formAlteracao = reactive({ documentoNovo: '', motivo: '' })
@@ -59,10 +51,11 @@ async function onSolicitarAlteracao() {
       formAlteracao.motivo || undefined
     )
     sucessoAlteracao.value =
-      'Solicitação enviada. Os saques ficam bloqueados até a análise ser concluída.'
+      'Solicitação enviada. Assim que a análise terminar, você é avisado por aqui.'
     formAlteracao.documentoNovo = ''
     formAlteracao.motivo = ''
     arquivoDocumento.value = null
+    painelAlteracaoAberto.value = false
     alteracoes.value = await listarAlteracoes()
   } catch (e) {
     erroAlteracao.value = extrairErro(e)
@@ -71,26 +64,9 @@ async function onSolicitarAlteracao() {
   }
 }
 
-const tiposEmpresa = [
-  { valor: 'MEI', rotulo: 'MEI — Microempreendedor Individual' },
-  { valor: 'LIMITED', rotulo: 'LTDA — Sociedade Limitada' },
-  { valor: 'INDIVIDUAL', rotulo: 'EI — Empresário Individual' },
-  { valor: 'ASSOCIATION', rotulo: 'Associação' }
-]
-
-
 onMounted(async () => {
   try {
     await fetchMe()
-    form.banco = organizador.value?.banco || ''
-    form.agencia = organizador.value?.agencia || ''
-    form.conta = organizador.value?.conta || ''
-    form.tipoConta = organizador.value?.tipoConta || ''
-    form.rendaFaturamentoMensal = organizador.value?.rendaFaturamentoMensal
-      ? Number(organizador.value.rendaFaturamentoMensal)
-      : ''
-    form.tipoEmpresa = organizador.value?.tipoEmpresa || ''
-    form.emailRecebimento = organizador.value?.emailRecebimento || ''
     alteracoes.value = await listarAlteracoes()
   } catch (e) {
     erro.value = extrairErro(e)
@@ -98,183 +74,45 @@ onMounted(async () => {
     carregando.value = false
   }
 })
-
-async function onSalvar() {
-  erro.value = ''
-  sucesso.value = ''
-  salvando.value = true
-  try {
-    await atualizarDadosBancarios({
-      ...form,
-      rendaFaturamentoMensal: Number(form.rendaFaturamentoMensal) || undefined,
-      // O Asaas recusa companyType em conta de pessoa física.
-      tipoEmpresa: ehPessoaJuridica.value ? form.tipoEmpresa || undefined : undefined,
-      emailRecebimento: form.emailRecebimento || undefined
-    })
-    sucesso.value = 'Dados bancários salvos.'
-  } catch (e) {
-    erro.value = extrairErro(e)
-  } finally {
-    salvando.value = false
-  }
-}
 </script>
 
 <template>
   <div>
-    <h1 class="text-2xl font-extrabold uppercase tracking-tight text-primary">Dados bancários</h1>
+    <h1 class="text-2xl font-extrabold uppercase tracking-tight text-primary">Dados do titular</h1>
     <p class="mt-1 text-sm text-slate-500">
-      Dados necessários para abrir sua conta de recebimento no Asaas, onde caem os repasses das suas inscrições.
+      Documento usado nos seus eventos e nos comprovantes emitidos pela plataforma.
     </p>
 
     <p v-if="carregando" class="mt-8 text-sm text-slate-500">Carregando...</p>
 
     <template v-else>
-      <div v-if="organizador?.asaasWalletId" class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 text-xs text-emerald-900 flex items-start gap-3 shadow-2xs">
-        <CheckCircle :size="20" class="text-emerald-600" />
+      <div class="mt-4 flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-700">
+        <CheckCircle :size="20" class="shrink-0 text-slate-400" />
         <div class="space-y-1">
-          <p class="font-black text-sm text-emerald-950">Conta de recebimento criada</p>
-          <p class="text-[11px] text-emerald-800 leading-relaxed">
-            Sua parte das inscrições já é direcionada para esta conta. Para <strong>sacar</strong>,
-            o Asaas ainda precisa aprovar a documentação — ele envia as instruções por e-mail, e o
-            andamento aparece na tela Financeiro.
+          <p class="text-sm font-black text-slate-900">Onde o dinheiro cai</p>
+          <p class="text-[11px] leading-relaxed text-slate-600">
+            As inscrições são pagas direto na sua conta do Mercado Pago, e é lá que você
+            saca. Para conectá-la, vá em
+            <NuxtLink to="/financeiro" class="font-bold underline">Financeiro</NuxtLink>.
           </p>
         </div>
       </div>
 
-      <div
-        v-else-if="organizador?.rendaFaturamentoMensal && organizador?.status !== 'APROVADO'"
-        class="mt-4 rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-xs text-amber-900 flex items-start gap-3 shadow-2xs"
-      >
-        <Clock :size="20" class="text-amber-600" />
-        <div class="space-y-1">
-          <p class="font-black text-sm text-amber-950">Dados salvos — conta ainda não ativada</p>
-          <p class="text-[11px] text-amber-800 leading-relaxed">Assim que seu cadastro de organizador for aprovado pela nossa equipe, sua conta de recebimento é ativada automaticamente. Não precisa preencher nada de novo.</p>
-        </div>
-      </div>
+      <p v-if="erro" class="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        {{ erro }}
+      </p>
 
-      <!-- Banner de Trava de Segurança de Titularidade -->
-      <div class="mt-4 rounded-2xl border border-blue-200 bg-blue-50/80 p-4 text-xs text-blue-900 flex items-start gap-3 shadow-2xs">
-        <Lock :size="20" class="text-blue-700" />
-        <div class="space-y-1">
-          <p class="font-black text-sm text-blue-950">Trava de Segurança de Titularidade Ativa (PF / PJ)</p>
-          <p class="text-[11px] text-blue-800 leading-relaxed">
-            O saque vai <strong>sempre para a chave PIX do seu CPF/CNPJ cadastrado</strong>, em qualquer banco — o destino não é escolhido. Como a chave é o próprio documento, o sistema bancário garante que o dinheiro cai em conta sua. Alterar o CPF/CNPJ exige envio do documento e análise.
-          </p>
-        </div>
-      </div>
-
-      <p v-if="erro" class="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ erro }}</p>
-      <p v-if="sucesso" class="mt-4 rounded-lg border border-accent/30 bg-accent/10 px-4 py-3 text-sm text-accent">{{ sucesso }}</p>
-
-      <form class="mt-6 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm" @submit.prevent="onSalvar">
-        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <p class="text-sm font-semibold text-slate-700">Conta que recebe os saques</p>
-          <p class="mt-1 text-xs leading-relaxed text-slate-500">
-            Os saques vão sempre para a <strong>chave PIX do seu CPF/CNPJ cadastrado</strong>,
-            em qualquer banco. Não é possível escolher outra conta — é assim que garantimos
-            que o dinheiro cai com você, e não com terceiros.
-          </p>
-        </div>
-
-        <div class="border-t border-slate-100 pt-4">
-          <label class="mb-1 block text-sm font-semibold text-slate-700">
-            Renda mensal (PF) ou faturamento mensal (PJ)
-          </label>
-          <input
-            v-model="form.rendaFaturamentoMensal"
-            type="number"
-            min="1"
-            step="0.01"
-            placeholder="5000.00"
-            required
-            class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
-          />
-          <p class="mt-1.5 text-xs text-slate-500">
-            Exigido pelo Asaas para abrir sua conta de recebimento. Sem esse dado o repasse
-            automático das inscrições não é ativado.
-          </p>
-
-          <div class="mt-4">
-            <label class="mb-1 block text-sm font-semibold text-slate-700">
-              E-mail da conta de recebimento
-            </label>
-            <input
-              v-model="form.emailRecebimento"
-              type="email"
-              :placeholder="emailLogin || 'seu@email.com'"
-              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
-            />
-            <p class="mt-1.5 text-xs text-slate-500">
-              Deixe em branco para usar o e-mail da sua conta. Preencha apenas se
-              <strong>você já tiver uma conta no Asaas</strong> com esse endereço — o Asaas não
-              permite dois cadastros com o mesmo e-mail.
-            </p>
-          </div>
-
-          <div v-if="ehPessoaJuridica" class="mt-4">
-            <label class="mb-1 block text-sm font-semibold text-slate-700">Natureza jurídica</label>
-            <select
-              v-model="form.tipoEmpresa"
-              required
-              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
-            >
-              <option value="" disabled>Selecione</option>
-              <option v-for="tipo in tiposEmpresa" :key="tipo.valor" :value="tipo.valor">
-                {{ tipo.rotulo }}
-              </option>
-            </select>
-            <p class="mt-1.5 text-xs text-slate-500">
-              Obrigatório para conta com CNPJ.
-            </p>
-          </div>
-        </div>
-
-        <div class="border-t border-slate-100 pt-4">
-          <p class="mb-3 text-xs font-bold uppercase tracking-wide text-slate-400">Ou dados da conta bancária</p>
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <label class="mb-1 block text-sm font-semibold text-slate-700">Banco</label>
-              <input v-model="form.banco" type="text" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30" />
-            </div>
-            <div>
-              <label class="mb-1 block text-sm font-semibold text-slate-700">Agência</label>
-              <input v-model="form.agencia" type="text" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30" />
-            </div>
-            <div>
-              <label class="mb-1 block text-sm font-semibold text-slate-700">Conta</label>
-              <input v-model="form.conta" type="text" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30" />
-            </div>
-            <div>
-              <label class="mb-1 block text-sm font-semibold text-slate-700">Tipo de conta</label>
-              <select v-model="form.tipoConta" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30">
-                <option value="">Selecione</option>
-                <option value="CORRENTE">Corrente</option>
-                <option value="POUPANCA">Poupança</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <button
-          type="submit"
-          :disabled="salvando"
-          class="mt-2 rounded-xl bg-warning px-4 py-3 text-sm font-bold uppercase tracking-wide text-primary transition hover:brightness-95 disabled:opacity-50"
-        >
-          {{ salvando ? 'Salvando...' : 'Salvar' }}
-        </button>
-      </form>
-
-      <!-- Troca de CPF/CNPJ: e esse documento que define o destino do saque -->
+      <!-- Troca de CPF/CNPJ: continua exigindo documento e análise -->
       <section class="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 class="text-sm font-black text-slate-900">
               {{ ehPessoaJuridica ? 'CNPJ' : 'CPF' }} do titular
             </h2>
-            <p class="mt-1 text-xs text-slate-500 max-w-xl leading-relaxed">
-              Os saques saem sempre para a chave PIX deste documento, em qualquer banco. Por isso
-              ele não é editável no perfil — alterar exige análise com foto do documento.
+            <p class="mt-1 max-w-xl text-xs leading-relaxed text-slate-500">
+              Este documento identifica você como organizador nos eventos e nos comprovantes.
+              Por isso não é editável direto no perfil — alterar exige envio do documento e
+              análise da nossa equipe.
             </p>
           </div>
           <button
@@ -289,14 +127,17 @@ async function onSalvar() {
 
         <div
           v-if="alteracaoPendente"
-          class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900"
+          class="mt-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900"
         >
-          <p class="font-black uppercase tracking-wider">Solicitação em análise</p>
-          <p class="mt-1 leading-relaxed">
-            Pedido de alteração para
-            <strong class="font-mono">{{ alteracaoPendente.documentoNovo }}</strong>
-            enviado. <strong>Os saques ficam bloqueados até a conclusão.</strong>
-          </p>
+          <AlertTriangle :size="16" class="mt-0.5 shrink-0" />
+          <div>
+            <p class="font-black uppercase tracking-wider">Solicitação em análise</p>
+            <p class="mt-1 leading-relaxed">
+              Pedido de alteração para
+              <strong class="font-mono">{{ alteracaoPendente.documentoNovo }}</strong> enviado.
+              Você é avisado por aqui quando a análise terminar.
+            </p>
+          </div>
         </div>
 
         <p
@@ -332,9 +173,7 @@ async function onSalvar() {
           </div>
 
           <div>
-            <label class="mb-1 block text-sm font-semibold text-slate-700">
-              Foto do documento
-            </label>
+            <label class="mb-1 block text-sm font-semibold text-slate-700">Foto do documento</label>
             <input
               type="file"
               accept="image/*,application/pdf"

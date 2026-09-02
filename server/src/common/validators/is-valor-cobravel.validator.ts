@@ -1,15 +1,15 @@
 import { registerDecorator, ValidationOptions } from 'class-validator';
 
 /**
- * Valor mínimo de uma cobrança no Asaas. Abaixo disso o gateway recusa com
- * "O valor da cobrança não pode ser menor que R$ 5,00".
+ * Valor mínimo de uma cobrança. Abaixo disso o gateway recusa, e o atleta só
+ * descobriria na hora de pagar.
  */
 export const VALOR_MINIMO_COBRANCA = 5;
 
 /**
  * Um preço é cobrável quando é gratuito (0) ou atinge o mínimo do gateway.
  * A faixa entre os dois só é descoberta na hora do pagamento, quando o atleta
- * já preencheu tudo e recebe um erro cru do Asaas.
+ * já preencheu tudo e recebe um erro cru do gateway.
  */
 export function valorEhCobravel(valor: number): boolean {
   if (!Number.isFinite(valor) || valor < 0) return false;

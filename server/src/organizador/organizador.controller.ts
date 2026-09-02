@@ -38,7 +38,6 @@ import { CreateLoteDto } from './dto/create-lote.dto';
 import { UpdateLoteDto } from './dto/update-lote.dto';
 import { DefinirPrecoDto } from './dto/definir-preco.dto';
 import { CreateCupomDto } from './dto/create-cupom.dto';
-import { UpdateDadosBancariosDto } from './dto/update-dados-bancarios.dto';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
 import { RedefinirSenhaStaffDto } from './dto/redefinir-senha-staff.dto';
@@ -59,14 +58,6 @@ export class OrganizadorController {
     return this.organizadorService.getMe(user.userId);
   }
 
-  @Patch('dados-bancarios')
-  atualizarDadosBancarios(
-    @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: UpdateDadosBancariosDto,
-  ) {
-    return this.organizadorService.atualizarDadosBancarios(user.userId, dto);
-  }
-
   @Get('dashboard')
   obterDashboard(@CurrentUser() user: AuthenticatedUser) {
     return this.organizadorService.obterDashboard(user.userId);
@@ -77,13 +68,26 @@ export class OrganizadorController {
     return this.organizadorService.obterFinanceiro(user.userId);
   }
 
+  /** URL de autorizacao; o organizador conclui no site do Mercado Pago. */
+  @Get('mercadopago/conexao')
+  obterUrlConexaoMercadoPago(@CurrentUser() user: AuthenticatedUser) {
+    return this.organizadorService.obterUrlConexaoMercadoPago(user.userId);
+  }
+
   @HttpCode(HttpStatus.OK)
-  @Post('financeiro/saque')
-  solicitarSaque(
+  @Post('mercadopago/conexao')
+  conectarMercadoPago(
     @CurrentUser() user: AuthenticatedUser,
-    @Body('valor') valor: number,
+    @Body('code') code: string,
+    @Body('state') state: string,
   ) {
-    return this.organizadorService.solicitarSaque(user.userId, Number(valor));
+    return this.organizadorService.conectarMercadoPago(user.userId, code, state);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Delete('mercadopago/conexao')
+  desconectarMercadoPago(@CurrentUser() user: AuthenticatedUser) {
+    return this.organizadorService.desconectarMercadoPago(user.userId);
   }
 
   @Get('staff')

@@ -161,14 +161,6 @@ export class AlteracaoDocumentoService {
         });
       }
 
-      // A subconta do Asaas fica vinculada ao documento: com outro CPF/CNPJ ela
-      // não vale mais e precisa ser recriada, senão o saque continuaria indo
-      // para o titular antigo.
-      await tx.organizador.updateMany({
-        where: { clienteId: solicitacao.clienteId },
-        data: { asaasAccountId: null, asaasWalletId: null, asaasApiKey: null },
-      });
-
       await tx.solicitacaoAlteracaoDocumento.update({
         where: { id: solicitacao.id },
         data: {
@@ -182,7 +174,7 @@ export class AlteracaoDocumentoService {
     this.auditLogService.log({
       categoria: CategoriaAuditLog.SEGURANCA,
       nivel: NivelAuditLog.WARN,
-      mensagem: `Alteração de ${ehPj ? 'CNPJ' : 'CPF'} aprovada; subconta Asaas invalidada para recriação`,
+      mensagem: `Alteração de ${ehPj ? 'CNPJ' : 'CPF'} do titular aprovada`,
       detalhes: {
         solicitacaoId: solicitacao.id,
         clienteId: solicitacao.clienteId,

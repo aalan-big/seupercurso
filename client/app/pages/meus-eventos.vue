@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { TabelaTarifas } from '../composables/useTarifas'
+import type { DadosCartaoTokenizado } from '../composables/useMercadoPagoBrick'
 import { ref, computed, onMounted } from 'vue'
 import {
   CheckCircle,
@@ -30,7 +31,7 @@ import {
 } from 'lucide-vue-next'
 import type { InscricaoComEvento } from '~/composables/useInscricao'
 
-const { token } = useAuth()
+const { token, user } = useAuth()
 const { minhasInscricoes, fetchMinhas, cancelar, pagarInscricao } = useInscricao()
 
 const carregando = ref(true)
@@ -53,41 +54,9 @@ const inscricaoAtualPagamento = ref<InscricaoComEvento | null>(null)
 const processandoCartao = ref(false)
 const sucessoCartao = ref(false)
 
-const cartaoForm = reactive({
-  holderName: '',
-  numero: '',
-  mesValidade: '12',
-  anoValidade: '2028',
-  ccv: '',
-  parcelas: 1,
-  // Exigidos pelo antifraude do Asaas.
-  cpfTitular: '',
-  cep: '',
-  numeroResidencia: ''
-})
-
-function formatarCpfTitular(e: Event) {
-  const digitos = (e.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 11)
-  cartaoForm.cpfTitular = digitos
-    .replace(/(\d{3})(\d)/, '$1.$2')
-    .replace(/(\d{3})(\d)/, '$1.$2')
-    .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
-}
-
-function formatarCep(e: Event) {
-  const digitos = (e.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 8)
-  cartaoForm.cep = digitos.replace(/(\d{5})(\d)/, '$1-$2')
-}
-
-function formatarNumeroCartao(val: string) {
-  const apenasNumeros = val.replace(/\D/g, '').slice(0, 16)
-  return apenasNumeros.replace(/(\d{4})(?=\d)/g, '$1 ')
-}
-
-function onInputNumeroCartao(e: Event) {
-  const target = e.target as HTMLInputElement
-  cartaoForm.numero = formatarNumeroCartao(target.value)
-}
+// Cartao tokenizado pelo Payment Brick do Mercado Pago: nenhum dado de cartao
+// passa por aqui nem pelo nosso servidor.
+const { montar: montarBrick, desmontar: desmontarBrick } = useMercadoPagoBrick()
 
 const dadosPix = ref<{
   id: string
@@ -202,14 +171,14 @@ async function abrirModalPagamento(inscricao: InscricaoComEvento) {
     abaPagamento.value = 'CREDITO'
   }
 
+  // Reaproveita um PIX pendente do gateway atual. Cobranca de gateway antigo
+  // nao serve: o codigo copia-e-cola ja nao e pagavel.
   const pagamentoPixValido = inscricao.pagamentos?.find(
     (p) =>
       p.metodo === 'PIX' &&
-      (p.pixCopiaECola || p.pixQrCodeUrl) &&
-      !p.pixCopiaECola?.includes('sandbox') &&
-      !p.pixCopiaECola?.includes('seupercurso-sandbox') &&
-      !p.asaasPaymentId?.startsWith('pay_mock_') &&
-      !p.asaasPaymentId?.startsWith('pay_pix_mock_')
+      p.status === 'PENDENTE' &&
+      p.gateway === 'mercadopago' &&
+      (p.pixCopiaECola || p.pixQrCodeUrl)
   )
 
   if (pagamentoPixValido) {
@@ -251,35 +220,14 @@ async function gerarNovoPix() {
   }
 }
 
-async function processarPagamentoCartao() {
+async function processarPagamentoCartao(dados: DadosCartaoTokenizado) {
   if (!inscricaoAtualPagamento.value) return
-  if (
-    !cartaoForm.numero ||
-    !cartaoForm.holderName ||
-    !cartaoForm.ccv ||
-    !cartaoForm.cpfTitular ||
-    !cartaoForm.cep ||
-    !cartaoForm.numeroResidencia
-  ) {
-    erroPixModal.value = 'Preencha todos os dados do cartão e do titular.'
-    return
-  }
 
   erroPixModal.value = ''
   processandoCartao.value = true
 
   try {
-    await pagarInscricao(inscricaoAtualPagamento.value.id, 'CREDITO', {
-      holderName: cartaoForm.holderName,
-      numero: cartaoForm.numero,
-      mesValidade: cartaoForm.mesValidade,
-      anoValidade: cartaoForm.anoValidade,
-      ccv: cartaoForm.ccv,
-      parcelas: Number(cartaoForm.parcelas),
-      cpfTitular: cartaoForm.cpfTitular,
-      cep: cartaoForm.cep,
-      numeroResidencia: cartaoForm.numeroResidencia
-    })
+    await pagarInscricao(inscricaoAtualPagamento.value.id, 'CREDITO', dados)
     sucessoCartao.value = true
     await fetchMinhas()
     setTimeout(() => {
@@ -294,8 +242,34 @@ async function processarPagamentoCartao() {
   }
 }
 
+// O Brick so existe enquanto a aba de cartao esta aberta no modal.
+watch(
+  [modalPixAberto, abaPagamento, valorBasePagamento],
+  async ([aberto, aba, base]) => {
+    const total = tarifas.value?.parcelamento?.[0]?.total ?? base
+
+    if (!aberto || aba !== 'CREDITO' || !total) {
+      await desmontarBrick()
+      return
+    }
+
+    await nextTick()
+    await montarBrick({
+      container: '#brick-cartao-modal',
+      valor: total,
+      email: user.value?.email,
+      maxParcelas: tarifas.value?.maxParcelas ?? 12,
+      onPagar: (dados) => processarPagamentoCartao(dados),
+      onErro: (mensagem) => {
+        erroPixModal.value = mensagem
+      }
+    })
+  }
+)
+
 function fecharModalPagamento() {
   pararAcompanhamento()
+  desmontarBrick()
   modalPixAberto.value = false
 }
 
@@ -932,127 +906,13 @@ async function confirmarCancelamento(id: string) {
               <p class="text-xs text-emerald-700">Sua inscrição foi confirmada e os comprovantes estão disponíveis em Meus Eventos.</p>
             </div>
 
-            <form v-else @submit.prevent="processarPagamentoCartao" class="space-y-3">
-              <div>
-                <label class="block text-[11px] font-bold uppercase text-slate-700 mb-1">Número do Cartão</label>
-                <input
-                  :value="cartaoForm.numero"
-                  type="text"
-                  placeholder="0000 0000 0000 0000"
-                  maxlength="19"
-                  required
-                  class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-xs font-mono font-bold uppercase focus:border-amber-500 focus:outline-none"
-                  @input="onInputNumeroCartao"
-                />
-              </div>
-
-              <div>
-                <label class="block text-[11px] font-bold uppercase text-slate-700 mb-1">Nome Impresso no Cartão</label>
-                <input
-                  v-model="cartaoForm.holderName"
-                  type="text"
-                  placeholder="NOME COMO NO CARTAO"
-                  required
-                  class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-xs font-bold uppercase focus:border-amber-500 focus:outline-none"
-                />
-              </div>
-
-              <div class="grid grid-cols-3 gap-2">
-                <div>
-                  <label class="block text-[11px] font-bold uppercase text-slate-700 mb-1">Mês</label>
-                  <select
-                    v-model="cartaoForm.mesValidade"
-                    class="w-full rounded-xl border border-slate-300 px-2 py-2.5 text-xs font-bold bg-white focus:border-amber-500 focus:outline-none"
-                  >
-                    <option v-for="m in 12" :key="m" :value="String(m).padStart(2, '0')">
-                      {{ String(m).padStart(2, '0') }}
-                    </option>
-                  </select>
-                </div>
-                <div>
-                  <label class="block text-[11px] font-bold uppercase text-slate-700 mb-1">Ano</label>
-                  <select
-                    v-model="cartaoForm.anoValidade"
-                    class="w-full rounded-xl border border-slate-300 px-2 py-2.5 text-xs font-bold bg-white focus:border-amber-500 focus:outline-none"
-                  >
-                    <option v-for="a in 10" :key="a" :value="String(2025 + a)">
-                      {{ 2025 + a }}
-                    </option>
-                  </select>
-                </div>
-                <div>
-                  <label class="block text-[11px] font-bold uppercase text-slate-700 mb-1">CVV</label>
-                  <input
-                    v-model="cartaoForm.ccv"
-                    type="text"
-                    placeholder="123"
-                    maxlength="4"
-                    required
-                    class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-xs font-mono font-bold focus:border-amber-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label class="block text-[11px] font-bold uppercase text-slate-700 mb-1">CPF do Titular</label>
-                <input
-                  :value="cartaoForm.cpfTitular"
-                  @input="formatarCpfTitular"
-                  type="text"
-                  inputmode="numeric"
-                  placeholder="000.000.000-00"
-                  required
-                  class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-xs font-mono font-bold focus:border-amber-500 focus:outline-none"
-                />
-              </div>
-
-              <div class="grid grid-cols-2 gap-3">
-                <div>
-                  <label class="block text-[11px] font-bold uppercase text-slate-700 mb-1">CEP do Titular</label>
-                  <input
-                    :value="cartaoForm.cep"
-                    @input="formatarCep"
-                    type="text"
-                    inputmode="numeric"
-                    placeholder="00000-000"
-                    required
-                    class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-xs font-mono font-bold focus:border-amber-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label class="block text-[11px] font-bold uppercase text-slate-700 mb-1">Nº do Endereço</label>
-                  <input
-                    v-model="cartaoForm.numeroResidencia"
-                    type="text"
-                    placeholder="100"
-                    maxlength="10"
-                    required
-                    class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-xs font-bold focus:border-amber-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label class="block text-[11px] font-bold uppercase text-slate-700 mb-1">Opções de Parcelamento</label>
-                <select
-                  v-model="cartaoForm.parcelas"
-                  class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-xs font-bold bg-white focus:border-amber-500 focus:outline-none"
-                >
-                  <option v-for="opc in opcoesParcelamentoCalculadas" :key="opc.num" :value="opc.num">
-                    {{ opc.label }}
-                  </option>
-                </select>
-              </div>
-
-              <button
-                type="submit"
-                :disabled="processandoCartao"
-                class="flex w-full items-center justify-center gap-1.5 rounded-xl bg-amber-500 py-3 text-xs font-black uppercase tracking-wider text-slate-950 shadow hover:bg-amber-400 transition disabled:opacity-50 mt-2"
-              >
-                <template v-if="processandoCartao">Processando Pagamento...</template>
-                <template v-else><CreditCard :size="14" /> Confirmar Pagamento no Cartão</template>
-              </button>
-            </form>
+            <div v-else>
+              <div id="brick-cartao-modal" class="min-h-[16rem]"></div>
+              <p class="mt-2 text-[11px] text-slate-500">
+                Seus dados de cartão vão criptografados direto para o Mercado Pago — eles
+                não passam pelo SeuPercurso.
+              </p>
+            </div>
           </div>
 
           <button

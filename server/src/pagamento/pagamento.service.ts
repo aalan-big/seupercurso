@@ -1,24 +1,30 @@
-import { randomUUID } from 'crypto';
 import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { StatusInscricao, StatusPagamento, MetodoPagamento } from '../generated/prisma/enums';
+import {
+  StatusInscricao,
+  StatusPagamento,
+  MetodoPagamento,
+  CategoriaAuditLog,
+  NivelAuditLog,
+} from '../generated/prisma/enums';
 import { calcularValorInscricao } from '../common/calcular-valor-inscricao';
 import { CreatePagamentoDto } from './dto/create-pagamento.dto';
-import { AsaasService } from './asaas.service';
 import { EmailService } from '../email/email.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificacaoAdminService } from '../admin/notificacao-admin.service';
 import { TarifaService } from './tarifa.service';
-import { CategoriaAuditLog, NivelAuditLog } from '../generated/prisma/enums';
+import { GATEWAY_PAGAMENTO, type GatewayPagamento } from './gateway.port';
+import { MercadoPagoOAuthService } from './mercadopago/mercadopago-oauth.service';
 
-/** Cobranças PIX do Asaas vencem em 24h; espelhamos isso no nosso registro. */
+/** Cobranças PIX vencem em 24h. */
 const HORAS_VALIDADE_PIX = 24;
 
 /** Tolerância (em reais) na conferência do valor pago vs. valor cobrado. */
@@ -42,11 +48,12 @@ export class PagamentoService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly asaasService: AsaasService,
+    @Inject(GATEWAY_PAGAMENTO) private readonly gateway: GatewayPagamento,
     private readonly emailService: EmailService,
     private readonly auditLogService: AuditLogService,
     private readonly notificacaoAdminService: NotificacaoAdminService,
     private readonly tarifaService: TarifaService,
+    private readonly mpOAuthService: MercadoPagoOAuthService,
   ) {}
 
   async create(usuarioId: string, dto: CreatePagamentoDto, remoteIp?: string) {
@@ -63,14 +70,11 @@ export class PagamentoService {
       include: INSCRICAO_COMPLETA_INCLUDE,
     });
 
-    if (!inscricoes || inscricoes.length === 0) {
+    if (inscricoes.length === 0) {
       throw new NotFoundException('Inscrição ou pedido não encontrado.');
     }
 
-    const todasConfirmadas = inscricoes.every(
-      (i) => i.status === StatusInscricao.CONFIRMADA,
-    );
-    if (todasConfirmadas) {
+    if (inscricoes.every((i) => i.status === StatusInscricao.CONFIRMADA)) {
       throw new ConflictException('As inscrições deste pedido já estão confirmadas.');
     }
 
@@ -79,7 +83,7 @@ export class PagamentoService {
 
     this.validarMetodoAceitoPeloEvento(evento, dto.metodo);
 
-    // Se já existe uma tentativa de pagamento pendente para esta inscrição/pedido com este método, reaproveita apenas se for válido e real
+    // Reaproveita um PIX pendente ainda válido em vez de gerar outro QR Code.
     const pagamentoExistente = await this.prisma.pagamento.findFirst({
       where: dto.pedidoId
         ? { pedidoId: dto.pedidoId, metodo: dto.metodo, status: StatusPagamento.PENDENTE }
@@ -93,126 +97,109 @@ export class PagamentoService {
     if (
       pagamentoExistente &&
       aindaValido &&
-      (pagamentoExistente.pixCopiaECola || pagamentoExistente.pixQrCodeUrl) &&
-      !pagamentoExistente.pixCopiaECola?.includes('sandbox') &&
-      !pagamentoExistente.pixCopiaECola?.includes('seupercurso-sandbox') &&
-      !pagamentoExistente.asaasPaymentId?.startsWith('pay_mock_') &&
-      !pagamentoExistente.asaasPaymentId?.startsWith('pay_pix_mock_')
+      // Cobrança de outro gateway nunca é reaproveitada: o código já não vale.
+      pagamentoExistente.gateway === this.gateway.nome &&
+      (pagamentoExistente.pixCopiaECola || pagamentoExistente.pixQrCodeUrl)
     ) {
       return pagamentoExistente;
     }
 
-    // Soma os valores reais de cada inscrição
     let valorBaseTotal = 0;
     for (const inscricao of inscricoes) {
-      const valorItem = await calcularValorInscricao(this.prisma, {
+      valorBaseTotal += await calcularValorInscricao(this.prisma, {
         loteId: inscricao.loteId,
         modalidadeId: inscricao.categoria.modalidadeId,
         clienteId: inscricao.clienteId,
         eventoId: inscricao.categoria.modalidade.eventoId,
         cupomId: inscricao.cupomId,
-        dataNascimentoAtleta: inscricao.atletaDataNascimento || inscricao.dependente?.dataNascimento || inscricao.cliente.pf?.dataNascimento,
+        dataNascimentoAtleta:
+          inscricao.atletaDataNascimento ||
+          inscricao.dependente?.dataNascimento ||
+          inscricao.cliente.pf?.dataNascimento,
       });
-      valorBaseTotal += valorItem;
     }
 
-    const organizadorWalletId = evento.organizador?.asaasWalletId;
     const comissaoPercentual = Number(evento.organizador?.comissaoPercentual ?? 10);
     const comissaoPlataforma = Number(
       (valorBaseTotal * (comissaoPercentual / 100)).toFixed(2),
     );
 
-    // O organizador recebe o valor da inscrição menos a comissão. A tarifa do
-    // gateway não sai daqui: ela é acrescida ao valor cobrado do atleta.
-    const valorLiquidoOrganizador = Number(
-      (valorBaseTotal - comissaoPlataforma).toFixed(2),
-    );
+    // Token do organizador: a cobrança roda na conta dele e nós ficamos apenas
+    // com a comissão. Sem conexão a venda não pode acontecer — o dinheiro
+    // cairia inteiro na nossa conta e viraria repasse manual.
+    const tokenRecebedor = evento.organizadorId
+      ? await this.mpOAuthService.obterTokenValido(evento.organizadorId)
+      : null;
 
-    // Tarifa do gateway repassada ao atleta, em PIX e em cartão. Com o
-    // gross-up, o que sobra depois da tarifa é exatamente o valor da inscrição.
+    if (evento.organizadorId && !tokenRecebedor) {
+      throw new BadRequestException(
+        'O organizador deste evento ainda não conectou a conta de recebimento. As inscrições serão liberadas assim que ele concluir.',
+      );
+    }
+
     const parcelas = Math.max(1, dto.parcelas || 1);
+
+    // A tarifa do gateway é repassada ao atleta, de modo que sobre exatamente o
+    // valor da inscrição para dividir entre organizador e plataforma.
     const valorCobrado = this.tarifaService.calcularValorCobrado(
       valorBaseTotal,
       dto.metodo,
       parcelas,
     );
 
-
-    const clienteComprador = primeiraInscricao.cliente;
-    const nomeCliente =
-      clienteComprador.pf?.nomeCompleto ||
-      clienteComprador.pj?.razaoSocial ||
-      'Atleta Esportivo';
-    const cpfCnpjCliente =
-      clienteComprador.pf?.cpf ||
-      clienteComprador.pj?.cnpj ||
-      '00000000000';
-    const emailCliente = clienteComprador.usuario.email;
-    const telefoneCliente =
-      clienteComprador.pf?.celular || clienteComprador.pj?.celularComercial || null;
-
-    const refId = dto.pedidoId ? dto.pedidoId : primeiraInscricao.id;
-
-    let asaasRes: { asaasPaymentId: string; pixCopiaECola?: string | null; pixQrCodeUrl?: string | null; status?: string } = {
-      asaasPaymentId: `pay_mock_${randomUUID()}`,
+    const comprador = primeiraInscricao.cliente;
+    const cliente = {
+      nome:
+        comprador.pf?.nomeCompleto || comprador.pj?.razaoSocial || 'Atleta Esportivo',
+      cpfCnpj: comprador.pf?.cpf || comprador.pj?.cnpj || '',
+      email: comprador.usuario.email,
+      telefone: comprador.pf?.celular || comprador.pj?.celularComercial || null,
     };
 
-    if (dto.metodo === MetodoPagamento.PIX) {
-      asaasRes = await this.asaasService.gerarCobrancaPix({
-        inscricaoId: refId,
-        valor: valorCobrado,
-        cliente: { nome: nomeCliente, cpfCnpj: cpfCnpjCliente, email: emailCliente },
-        organizadorWalletId,
-        valorLiquidoOrganizador,
-        valorLiquidoEsperado: valorBaseTotal,
-      });
-    } else if (dto.metodo === MetodoPagamento.CARTAO_CREDITO) {
-      asaasRes = await this.asaasService.processarPagamentoCartao({
-        inscricaoId: refId,
-        valorTotal: valorCobrado,
-        cliente: {
-          nome: nomeCliente,
-          cpfCnpj: cpfCnpjCliente,
-          email: emailCliente,
-          telefone: telefoneCliente,
-        },
-        cartao: {
-          holderName: dto.cartaoHolderName!,
-          number: dto.cartaoNumero!,
-          expiryMonth: dto.cartaoMesValidade!,
-          expiryYear: dto.cartaoAnoValidade!,
-          ccv: dto.cartaoCcv!,
-          cpfTitular: dto.cpfTitular,
-          cep: dto.cep,
-          numeroResidencia: dto.numeroResidencia,
-        },
-        parcelas,
-        organizadorWalletId,
-        valorLiquidoOrganizador,
-        valorLiquidoEsperado: valorBaseTotal,
-        remoteIp,
-      });
-    } else {
-      throw new BadRequestException(
-        'Método de pagamento não suportado. Utilize PIX ou cartão de crédito.',
-      );
-    }
+    const referenciaExterna = dto.pedidoId ?? primeiraInscricao.id;
+    const descricao = `Inscrição — ${evento.nome}`.slice(0, 250);
 
-    const isAprovado = asaasRes.status === 'APROVADO';
     const expiraEm =
       dto.metodo === MetodoPagamento.PIX
         ? new Date(Date.now() + HORAS_VALIDADE_PIX * 60 * 60 * 1000)
         : null;
 
+    const resultado =
+      dto.metodo === MetodoPagamento.PIX
+        ? await this.gateway.gerarCobrancaPix({
+            referenciaExterna,
+            valor: valorCobrado,
+            descricao,
+            cliente,
+            tokenRecebedor,
+            comissaoPlataforma,
+            expiraEm: expiraEm ?? undefined,
+          })
+        : await this.gateway.processarPagamentoCartao({
+            referenciaExterna,
+            valor: valorCobrado,
+            descricao,
+            cliente,
+            tokenCartao: dto.tokenCartao!,
+            parcelas,
+            metodoBandeira: dto.metodoBandeira,
+            emissor: dto.emissor,
+            tokenRecebedor,
+            comissaoPlataforma,
+            remoteIp,
+          });
+
+    const isAprovado = resultado.status === 'APROVADO';
+
     const dadosPagamento = {
       valor: valorCobrado,
       metodo: dto.metodo,
       status: isAprovado ? StatusPagamento.APROVADO : StatusPagamento.PENDENTE,
-      gateway: 'asaas',
-      codigoTransacao: asaasRes.asaasPaymentId,
-      asaasPaymentId: asaasRes.asaasPaymentId,
-      pixCopiaECola: asaasRes.pixCopiaECola || null,
-      pixQrCodeUrl: asaasRes.pixQrCodeUrl || null,
+      gateway: this.gateway.nome,
+      codigoTransacao: resultado.gatewayPaymentId,
+      gatewayPaymentId: resultado.gatewayPaymentId,
+      pixCopiaECola: resultado.pixCopiaECola || null,
+      pixQrCodeUrl: resultado.pixQrCodeUrl || null,
       dataPagamento: isAprovado ? new Date() : null,
       expiraEm,
     };
@@ -243,20 +230,20 @@ export class PagamentoService {
     this.auditLogService.log({
       categoria: CategoriaAuditLog.FINANCEIRO,
       nivel: NivelAuditLog.INFO,
-      mensagem: `Cobrança ${dto.metodo} gerada no valor de R$ ${valorCobrado.toFixed(2)} (${inscricoes.length} inscrição(ões))`,
+      mensagem: `Cobrança ${dto.metodo} de R$ ${valorCobrado.toFixed(2)} gerada (${inscricoes.length} inscrição(ões))`,
       detalhes: {
         pagamentoId: pagamentoCriado.id,
         pedidoId: dto.pedidoId,
         inscricaoId: dto.inscricaoId,
         metodo: dto.metodo,
-        valorTotal: valorCobrado,
+        valorBase: valorBaseTotal,
+        valorCobrado,
         comissaoPlataforma,
+        gateway: this.gateway.nome,
       },
       usuarioId,
     });
 
-    // Cartão aprovado na hora não gera webhook de confirmação pendente,
-    // então os vouchers precisam sair aqui.
     if (isAprovado) {
       await this.notificarConfirmacao(pagamentoCriado.id);
     }
@@ -265,11 +252,9 @@ export class PagamentoService {
   }
 
   /**
-   * Status de uma cobrança para acompanhamento pelo comprador.
-   *
-   * Reconcilia com o Asaas quando o pagamento ainda está pendente: o webhook pode
-   * falhar ou atrasar, e sem isso o comprador que já pagou o PIX ficava preso na
-   * tela sem confirmação.
+   * Status da cobrança para o comprador, reconciliando com o gateway enquanto
+   * estiver pendente — o webhook pode atrasar ou falhar, e sem isso quem já
+   * pagou ficaria preso na tela.
    */
   async obterStatus(usuarioId: string, pagamentoId: string) {
     const clienteId = await this.getClienteIdOuFalhar(usuarioId);
@@ -283,30 +268,16 @@ export class PagamentoService {
       throw new NotFoundException('Pagamento não encontrado.');
     }
 
-    const donoDoPagamento =
+    const dono =
       pagamento.inscricao?.clienteId === clienteId ||
       pagamento.pedido?.clienteId === clienteId;
 
-    if (!donoDoPagamento) {
+    if (!dono) {
       throw new ForbiddenException('Este pagamento não pertence a você.');
     }
 
-    if (pagamento.status === StatusPagamento.PENDENTE && pagamento.asaasPaymentId) {
-      const remoto = await this.asaasService.consultarPagamento(pagamento.asaasPaymentId);
-
-      if (remoto && (remoto.status === 'RECEIVED' || remoto.status === 'CONFIRMED')) {
-        await this.confirmarPagamento({
-          asaasPaymentId: pagamento.asaasPaymentId,
-          valorPago: remoto.valor,
-          valorLiquido: remoto.valorLiquido,
-          origem: 'reconciliacao',
-        });
-      } else if (pagamento.expiraEm && pagamento.expiraEm < new Date()) {
-        await this.prisma.pagamento.updateMany({
-          where: { id: pagamento.id, status: StatusPagamento.PENDENTE },
-          data: { status: StatusPagamento.EXPIRADO },
-        });
-      }
+    if (pagamento.status === StatusPagamento.PENDENTE && pagamento.gatewayPaymentId) {
+      await this.sincronizarComGateway(pagamento.gatewayPaymentId, 'reconciliacao');
     }
 
     return this.prisma.pagamento.findUnique({
@@ -325,32 +296,71 @@ export class PagamentoService {
   }
 
   /**
-   * Confirma uma cobrança aprovada no gateway: marca o pagamento, confirma as
-   * inscrições e dispara os vouchers.
+   * Alinha o pagamento local ao que o gateway diz.
    *
-   * É idempotente — reenvios de webhook do Asaas não reprocessam nem reenviam
-   * e-mails. Usada pelo webhook e pela reconciliação de status.
+   * O webhook do Mercado Pago traz só o id, então quem decide o status é sempre
+   * a consulta à API — nunca o corpo de um POST, que poderia ser forjado.
+   */
+  async sincronizarComGateway(
+    gatewayPaymentId: string,
+    origem: 'webhook' | 'reconciliacao',
+  ) {
+    const remoto = await this.gateway.consultarCobranca(gatewayPaymentId);
+
+    if (!remoto) {
+      this.logger.warn(
+        `Não foi possível consultar o pagamento ${gatewayPaymentId} no gateway (${origem}).`,
+      );
+      return { ignorado: true };
+    }
+
+    if (remoto.status === 'APROVADO') {
+      return this.confirmarPagamento({
+        gatewayPaymentId,
+        referenciaExterna: remoto.referenciaExterna,
+        valorPago: remoto.valor,
+        valorLiquido: remoto.valorLiquido,
+        origem,
+      });
+    }
+
+    if (remoto.status === 'ESTORNADO' || remoto.status === 'CANCELADO') {
+      await this.registrarEstorno(gatewayPaymentId, remoto.status);
+      return { estornado: true };
+    }
+
+    // Segue pendente: só expira depois da validade do PIX.
+    await this.prisma.pagamento.updateMany({
+      where: {
+        gatewayPaymentId,
+        status: StatusPagamento.PENDENTE,
+        expiraEm: { lt: new Date() },
+      },
+      data: { status: StatusPagamento.EXPIRADO },
+    });
+
+    return { pendente: true };
+  }
+
+  /**
+   * Confirma a cobrança: marca o pagamento, confirma as inscrições e dispara os
+   * vouchers. Idempotente — reenvios do gateway não reprocessam nem reenviam
+   * e-mails.
    */
   async confirmarPagamento(params: {
-    asaasPaymentId: string;
+    gatewayPaymentId: string;
     referenciaExterna?: string | null;
     valorPago?: number;
-    /** netValue do Asaas: valor menos a tarifa do gateway. */
     valorLiquido?: number | null;
     origem: 'webhook' | 'reconciliacao';
   }) {
-    const { asaasPaymentId, referenciaExterna, valorPago, valorLiquido, origem } =
+    const { gatewayPaymentId, referenciaExterna, valorPago, valorLiquido, origem } =
       params;
-
-    // A tarifa so e conhecida pelo gateway; sem guardar isso o painel mostraria
-    // um liquido diferente do saldo que o organizador consegue sacar.
-    const liquido =
-      typeof valorLiquido === 'number' && valorLiquido > 0 ? valorLiquido : null;
 
     const pagamentoExistente = await this.prisma.pagamento.findFirst({
       where: {
         OR: [
-          { asaasPaymentId },
+          { gatewayPaymentId },
           ...(referenciaExterna
             ? [{ pedidoId: referenciaExterna }, { inscricaoId: referenciaExterna }]
             : []),
@@ -358,15 +368,13 @@ export class PagamentoService {
       },
     });
 
-    // Idempotência: um reenvio do Asaas não deve reprocessar nem reenviar vouchers.
     if (pagamentoExistente?.status === StatusPagamento.APROVADO) {
       this.logger.log(
-        `Pagamento ${pagamentoExistente.id} já estava aprovado; ignorando ${origem} duplicado.`,
+        `Pagamento ${pagamentoExistente.id} já aprovado; ignorando ${origem} duplicado.`,
       );
       return { jaProcessado: true, pagamentoId: pagamentoExistente.id };
     }
 
-    // Confere o valor efetivamente pago contra o valor cobrado.
     if (
       pagamentoExistente &&
       typeof valorPago === 'number' &&
@@ -381,7 +389,7 @@ export class PagamentoService {
       this.auditLogService.log({
         categoria: CategoriaAuditLog.FINANCEIRO,
         nivel: NivelAuditLog.ERROR,
-        mensagem: `Pagamento ${asaasPaymentId} recebido com valor menor que o cobrado; confirmação bloqueada.`,
+        mensagem: `Pagamento ${gatewayPaymentId} recebido com valor menor que o cobrado; confirmação bloqueada.`,
         detalhes: {
           pagamentoId: pagamentoExistente.id,
           valorCobrado: Number(pagamentoExistente.valor),
@@ -391,6 +399,9 @@ export class PagamentoService {
       return { valorDivergente: true, pagamentoId: pagamentoExistente.id };
     }
 
+    const liquido =
+      typeof valorLiquido === 'number' && valorLiquido > 0 ? valorLiquido : null;
+
     const pedidoId =
       pagamentoExistente?.pedidoId ||
       (referenciaExterna ? await this.descobrirSeEhPedido(referenciaExterna) : null);
@@ -399,7 +410,7 @@ export class PagamentoService {
 
     if (!pagamentoExistente && !pedidoId && !inscricaoId) {
       this.logger.warn(
-        `Pagamento ${asaasPaymentId} aprovado no Asaas sem referência local (ref=${referenciaExterna}).`,
+        `Pagamento ${gatewayPaymentId} aprovado sem referência local (ref=${referenciaExterna}).`,
       );
       return { ignorado: true };
     }
@@ -411,7 +422,7 @@ export class PagamentoService {
           data: {
             status: StatusPagamento.APROVADO,
             dataPagamento: new Date(),
-            asaasPaymentId,
+            gatewayPaymentId,
             ...(liquido
               ? {
                   valorLiquido: liquido,
@@ -431,9 +442,8 @@ export class PagamentoService {
 
       if (pagamentoExistente) return pagamentoExistente.id;
 
-      // Cobrança aprovada sem registro local (registro perdido ou criada fora do
-      // fluxo): materializa o pagamento para que ele apareça no financeiro do
-      // organizador e do admin em vez de sumir do relatório.
+      // Cobrança aprovada sem registro local: materializa para não sumir do
+      // financeiro do organizador e do admin.
       const criado = await tx.pagamento.create({
         data: {
           inscricaoId,
@@ -441,14 +451,12 @@ export class PagamentoService {
           valor: valorPago ?? 0,
           valorLiquido: liquido,
           taxaGateway:
-            liquido && valorPago
-              ? Number((valorPago - liquido).toFixed(2))
-              : null,
+            liquido && valorPago ? Number((valorPago - liquido).toFixed(2)) : null,
           metodo: MetodoPagamento.PIX,
           status: StatusPagamento.APROVADO,
-          gateway: 'asaas',
-          codigoTransacao: asaasPaymentId,
-          asaasPaymentId,
+          gateway: this.gateway.nome,
+          codigoTransacao: gatewayPaymentId,
+          gatewayPaymentId,
           dataPagamento: new Date(),
         },
       });
@@ -460,16 +468,25 @@ export class PagamentoService {
     return { confirmado: true, pagamentoId };
   }
 
-  /** Marca uma cobrança como estornada/cancelada a partir do webhook. */
-  async registrarEstorno(asaasPaymentId: string) {
+  async registrarEstorno(
+    gatewayPaymentId: string,
+    status: 'ESTORNADO' | 'CANCELADO' = 'ESTORNADO',
+  ) {
+    this.logger.warn(`Pagamento ${gatewayPaymentId} ${status.toLowerCase()}.`);
+
     await this.prisma.pagamento.updateMany({
-      where: { asaasPaymentId },
-      data: { status: StatusPagamento.ESTORNADO },
+      where: { gatewayPaymentId },
+      data: {
+        status:
+          status === 'CANCELADO'
+            ? StatusPagamento.CANCELADO
+            : StatusPagamento.ESTORNADO,
+      },
     });
   }
 
   /**
-   * Envia os vouchers ao comprador e notifica a comissão no painel admin.
+   * Envia os vouchers e notifica a comissão no painel admin.
    * Nunca propaga erro: a confirmação do pagamento já foi persistida.
    */
   private async notificarConfirmacao(pagamentoId: string) {
@@ -492,24 +509,11 @@ export class PagamentoService {
       const evento = primeira.categoria.modalidade.evento;
       const comprador = primeira.cliente;
       const nomeComprador =
-        comprador.pf?.nomeCompleto || comprador.pj?.razaoSocial || comprador.usuario.email;
+        comprador.pf?.nomeCompleto ||
+        comprador.pj?.razaoSocial ||
+        comprador.usuario.email;
 
       const valorTotal = Number(pagamento.valor);
-
-      const atletasVouchers = inscricoes.map((insc) => ({
-        inscricaoId: insc.id,
-        nomeAtleta:
-          insc.dependente?.nomeCompleto ||
-          insc.atletaNome ||
-          comprador.pf?.nomeCompleto ||
-          'Atleta Esportivo',
-        cpfAtleta: insc.dependente?.cpf || insc.atletaCpf || comprador.pf?.cpf || null,
-        modalidade: insc.categoria.modalidade.nome,
-        categoria: insc.categoria.nome,
-        tamanhoCamisa: insc.tamanhoCamisa || 'N/A',
-        numeroPeito: insc.numeroPeito,
-        valor: valorTotal.toFixed(2),
-      }));
 
       await this.emailService.enviarConfirmacaoInscricaoBatch({
         emailComprador: comprador.usuario.email,
@@ -519,10 +523,22 @@ export class PagamentoService {
         localEvento: evento.local,
         cidadeEstado: `${evento.cidade}/${evento.estado}`,
         valorTotal: valorTotal.toFixed(2),
-        atletas: atletasVouchers,
+        atletas: inscricoes.map((insc) => ({
+          inscricaoId: insc.id,
+          nomeAtleta:
+            insc.dependente?.nomeCompleto ||
+            insc.atletaNome ||
+            comprador.pf?.nomeCompleto ||
+            'Atleta Esportivo',
+          cpfAtleta: insc.dependente?.cpf || insc.atletaCpf || comprador.pf?.cpf || null,
+          modalidade: insc.categoria.modalidade.nome,
+          categoria: insc.categoria.nome,
+          tamanhoCamisa: insc.tamanhoCamisa || 'N/A',
+          numeroPeito: insc.numeroPeito,
+          valor: valorTotal.toFixed(2),
+        })),
       });
 
-      // Comissão real do organizador — antes estava fixada em 10%.
       const comissaoPercentual = Number(evento.organizador?.comissaoPercentual ?? 10);
       const comissaoPlataforma = valorTotal * (comissaoPercentual / 100);
       if (comissaoPlataforma > 0) {
@@ -547,6 +563,11 @@ export class PagamentoService {
         'Este evento não aceita pagamento com cartão de crédito.',
       );
     }
+    if (metodo !== MetodoPagamento.PIX && metodo !== MetodoPagamento.CARTAO_CREDITO) {
+      throw new BadRequestException(
+        'Método de pagamento não suportado. Utilize PIX ou cartão de crédito.',
+      );
+    }
   }
 
   private async descobrirSeEhPedido(refId: string): Promise<string | null> {
@@ -559,9 +580,7 @@ export class PagamentoService {
   }
 
   private async getClienteIdOuFalhar(usuarioId: string): Promise<string> {
-    const cliente = await this.prisma.cliente.findUnique({
-      where: { usuarioId },
-    });
+    const cliente = await this.prisma.cliente.findUnique({ where: { usuarioId } });
     if (!cliente) {
       throw new NotFoundException(
         'Complete seu perfil (PF ou PJ) antes de pagar uma inscrição.',

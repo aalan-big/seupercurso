@@ -17,7 +17,8 @@ export interface PagamentoDaInscricao {
   metodo: string
   status: string
   codigoTransacao: string | null
-  asaasPaymentId?: string | null
+  gatewayPaymentId?: string | null
+  gateway?: string | null
   pixCopiaECola?: string | null
   pixQrCodeUrl?: string | null
   dataPagamento: string | null
@@ -193,15 +194,10 @@ export function useInscricao() {
     inscricaoId?: string,
     metodo: 'PIX' | 'CARTAO_CREDITO' | 'CREDITO' = 'PIX',
     cartaoDados?: {
-      holderName?: string
-      numero?: string
-      mesValidade?: string
-      anoValidade?: string
-      ccv?: string
-      parcelas?: number
-      cpfTitular?: string
-      cep?: string
-      numeroResidencia?: string
+      tokenCartao: string
+      metodoBandeira?: string
+      emissor?: string
+      parcelas: number
     },
     pedidoId?: string
   ) {
@@ -212,18 +208,14 @@ export function useInscricao() {
         ...(inscricaoId ? { inscricaoId } : {}),
         ...(pedidoId ? { pedidoId } : {}),
         metodo: metodoMapeado,
+        // Token gerado no navegador pelo Mercado Pago; dados do cartão nunca
+        // chegam ao nosso servidor.
         ...(cartaoDados
           ? {
-              cartaoHolderName: cartaoDados.holderName,
-              cartaoNumero: cartaoDados.numero,
-              cartaoMesValidade: cartaoDados.mesValidade,
-              cartaoAnoValidade: cartaoDados.anoValidade,
-              cartaoCcv: cartaoDados.ccv,
-              parcelas: cartaoDados.parcelas,
-              // Sem CPF do titular e endereço o antifraude do Asaas recusa a cobrança.
-              cpfTitular: cartaoDados.cpfTitular,
-              cep: cartaoDados.cep,
-              numeroResidencia: cartaoDados.numeroResidencia
+              tokenCartao: cartaoDados.tokenCartao,
+              metodoBandeira: cartaoDados.metodoBandeira,
+              emissor: cartaoDados.emissor,
+              parcelas: cartaoDados.parcelas
             }
           : {})
       }

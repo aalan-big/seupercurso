@@ -48,7 +48,7 @@ async function bootstrap() {
 
   app.enableCors({
     origin: (origin, callback) => {
-      // Requisicoes sem Origin (curl, apps nativos, webhook do Asaas) seguem valendo.
+      // Requisicoes sem Origin (curl, apps nativos, webhook do gateway) seguem valendo.
       if (!origin || origensPermitidas.includes(origin)) {
         callback(null, true);
         return;
@@ -59,7 +59,7 @@ async function bootstrap() {
   });
 
   // Necessario para que @Ip() devolva o IP real do comprador atras do Nginx —
-  // o antifraude do Asaas rejeita cobrancas com o IP do proxy.
+  // o antifraude do gateway rejeita cobrancas com o IP do proxy.
   app.set('trust proxy', 1);
   await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
 

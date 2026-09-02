@@ -14,7 +14,10 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:3000',
-      organizerBase: process.env.NUXT_PUBLIC_ORGANIZER_BASE || 'http://localhost:3002'
+      organizerBase: process.env.NUXT_PUBLIC_ORGANIZER_BASE || 'http://localhost:3002',
+      // Public key do Mercado Pago: usada so para tokenizar o cartao no
+      // navegador. Nao da acesso a nada da conta.
+      mercadoPagoPublicKey: process.env.NUXT_PUBLIC_MP_PUBLIC_KEY || ''
     }
   }
 })
