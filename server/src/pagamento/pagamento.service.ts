@@ -15,6 +15,7 @@ import { AsaasService } from './asaas.service';
 import { EmailService } from '../email/email.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificacaoAdminService } from '../admin/notificacao-admin.service';
+import { TarifaService } from './tarifa.service';
 import { CategoriaAuditLog, NivelAuditLog } from '../generated/prisma/enums';
 
 /** Cobranças PIX do Asaas vencem em 24h; espelhamos isso no nosso registro. */
@@ -45,6 +46,7 @@ export class PagamentoService {
     private readonly emailService: EmailService,
     private readonly auditLogService: AuditLogService,
     private readonly notificacaoAdminService: NotificacaoAdminService,
+    private readonly tarifaService: TarifaService,
   ) {}
 
   async create(usuarioId: string, dto: CreatePagamentoDto, remoteIp?: string) {
@@ -120,22 +122,20 @@ export class PagamentoService {
       (valorBaseTotal * (comissaoPercentual / 100)).toFixed(2),
     );
 
-    // Percentual do repasse: o organizador fica com o valor base menos a
-    // comissão. Como o Asaas aplica o split sobre o líquido, a tarifa do
-    // gateway é descontada antes e cabe ao organizador — o painel mostra a
-    // tarifa separada para essa diferença ficar visível.
+    // O organizador recebe o valor da inscrição menos a comissão. A tarifa do
+    // gateway não sai daqui: ela é acrescida ao valor cobrado do atleta.
     const valorLiquidoOrganizador = Number(
       (valorBaseTotal - comissaoPlataforma).toFixed(2),
     );
 
-    let valorCobrado = valorBaseTotal;
-
-    if (dto.metodo === MetodoPagamento.CARTAO_CREDITO) {
-      const parcelas = Math.max(1, dto.parcelas || 1);
-      const percentualJurosAsaas = parcelas * 0.0299;
-      const taxaFixaCartao = 0.49;
-      valorCobrado = Number(((valorBaseTotal + taxaFixaCartao) * (1 + percentualJurosAsaas)).toFixed(2));
-    }
+    // Tarifa do gateway repassada ao atleta, em PIX e em cartão. Com o
+    // gross-up, o que sobra depois da tarifa é exatamente o valor da inscrição.
+    const parcelas = Math.max(1, dto.parcelas || 1);
+    const valorCobrado = this.tarifaService.calcularValorCobrado(
+      valorBaseTotal,
+      dto.metodo,
+      parcelas,
+    );
 
 
     const clienteComprador = primeiraInscricao.cliente;
@@ -164,6 +164,7 @@ export class PagamentoService {
         cliente: { nome: nomeCliente, cpfCnpj: cpfCnpjCliente, email: emailCliente },
         organizadorWalletId,
         valorLiquidoOrganizador,
+        valorLiquidoEsperado: valorBaseTotal,
       });
     } else if (dto.metodo === MetodoPagamento.CARTAO_CREDITO) {
       asaasRes = await this.asaasService.processarPagamentoCartao({
@@ -185,9 +186,10 @@ export class PagamentoService {
           cep: dto.cep,
           numeroResidencia: dto.numeroResidencia,
         },
-        parcelas: dto.parcelas || 1,
+        parcelas,
         organizadorWalletId,
         valorLiquidoOrganizador,
+        valorLiquidoEsperado: valorBaseTotal,
         remoteIp,
       });
     } else {

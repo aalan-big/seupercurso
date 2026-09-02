@@ -36,6 +36,8 @@ export interface GerarPixParams {
   organizadorWalletId?: string | null;
   /** Quanto do valor cobrado pertence ao organizador (já descontada a comissão). */
   valorLiquidoOrganizador?: number;
+  /** Valor que deve sobrar após a tarifa do gateway; base do percentual do split. */
+  valorLiquidoEsperado?: number;
   /** Sobrescreve o externalReference enviado ao Asaas (padrão: inscricaoId). */
   referenciaExterna?: string;
   /** Sobrescreve a descrição da cobrança (padrão: referência à inscrição). */
@@ -65,6 +67,8 @@ export interface ProcessarCartaoParams {
   organizadorWalletId?: string | null;
   /** Quanto do valor cobrado pertence ao organizador (já descontada a comissão). */
   valorLiquidoOrganizador?: number;
+  /** Valor que deve sobrar após a tarifa do gateway; base do percentual do split. */
+  valorLiquidoEsperado?: number;
   /** IP de origem do comprador, exigido pelo antifraude do Asaas. */
   remoteIp?: string;
 }
@@ -134,12 +138,20 @@ export class AsaasService {
     walletId: string | null | undefined,
     valorCobrado: number,
     valorLiquidoOrganizador?: number,
+    valorLiquidoEsperado?: number,
   ) {
     if (!walletId || walletId.startsWith('wal_mock_')) return undefined;
     if (!valorCobrado || valorCobrado <= 0) return undefined;
 
-    const liquido = Math.max(0, Math.min(valorLiquidoOrganizador ?? 0, valorCobrado));
-    const percentual = Number(((liquido / valorCobrado) * 100).toFixed(2));
+    // O Asaas aplica o percentual sobre o valor LIQUIDO (ja descontada a
+    // tarifa). Calcular o percentual sobre o valor cobrado entregaria menos do
+    // que o combinado ao organizador, e a diferenca seria justamente a tarifa.
+    const base = valorLiquidoEsperado && valorLiquidoEsperado > 0
+      ? valorLiquidoEsperado
+      : valorCobrado;
+
+    const liquido = Math.max(0, Math.min(valorLiquidoOrganizador ?? 0, base));
+    const percentual = Number(((liquido / base) * 100).toFixed(2));
     if (percentual <= 0) return undefined;
 
     return [{ walletId, percentualValue: percentual }];
@@ -270,6 +282,7 @@ export class AsaasService {
       params.organizadorWalletId,
       params.valor,
       params.valorLiquidoOrganizador,
+      params.valorLiquidoEsperado,
     );
 
     const referenciaExterna = params.referenciaExterna ?? params.inscricaoId ?? randomUUID();
@@ -331,6 +344,7 @@ export class AsaasService {
       params.organizadorWalletId,
       params.valorTotal,
       params.valorLiquidoOrganizador,
+      params.valorLiquidoEsperado,
     );
 
     const body = {

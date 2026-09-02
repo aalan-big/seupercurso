@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { TabelaTarifas } from '../composables/useTarifas'
 import { ref, computed, onMounted } from 'vue'
 import {
   CheckCircle,
@@ -136,18 +137,36 @@ const valorBasePagamento = computed(() => {
   return Number(v) || 0
 })
 
+// Tarifa do gateway paga pelo atleta; a tabela vem do servidor, unica fonte.
+const { buscar: buscarTarifas } = useTarifas()
+const tarifas = ref<TabelaTarifas | null>(null)
+
+watch(
+  () => valorBasePagamento.value,
+  async (base) => {
+    if (!base || base <= 0) {
+      tarifas.value = null
+      return
+    }
+    try {
+      tarifas.value = await buscarTarifas(base)
+    } catch {
+      tarifas.value = null
+    }
+  },
+  { immediate: true }
+)
+
+const taxaPix = computed(() => tarifas.value?.pixTarifa ?? 0)
+
 const opcoesParcelamentoCalculadas = computed(() => {
   const base = valorBasePagamento.value
   if (!base) return []
 
   const lista = []
-  const maxParcelas = Math.min(12, Math.max(1, Math.floor(base / 15))) || 1
 
-  for (let n = 1; n <= maxParcelas; n++) {
-    const percentualJurosAsaas = n * 0.0299
-    const taxaFixaCartao = 0.49
-    const totalComJuros = (base + taxaFixaCartao) * (1 + percentualJurosAsaas)
-    const valorParcela = totalComJuros / n
+  for (const opcao of tarifas.value?.parcelamento || []) {
+    const { num: n, total: totalComJuros, parcela: valorParcela } = opcao
 
     if (n === 1) {
       lista.push({
@@ -840,8 +859,12 @@ async function confirmarCancelamento(id: string) {
               </div>
 
               <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-1 text-center">
-                <p class="text-[10px] text-slate-400 font-black uppercase tracking-wider">Valor da Inscrição</p>
+                <p class="text-[10px] text-slate-400 font-black uppercase tracking-wider">Valor a Pagar</p>
                 <p class="text-2xl sm:text-3xl font-black text-emerald-600">R$ {{ Number(dadosPix.valor).toFixed(2) }}</p>
+                <p v-if="taxaPix > 0" class="text-[11px] font-semibold text-slate-500">
+                  Inscrição R$ {{ Number(valorBasePagamento).toFixed(2) }}
+                  + taxa de processamento R$ {{ Number(taxaPix).toFixed(2) }}
+                </p>
               </div>
 
               <div v-if="dadosPix.pixCopiaECola" class="space-y-2 text-left">

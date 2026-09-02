@@ -11,6 +11,8 @@ import { AsaasService } from './asaas.service';
 import { EmailService } from '../email/email.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificacaoAdminService } from '../admin/notificacao-admin.service';
+import { TarifaService } from './tarifa.service';
+import { ConfigService } from '@nestjs/config';
 
 describe('PagamentoService', () => {
   let service: PagamentoService;
@@ -98,6 +100,10 @@ describe('PagamentoService', () => {
         { provide: EmailService, useValue: emailService },
         { provide: AuditLogService, useValue: auditLogService },
         { provide: NotificacaoAdminService, useValue: notificacaoAdminService },
+        TarifaService,
+        // Sem overrides, o TarifaService usa os padroes: PIX R$ 1,99 fixo e
+        // cartao 2,99% por parcela + R$ 0,49.
+        { provide: ConfigService, useValue: { get: () => undefined } },
       ],
     }).compile();
 
@@ -157,7 +163,8 @@ describe('PagamentoService', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             inscricaoId: inscricaoPadrao.id,
-            valor: 60,
+            // 60 de inscricao + R$ 1,99 de tarifa de PIX, paga pelo atleta
+            valor: 61.99,
             metodo: 'PIX',
             status: 'PENDENTE',
             gateway: 'asaas',
@@ -225,19 +232,31 @@ describe('PagamentoService', () => {
       );
     });
 
-    it('mantém o percentual do repasse independente do valor da inscrição', async () => {
-      // O split e percentual sobre o liquido, entao a tarifa do gateway sai da
-      // parte do organizador e o repasse combinado nao muda com o valor.
-      prisma.loteModalidadePreco.findUnique.mockResolvedValue({
-        id: 'preco-1',
-        valor: '5.50',
-      });
-
+    it('cobra a tarifa do gateway do atleta, acima do valor da inscrição', async () => {
       await service.create(usuarioId, dto);
 
       expect(asaasService.gerarCobrancaPix).toHaveBeenCalledWith(
-        expect.objectContaining({ valorLiquidoOrganizador: 4.95 }),
+        // base 60 + tarifa fixa de PIX de R$ 1,99
+        expect.objectContaining({ valor: 61.99, valorLiquidoEsperado: 60 }),
       );
+    });
+
+    it('entrega ao organizador o mesmo valor no PIX e no cartão', async () => {
+      await service.create(usuarioId, dto);
+      const noPix = asaasService.gerarCobrancaPix.mock.calls[0][0];
+
+      await service.create(usuarioId, {
+        inscricaoId: 'inscricao-1',
+        metodo: 'CARTAO_CREDITO' as const,
+        parcelas: 6,
+      });
+      const noCartao = asaasService.processarPagamentoCartao.mock.calls[0][0];
+
+      // O repasse nao pode depender do meio de pagamento: a tarifa e sempre do
+      // atleta, entao o organizador recebe base menos comissao nos dois casos.
+      expect(noPix.valorLiquidoOrganizador).toBe(54);
+      expect(noCartao.valorLiquidoOrganizador).toBe(54);
+      expect(noCartao.valorTotal).toBeGreaterThan(noPix.valor);
     });
   });
 

@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AsaasService } from '../pagamento/asaas.service';
+import { TarifaService } from '../pagamento/tarifa.service';
+import { MetodoPagamento } from '../generated/prisma/enums';
 import { StatusSolicitacaoArte } from '../generated/prisma/enums';
 
 const SOLICITACAO_INCLUDE = {
@@ -29,6 +31,7 @@ export class ArteService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly asaasService: AsaasService,
+    private readonly tarifaService: TarifaService,
   ) {}
 
   async obterPreco() {
@@ -90,8 +93,14 @@ export class ArteService {
       },
     });
 
-    const pix = await this.asaasService.gerarCobrancaPix({
+    // Mesma regra das inscricoes: a tarifa do gateway e paga por quem compra.
+    const valorCobrado = this.tarifaService.calcularValorCobrado(
       valor,
+      MetodoPagamento.PIX,
+    );
+
+    const pix = await this.asaasService.gerarCobrancaPix({
+      valor: valorCobrado,
       cliente: { nome, cpfCnpj, email },
       referenciaExterna: `arte:${solicitacao.id}`,
       descricao: `Arte para o evento ${evento.nome}`,

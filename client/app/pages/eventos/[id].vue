@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { TabelaTarifas } from '../../composables/useTarifas'
 import {
   Flag,
   MapPin,
@@ -570,18 +571,38 @@ function onInputCep(e: Event) {
   cartaoForm.cep = digitos.replace(/(\d{5})(\d)/, '$1-$2')
 }
 
+// A tarifa do gateway e paga pelo atleta. A tabela vem do servidor para a
+// formula nao ficar duplicada aqui e no modal de Meus Eventos.
+const { buscar: buscarTarifas } = useTarifas()
+const tarifas = ref<TabelaTarifas | null>(null)
+
+watch(
+  () => valorTotalCalculado.value,
+  async (base) => {
+    if (!base || base <= 0) {
+      tarifas.value = null
+      return
+    }
+    try {
+      tarifas.value = await buscarTarifas(base)
+    } catch {
+      tarifas.value = null
+    }
+  },
+  { immediate: true }
+)
+
+const taxaPix = computed(() => tarifas.value?.pixTarifa ?? 0)
+const totalPix = computed(() => tarifas.value?.pixTotal ?? valorTotalCalculado.value)
+
 const opcoesParcelamentoCalculadas = computed(() => {
   const base = valorTotalCalculado.value
   if (!base) return []
 
   const lista = []
-  const maxParcelas = Math.min(12, Math.max(1, Math.floor(base / 15))) || 1
 
-  for (let n = 1; n <= maxParcelas; n++) {
-    const percentualJurosAsaas = n * 0.0299
-    const taxaFixaCartao = 0.49
-    const totalComJuros = (base + taxaFixaCartao) * (1 + percentualJurosAsaas)
-    const valorParcela = totalComJuros / n
+  for (const opcao of tarifas.value?.parcelamento || []) {
+    const { num: n, total: totalComJuros, parcela: valorParcela } = opcao
 
     if (n === 1) {
       lista.push({
@@ -611,6 +632,9 @@ const opcaoCartaoSelecionada = computed(() => {
 const valorFinalComMetodo = computed(() => {
   if (metodoPagamentoSelecionado.value === 'CREDITO' && opcaoCartaoSelecionada.value) {
     return opcaoCartaoSelecionada.value.total
+  }
+  if (metodoPagamentoSelecionado.value === 'PIX') {
+    return totalPix.value
   }
   return valorTotalCalculado.value
 })
@@ -1270,10 +1294,33 @@ async function onInscrever() {
                 </div>
               </div>
 
-              <!-- Total Final -->
-              <div class="pt-4 border-t border-slate-100 flex justify-between items-center text-xl font-black text-slate-900">
-                <span>Valor Total a Pagar:</span>
-                <span class="text-orange-600">R$ {{ Number(valorFinalComMetodo).toFixed(2) }}</span>
+              <!-- Total Final, com a taxa discriminada -->
+              <div class="pt-4 border-t border-slate-100 space-y-2">
+                <div class="flex justify-between items-center text-xs font-semibold text-slate-500">
+                  <span>Inscrições</span>
+                  <span>R$ {{ Number(valorTotalCalculado).toFixed(2) }}</span>
+                </div>
+
+                <div
+                  v-if="metodoPagamentoSelecionado === 'PIX' && taxaPix > 0"
+                  class="flex justify-between items-center text-xs font-semibold text-slate-500"
+                >
+                  <span>Taxa de processamento</span>
+                  <span>R$ {{ Number(taxaPix).toFixed(2) }}</span>
+                </div>
+
+                <div
+                  v-else-if="metodoPagamentoSelecionado === 'CREDITO' && opcaoCartaoSelecionada"
+                  class="flex justify-between items-center text-xs font-semibold text-slate-500"
+                >
+                  <span>Taxa de processamento ({{ opcaoCartaoSelecionada.num }}x)</span>
+                  <span>R$ {{ (opcaoCartaoSelecionada.total - valorTotalCalculado).toFixed(2) }}</span>
+                </div>
+
+                <div class="flex justify-between items-center text-xl font-black text-slate-900 pt-1">
+                  <span>Valor Total a Pagar:</span>
+                  <span class="text-orange-600">R$ {{ Number(valorFinalComMetodo).toFixed(2) }}</span>
+                </div>
               </div>
             </div>
 
