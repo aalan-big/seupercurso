@@ -1,7 +1,8 @@
-import { IsNumber, Min } from 'class-validator';
+import { IsNumber } from 'class-validator';
+import { IsValorCobravel } from '../../common/validators/is-valor-cobravel.validator';
 
 export class DefinirPrecoDto {
   @IsNumber()
-  @Min(0)
+  @IsValorCobravel()
   valor: number;
 }

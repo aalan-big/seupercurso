@@ -1,11 +1,17 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
+import {
+  VALOR_MINIMO_COBRANCA,
+  valorEhCobravel,
+} from '../common/validators/is-valor-cobravel.validator';
 
 export interface CriarSubcontaParams {
   nome: string;
   email: string;
   cpfCnpj: string;
+  /** Renda mensal (PF) ou faturamento mensal (PJ). Obrigatório no Asaas. */
+  rendaFaturamentoMensal: number;
   telefone?: string;
   chavePix?: string;
   dataNascimento?: string;
@@ -147,10 +153,19 @@ export class AsaasService {
       return { accountId: `acc_mock_${Date.now()}`, walletId: `wal_mock_${Date.now()}` };
     }
 
+    if (!params.rendaFaturamentoMensal || params.rendaFaturamentoMensal <= 0) {
+      throw new BadRequestException(
+        'Informe a renda mensal (pessoa física) ou o faturamento mensal (pessoa jurídica) para abrir a conta de recebimento.',
+      );
+    }
+
     const body = {
       name: params.nome,
       email: params.email,
       cpfCnpj: params.cpfCnpj.replace(/\D/g, ''),
+      // Exigido pelo Asaas em POST /accounts: sem ele a subconta nunca era criada,
+      // o organizador ficava sem walletId e o split nao acontecia.
+      incomeValue: params.rendaFaturamentoMensal,
       mobilePhone: params.telefone ? params.telefone.replace(/\D/g, '') : '88999999999',
       birthDate: params.dataNascimento,
       postalCode: params.cep?.replace(/\D/g, ''),
@@ -192,6 +207,8 @@ export class AsaasService {
    * Gera uma cobrança PIX com QR Code e Copia e Cola no Asaas (com Split de Pagamento)
    */
   async gerarCobrancaPix(params: GerarPixParams) {
+    this.validarValorCobranca(params.valor);
+
     const split = this.montarSplit(
       params.organizadorWalletId,
       params.valor,
@@ -250,6 +267,7 @@ export class AsaasService {
    * Processa pagamento em Cartão de Crédito com antecipação em D+2 e Split Automático
    */
   async processarPagamentoCartao(params: ProcessarCartaoParams) {
+    this.validarValorCobranca(params.valorTotal);
     this.validarDadosCartao(params.cartao);
 
     const split = this.montarSplit(
@@ -352,6 +370,18 @@ export class AsaasService {
       if (error instanceof BadRequestException) throw error;
       this.logger.error(`Falha ao solicitar saque no Asaas: ${error.message || error}`);
       throw new BadRequestException('Não foi possível processar a transferência PIX no momento. Tente novamente mais tarde.');
+    }
+  }
+
+  /**
+   * O Asaas recusa qualquer cobrança abaixo de R$ 5,00. Barramos antes de chamar
+   * a API para o comprador receber uma mensagem clara em vez do erro cru do gateway.
+   */
+  private validarValorCobranca(valor: number) {
+    if (!valorEhCobravel(valor) || valor <= 0) {
+      throw new BadRequestException(
+        `O valor mínimo de uma cobrança é R$ ${VALOR_MINIMO_COBRANCA.toFixed(2)}. Valor solicitado: R$ ${Number(valor || 0).toFixed(2)}.`,
+      );
     }
   }
 

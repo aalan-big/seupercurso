@@ -1589,10 +1589,21 @@ export class OrganizadorService {
   async atualizarDadosBancarios(usuarioId: string, dto: UpdateDadosBancariosDto) {
     const organizador = await this.getOrganizadorOuFalhar(usuarioId);
 
-    await this.prisma.organizador.update({
+    const atualizado = await this.prisma.organizador.update({
       where: { id: organizador.id },
       data: { ...dto },
     });
+
+    // Sem esse dado o Asaas recusa a subconta e o organizador ficaria sem
+    // receber o split, sem nenhum aviso — por isso falhamos de forma explícita.
+    if (
+      !atualizado.asaasWalletId &&
+      Number(atualizado.rendaFaturamentoMensal ?? 0) <= 0
+    ) {
+      throw new BadRequestException(
+        'Informe a renda mensal (pessoa física) ou o faturamento mensal (pessoa jurídica). O Asaas exige esse dado para abrir sua conta de recebimento.',
+      );
+    }
 
     // A subconta Asaas só é criada depois que o admin aprovar o organizador.
     return this.garantirSubcontaAsaas(organizador.id);
@@ -1609,10 +1620,12 @@ export class OrganizadorService {
     }
 
     const temDadosBancarios = !!(organizador.chavePix || organizador.conta);
+    const temRenda = Number(organizador.rendaFaturamentoMensal ?? 0) > 0;
     if (
       organizador.asaasWalletId ||
       organizador.status !== StatusOrganizador.APROVADO ||
-      !temDadosBancarios
+      !temDadosBancarios ||
+      !temRenda
     ) {
       return organizador;
     }
@@ -1631,6 +1644,7 @@ export class OrganizadorService {
       nome,
       email,
       cpfCnpj,
+      rendaFaturamentoMensal: Number(organizador.rendaFaturamentoMensal),
       chavePix: organizador.chavePix ?? undefined,
       telefone: cliente?.pf?.celular || cliente?.pj?.celularComercial,
       dataNascimento: cliente?.pf?.dataNascimento?.toISOString().slice(0, 10),

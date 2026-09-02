@@ -13,8 +13,11 @@ const form = reactive({
   banco: '',
   agencia: '',
   conta: '',
-  tipoConta: ''
+  tipoConta: '',
+  // Exigido pelo Asaas para abrir a conta de recebimento.
+  rendaFaturamentoMensal: '' as string | number
 })
+
 
 onMounted(async () => {
   try {
@@ -24,6 +27,9 @@ onMounted(async () => {
     form.agencia = organizador.value?.agencia || ''
     form.conta = organizador.value?.conta || ''
     form.tipoConta = organizador.value?.tipoConta || ''
+    form.rendaFaturamentoMensal = organizador.value?.rendaFaturamentoMensal
+      ? Number(organizador.value.rendaFaturamentoMensal)
+      : ''
   } catch (e) {
     erro.value = extrairErro(e)
   } finally {
@@ -36,7 +42,10 @@ async function onSalvar() {
   sucesso.value = ''
   salvando.value = true
   try {
-    await atualizarDadosBancarios({ ...form })
+    await atualizarDadosBancarios({
+      ...form,
+      rendaFaturamentoMensal: Number(form.rendaFaturamentoMensal) || undefined
+    })
     sucesso.value = 'Dados bancários salvos.'
   } catch (e) {
     erro.value = extrairErro(e)
@@ -98,6 +107,25 @@ async function onSalvar() {
             placeholder="CPF/CNPJ, e-mail, celular ou chave aleatória"
             class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
           />
+        </div>
+
+        <div class="border-t border-slate-100 pt-4">
+          <label class="mb-1 block text-sm font-semibold text-slate-700">
+            Renda mensal (PF) ou faturamento mensal (PJ)
+          </label>
+          <input
+            v-model="form.rendaFaturamentoMensal"
+            type="number"
+            min="1"
+            step="0.01"
+            placeholder="5000.00"
+            required
+            class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+          />
+          <p class="mt-1.5 text-xs text-slate-500">
+            Exigido pelo Asaas para abrir sua conta de recebimento. Sem esse dado o repasse
+            automático das inscrições não é ativado.
+          </p>
         </div>
 
         <div class="border-t border-slate-100 pt-4">

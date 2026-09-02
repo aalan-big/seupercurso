@@ -6,6 +6,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
+import { IsValorCobravel } from '../../common/validators/is-valor-cobravel.validator';
 
 export class CreateModalidadeDto {
   @IsString()
@@ -37,6 +38,6 @@ export class CreateModalidadeDto {
 
   @IsOptional()
   @IsNumber()
-  @Min(0)
+  @IsValorCobravel()
   valor?: number;
 }

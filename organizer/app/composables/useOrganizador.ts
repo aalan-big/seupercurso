@@ -9,6 +9,8 @@ export interface Organizador {
   agencia: string | null
   conta: string | null
   tipoConta: string | null
+  rendaFaturamentoMensal: string | null
+  asaasWalletId: string | null
   fotoRostoUrl: string | null
   documentoIdentidadeUrl: string | null
   motivoRevisao: string | null
@@ -60,6 +62,7 @@ export function useOrganizador() {
     agencia?: string
     conta?: string
     tipoConta?: string
+    rendaFaturamentoMensal?: number
   }) {
     const res = await api<Organizador>('/organizadores/me/dados-bancarios', {
       method: 'PATCH',
