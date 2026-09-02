@@ -12,6 +12,8 @@ export interface CriarSubcontaParams {
   cpfCnpj: string;
   /** Renda mensal (PF) ou faturamento mensal (PJ). Obrigatório no Asaas. */
   rendaFaturamentoMensal: number;
+  /** Natureza jurídica (MEI/LIMITED/INDIVIDUAL/ASSOCIATION). Obrigatório quando é CNPJ. */
+  tipoEmpresa?: string | null;
   telefone?: string;
   chavePix?: string;
   dataNascimento?: string;
@@ -159,15 +161,27 @@ export class AsaasService {
       );
     }
 
+    const documento = params.cpfCnpj.replace(/\D/g, '');
+    const ehPessoaJuridica = documento.length === 14;
+
+    if (ehPessoaJuridica && !params.tipoEmpresa) {
+      throw new BadRequestException(
+        'Informe a natureza jurídica da empresa (MEI, LTDA, Empresário Individual ou Associação) para abrir a conta de recebimento.',
+      );
+    }
+
     const body = {
       name: params.nome,
       email: params.email,
-      cpfCnpj: params.cpfCnpj.replace(/\D/g, ''),
+      cpfCnpj: documento,
+      // Obrigatório para contas PJ; enviar em conta PF faz o Asaas recusar.
+      ...(ehPessoaJuridica ? { companyType: params.tipoEmpresa } : {}),
       // Exigido pelo Asaas em POST /accounts: sem ele a subconta nunca era criada,
       // o organizador ficava sem walletId e o split nao acontecia.
       incomeValue: params.rendaFaturamentoMensal,
       mobilePhone: params.telefone ? params.telefone.replace(/\D/g, '') : '88999999999',
-      birthDate: params.dataNascimento,
+      // Data de nascimento so faz sentido em conta PF.
+      ...(ehPessoaJuridica ? {} : { birthDate: params.dataNascimento }),
       postalCode: params.cep?.replace(/\D/g, ''),
       address: params.logradouro,
       addressNumber: params.numero,

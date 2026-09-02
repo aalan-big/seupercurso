@@ -94,7 +94,15 @@ export class OrganizadorService {
   }
 
   async getMe(usuarioId: string) {
-    return this.getOrganizadorOuFalhar(usuarioId);
+    const organizador = await this.getOrganizadorOuFalhar(usuarioId);
+
+    const cliente = await this.prisma.cliente.findUnique({
+      where: { id: organizador.clienteId },
+      select: { pj: { select: { id: true } } },
+    });
+
+    // O painel precisa saber o tipo para exigir a natureza jurídica só de PJ.
+    return { ...organizador, tipoPessoa: cliente?.pj ? 'PJ' : 'PF' };
   }
 
   async listarMeusEventos(usuarioId: string) {
@@ -1605,6 +1613,17 @@ export class OrganizadorService {
       );
     }
 
+    const clientePj = await this.prisma.clientePj.findUnique({
+      where: { clienteId: organizador.clienteId },
+      select: { id: true },
+    });
+
+    if (clientePj && !atualizado.asaasWalletId && !atualizado.tipoEmpresa) {
+      throw new BadRequestException(
+        'Informe a natureza jurídica da empresa (MEI, LTDA, Empresário Individual ou Associação). O Asaas exige esse dado para abrir a conta de recebimento de pessoa jurídica.',
+      );
+    }
+
     // A subconta Asaas só é criada depois que o admin aprovar o organizador.
     return this.garantirSubcontaAsaas(organizador.id);
   }
@@ -1640,11 +1659,17 @@ export class OrganizadorService {
     const email = cliente?.usuario.email || 'organizador@seupercurso.com.br';
     const endereco = cliente?.enderecos[0];
 
+    // PJ sem natureza jurídica seria recusado pelo Asaas; espera o dado chegar.
+    if (cliente?.pj && !organizador.tipoEmpresa) {
+      return organizador;
+    }
+
     const asaasSub = await this.asaasService.criarSubcontaOrganizador({
       nome,
       email,
       cpfCnpj,
       rendaFaturamentoMensal: Number(organizador.rendaFaturamentoMensal),
+      tipoEmpresa: organizador.tipoEmpresa,
       chavePix: organizador.chavePix ?? undefined,
       telefone: cliente?.pf?.celular || cliente?.pj?.celularComercial,
       dataNascimento: cliente?.pf?.dataNascimento?.toISOString().slice(0, 10),

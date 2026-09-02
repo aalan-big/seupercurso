@@ -14,9 +14,19 @@ const form = reactive({
   agencia: '',
   conta: '',
   tipoConta: '',
-  // Exigido pelo Asaas para abrir a conta de recebimento.
-  rendaFaturamentoMensal: '' as string | number
+  // Exigidos pelo Asaas para abrir a conta de recebimento.
+  rendaFaturamentoMensal: '' as string | number,
+  tipoEmpresa: ''
 })
+
+const ehPessoaJuridica = computed(() => organizador.value?.tipoPessoa === 'PJ')
+
+const tiposEmpresa = [
+  { valor: 'MEI', rotulo: 'MEI — Microempreendedor Individual' },
+  { valor: 'LIMITED', rotulo: 'LTDA — Sociedade Limitada' },
+  { valor: 'INDIVIDUAL', rotulo: 'EI — Empresário Individual' },
+  { valor: 'ASSOCIATION', rotulo: 'Associação' }
+]
 
 
 onMounted(async () => {
@@ -30,6 +40,7 @@ onMounted(async () => {
     form.rendaFaturamentoMensal = organizador.value?.rendaFaturamentoMensal
       ? Number(organizador.value.rendaFaturamentoMensal)
       : ''
+    form.tipoEmpresa = organizador.value?.tipoEmpresa || ''
   } catch (e) {
     erro.value = extrairErro(e)
   } finally {
@@ -44,7 +55,9 @@ async function onSalvar() {
   try {
     await atualizarDadosBancarios({
       ...form,
-      rendaFaturamentoMensal: Number(form.rendaFaturamentoMensal) || undefined
+      rendaFaturamentoMensal: Number(form.rendaFaturamentoMensal) || undefined,
+      // O Asaas recusa companyType em conta de pessoa física.
+      tipoEmpresa: ehPessoaJuridica.value ? form.tipoEmpresa || undefined : undefined
     })
     sucesso.value = 'Dados bancários salvos.'
   } catch (e) {
@@ -126,6 +139,23 @@ async function onSalvar() {
             Exigido pelo Asaas para abrir sua conta de recebimento. Sem esse dado o repasse
             automático das inscrições não é ativado.
           </p>
+
+          <div v-if="ehPessoaJuridica" class="mt-4">
+            <label class="mb-1 block text-sm font-semibold text-slate-700">Natureza jurídica</label>
+            <select
+              v-model="form.tipoEmpresa"
+              required
+              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+            >
+              <option value="" disabled>Selecione</option>
+              <option v-for="tipo in tiposEmpresa" :key="tipo.valor" :value="tipo.valor">
+                {{ tipo.rotulo }}
+              </option>
+            </select>
+            <p class="mt-1.5 text-xs text-slate-500">
+              Obrigatório para conta com CNPJ.
+            </p>
+          </div>
         </div>
 
         <div class="border-t border-slate-100 pt-4">

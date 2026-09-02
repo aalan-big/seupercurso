@@ -10,6 +10,8 @@ export interface Organizador {
   conta: string | null
   tipoConta: string | null
   rendaFaturamentoMensal: string | null
+  tipoEmpresa: 'MEI' | 'LIMITED' | 'INDIVIDUAL' | 'ASSOCIATION' | null
+  tipoPessoa?: 'PF' | 'PJ'
   asaasWalletId: string | null
   fotoRostoUrl: string | null
   documentoIdentidadeUrl: string | null
@@ -63,6 +65,7 @@ export function useOrganizador() {
     conta?: string
     tipoConta?: string
     rendaFaturamentoMensal?: number
+    tipoEmpresa?: string
   }) {
     const res = await api<Organizador>('/organizadores/me/dados-bancarios', {
       method: 'PATCH',

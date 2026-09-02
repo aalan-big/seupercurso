@@ -1,4 +1,5 @@
-import { IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsEnum, IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { TipoEmpresa } from '../../generated/prisma/enums';
 
 export class UpdateDadosBancariosDto {
   @IsOptional()
@@ -26,4 +27,11 @@ export class UpdateDadosBancariosDto {
   @IsNumber()
   @Min(1, { message: 'Informe a renda ou o faturamento mensal.' })
   rendaFaturamentoMensal?: number;
+
+  /** Natureza jurídica — exigida pelo Asaas apenas quando o organizador é PJ. */
+  @IsOptional()
+  @IsEnum(TipoEmpresa, {
+    message: 'Natureza jurídica inválida.',
+  })
+  tipoEmpresa?: TipoEmpresa;
 }
