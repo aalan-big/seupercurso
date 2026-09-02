@@ -12,6 +12,8 @@ export interface FinanceiroOrganizador {
   totalArrecadado: number
   comissaoPlataforma: number
   totalRepasse: number
+  /** Tarifas do gateway ja cobradas, absorvidas pela plataforma. */
+  totalTaxaGateway: number
   /** Soma dos saques ja solicitados (processando + concluidos). */
   totalSacado: number
   /** Saldo real na subconta Asaas; null quando a subconta ainda nao existe. */

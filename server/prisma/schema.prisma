@@ -457,6 +457,11 @@ model Pagamento {
   pixCopiaECola   String?
   dataPagamento   DateTime?
   expiraEm        DateTime?
+  /// Valor liquido informado pelo Asaas (valor - tarifa). So existe apos a
+  /// confirmacao; nosso calculo sozinho nao conhece a tarifa do gateway.
+  valorLiquido    Decimal?        @db.Decimal(10, 2)
+  /// Tarifa cobrada pelo gateway nesta transacao.
+  taxaGateway     Decimal?        @db.Decimal(10, 2)
   createdAt       DateTime        @default(now())
 
   inscricao Inscricao? @relation(fields: [inscricaoId], references: [id])

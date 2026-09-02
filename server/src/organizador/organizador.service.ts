@@ -242,6 +242,7 @@ export class OrganizadorService {
       },
       select: {
         valor: true,
+        taxaGateway: true,
         inscricao: { select: eventoSelect },
         pedido: {
           select: {
@@ -264,12 +265,16 @@ export class OrganizadorService {
     const porEvento = new Map<string, ResumoEvento>();
     let totalArrecadado = 0;
     let comissaoPlataforma = 0;
+    let totalTaxaGateway = 0;
 
     for (const pagamento of pagamentos) {
       const valor = Number(pagamento.valor);
       const comissao = valor * (percentual / 100);
       totalArrecadado += valor;
       comissaoPlataforma += comissao;
+      // A tarifa e informada pelo Asaas e absorvida pela plataforma; entra aqui
+      // so para ficar visivel ao organizador de onde vem a diferenca.
+      totalTaxaGateway += Number(pagamento.taxaGateway ?? 0);
 
       const evento = (pagamento.inscricao as any)?.categoria?.modalidade?.evento || (pagamento as any).pedido?.inscricoes?.[0]?.categoria?.modalidade?.evento;
       if (!evento) continue;
@@ -312,6 +317,8 @@ export class OrganizadorService {
       comissaoPercentual: percentual,
       totalArrecadado,
       comissaoPlataforma,
+      /** Tarifas do gateway ja cobradas, absorvidas pela plataforma. */
+      totalTaxaGateway: Number(totalTaxaGateway.toFixed(2)),
       totalRepasse,
       totalSacado,
       /** Saldo real na subconta Asaas; null quando a subconta ainda não existe. */

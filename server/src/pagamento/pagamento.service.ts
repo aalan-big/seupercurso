@@ -23,6 +23,17 @@ const HORAS_VALIDADE_PIX = 24;
 /** Tolerância (em reais) na conferência do valor pago vs. valor cobrado. */
 const TOLERANCIA_VALOR = 0.05;
 
+/**
+ * Estimativa da tarifa do gateway, usada só como piso de segurança.
+ *
+ * A plataforma absorve a tarifa do Asaas: o organizador recebe o valor base
+ * menos a comissão, independente dela. Em inscrição barata, porém, a comissão
+ * pode não cobrir a tarifa e a plataforma receberia menos que zero — nesse caso
+ * o repasse é reduzido até o ponto em que a plataforma fica zerada, nunca
+ * negativa. O valor real vem do Asaas depois, no netValue.
+ */
+const TAXA_GATEWAY_ESTIMADA = 2.0;
+
 const INSCRICAO_COMPLETA_INCLUDE = {
   cliente: { include: { pf: true, pj: true, usuario: true } },
   dependente: true,
@@ -120,10 +131,10 @@ export class PagamentoService {
       (valorBaseTotal * (comissaoPercentual / 100)).toFixed(2),
     );
 
-    // O organizador recebe sempre o valor base menos a comissão. Juros e taxa de
-    // cartão são acréscimos pagos pelo comprador que ficam com a plataforma
-    // justamente para cobrir a tarifa do gateway — não entram no repasse.
-    const valorLiquidoOrganizador = Number(
+    // O organizador recebe o valor base menos a comissão; a tarifa do gateway
+    // sai da parte da plataforma. Juros de cartão são acréscimos pagos pelo
+    // comprador e também ficam com a plataforma, não entram no repasse.
+    let valorLiquidoOrganizador = Number(
       (valorBaseTotal - comissaoPlataforma).toFixed(2),
     );
 
@@ -134,6 +145,17 @@ export class PagamentoService {
       const percentualJurosAsaas = parcelas * 0.0299;
       const taxaFixaCartao = 0.49;
       valorCobrado = Number(((valorBaseTotal + taxaFixaCartao) * (1 + percentualJurosAsaas)).toFixed(2));
+    }
+
+    // Piso de segurança: nunca repassar mais do que sobra depois da tarifa.
+    const tetoRepasse = Number((valorCobrado - TAXA_GATEWAY_ESTIMADA).toFixed(2));
+    if (valorLiquidoOrganizador > tetoRepasse) {
+      this.logger.warn(
+        `Comissão de R$ ${comissaoPlataforma.toFixed(2)} não cobre a tarifa do gateway ` +
+          `em uma cobrança de R$ ${valorCobrado.toFixed(2)}. Repasse reduzido de ` +
+          `R$ ${valorLiquidoOrganizador.toFixed(2)} para R$ ${Math.max(0, tetoRepasse).toFixed(2)}.`,
+      );
+      valorLiquidoOrganizador = Math.max(0, tetoRepasse);
     }
 
     const clienteComprador = primeiraInscricao.cliente;
@@ -294,6 +316,7 @@ export class PagamentoService {
         await this.confirmarPagamento({
           asaasPaymentId: pagamento.asaasPaymentId,
           valorPago: remoto.valor,
+          valorLiquido: remoto.valorLiquido,
           origem: 'reconciliacao',
         });
       } else if (pagamento.expiraEm && pagamento.expiraEm < new Date()) {
@@ -330,9 +353,17 @@ export class PagamentoService {
     asaasPaymentId: string;
     referenciaExterna?: string | null;
     valorPago?: number;
+    /** netValue do Asaas: valor menos a tarifa do gateway. */
+    valorLiquido?: number | null;
     origem: 'webhook' | 'reconciliacao';
   }) {
-    const { asaasPaymentId, referenciaExterna, valorPago, origem } = params;
+    const { asaasPaymentId, referenciaExterna, valorPago, valorLiquido, origem } =
+      params;
+
+    // A tarifa so e conhecida pelo gateway; sem guardar isso o painel mostraria
+    // um liquido diferente do saldo que o organizador consegue sacar.
+    const liquido =
+      typeof valorLiquido === 'number' && valorLiquido > 0 ? valorLiquido : null;
 
     const pagamentoExistente = await this.prisma.pagamento.findFirst({
       where: {
@@ -399,6 +430,14 @@ export class PagamentoService {
             status: StatusPagamento.APROVADO,
             dataPagamento: new Date(),
             asaasPaymentId,
+            ...(liquido
+              ? {
+                  valorLiquido: liquido,
+                  taxaGateway: Number(
+                    (Number(pagamentoExistente.valor) - liquido).toFixed(2),
+                  ),
+                }
+              : {}),
           },
         });
       }
@@ -418,6 +457,11 @@ export class PagamentoService {
           inscricaoId,
           pedidoId,
           valor: valorPago ?? 0,
+          valorLiquido: liquido,
+          taxaGateway:
+            liquido && valorPago
+              ? Number((valorPago - liquido).toFixed(2))
+              : null,
           metodo: MetodoPagamento.PIX,
           status: StatusPagamento.APROVADO,
           gateway: 'asaas',

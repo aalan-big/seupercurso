@@ -76,6 +76,10 @@ export class WebhookController {
         asaasPaymentId,
         referenciaExterna,
         valorPago: Number(payment.value ?? 0),
+        valorLiquido:
+          payment.netValue === undefined || payment.netValue === null
+            ? null
+            : Number(payment.netValue),
         origem: 'webhook',
       });
     } else if (EVENTOS_ESTORNO.includes(event)) {

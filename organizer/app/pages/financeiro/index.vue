@@ -180,6 +180,13 @@ function exportarRelatorioCSV() {
               <span class="rounded-lg bg-white/20 p-2 text-white"><Lock :size="16" /></span>
             </div>
             <p class="mt-2 text-3xl font-black text-white">{{ formatarValor(financeiro.saldoDisponivel) }}</p>
+            <p
+              v-if="financeiro.totalTaxaGateway > 0"
+              class="mt-1 text-[11px] text-emerald-100"
+            >
+              Tarifas do gateway ({{ formatarValor(financeiro.totalTaxaGateway) }}) são pagas
+              pela plataforma e não saem do seu repasse.
+            </p>
             <p class="mt-1 text-[11px] text-emerald-100 flex items-center gap-1.5">
               <Lock :size="12" /> Saldo na sua subconta Asaas — saque só para o CPF/CNPJ cadastrado
             </p>

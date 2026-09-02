@@ -119,24 +119,32 @@ export class AsaasService {
   }
 
   /**
-   * Monta o split do organizador em percentual do valor cobrado.
+   * Monta o split do organizador em valor fixo.
    *
-   * Usamos `percentualValue` em vez de `fixedValue` porque em cobranças parceladas
-   * o Asaas aplica o split a cada parcela — um valor fixo seria repassado N vezes.
+   * `fixedValue` garante que o organizador receba exatamente o combinado: a
+   * tarifa do gateway sai da parte da plataforma. Com `percentualValue` o
+   * percentual incidiria sobre o líquido, fazendo o organizador pagar a maior
+   * parte da tarifa sem que nada dissesse isso.
+   *
+   * Em cobrança parcelada o Asaas aplica o split a cada parcela, por isso o
+   * valor e dividido pelo numero de parcelas.
    */
   private montarSplit(
     walletId: string | null | undefined,
     valorCobrado: number,
     valorLiquidoOrganizador?: number,
+    parcelas = 1,
   ) {
     if (!walletId || walletId.startsWith('wal_mock_')) return undefined;
     if (!valorCobrado || valorCobrado <= 0) return undefined;
 
     const liquido = Math.max(0, Math.min(valorLiquidoOrganizador ?? 0, valorCobrado));
-    const percentual = Number(((liquido / valorCobrado) * 100).toFixed(2));
-    if (percentual <= 0) return undefined;
+    if (liquido <= 0) return undefined;
 
-    return [{ walletId, percentualValue: percentual }];
+    const porParcela = Number((liquido / Math.max(1, parcelas)).toFixed(2));
+    if (porParcela <= 0) return undefined;
+
+    return [{ walletId, fixedValue: porParcela }];
   }
 
   /**
@@ -325,6 +333,7 @@ export class AsaasService {
       params.organizadorWalletId,
       params.valorTotal,
       params.valorLiquidoOrganizador,
+      params.parcelas || 1,
     );
 
     const body = {
@@ -526,6 +535,12 @@ export class AsaasService {
       return {
         status: data.status as string,
         valor: Number(data.value ?? 0),
+        // netValue = valor - tarifa do gateway. Nosso calculo sozinho nao
+        // conhece essa tarifa, por isso guardamos o numero do proprio Asaas.
+        valorLiquido:
+          data.netValue === undefined || data.netValue === null
+            ? null
+            : Number(data.netValue),
         externalReference: data.externalReference as string | undefined,
       };
     } catch (err) {
