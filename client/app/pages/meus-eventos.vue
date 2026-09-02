@@ -280,6 +280,13 @@ function fecharModalPagamento() {
   modalPixAberto.value = false
 }
 
+function onTeclaModal(e: KeyboardEvent) {
+  if (e.key === 'Escape' && modalPixAberto.value) fecharModalPagamento()
+}
+
+onMounted(() => window.addEventListener('keydown', onTeclaModal))
+onBeforeUnmount(() => window.removeEventListener('keydown', onTeclaModal))
+
 function copiarPix() {
   if (dadosPix.value?.pixCopiaECola) {
     navigator.clipboard.writeText(dadosPix.value.pixCopiaECola)
@@ -771,9 +778,18 @@ async function confirmarCancelamento(id: string) {
       />
 
       <!-- Modal de Pagamento (PIX e Cartão de Crédito) -->
-      <div v-if="modalPixAberto" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-4">
-        <div class="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl space-y-4 border border-amber-200 animate-in fade-in zoom-in-95">
-          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+      <!--
+        overflow-y-auto + items-start: sem isso, um modal mais alto que a tela
+        ficava centralizado e o cabecalho (com o X) saia para fora da area
+        visivel, deixando o usuario preso sem conseguir fechar.
+      -->
+      <div
+        v-if="modalPixAberto"
+        class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain bg-slate-950/70 backdrop-blur-xs p-4 sm:items-center"
+        @click.self="fecharModalPagamento"
+      >
+        <div class="my-auto w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl space-y-4 border border-amber-200 animate-in fade-in zoom-in-95">
+          <div class="sticky -top-6 -mx-6 -mt-6 flex items-center justify-between rounded-t-3xl border-b border-slate-100 bg-white px-6 pb-3 pt-6">
             <div>
               <h3 class="flex items-center gap-2 text-base font-black text-slate-900"><CreditCard :size="18" /> Efetuar Pagamento</h3>
               <p class="text-xs font-semibold text-slate-500">{{ dadosPix?.eventoNome || inscricaoAtualPagamento?.categoria?.modalidade?.evento?.nome || 'Inscrição' }}</p>
