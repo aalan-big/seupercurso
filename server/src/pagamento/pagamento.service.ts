@@ -65,7 +65,7 @@ export class PagamentoService {
       throw new ConflictException('As inscrições deste pedido já estão confirmadas.');
     }
 
-    // Se já existe uma tentativa de pagamento pendente para esta inscrição/pedido com este método, reaproveita
+    // Se já existe uma tentativa de pagamento pendente para esta inscrição/pedido com este método, reaproveita apenas se for válido e real
     const pagamentoExistente = await this.prisma.pagamento.findFirst({
       where: dto.pedidoId
         ? { pedidoId: dto.pedidoId, metodo: dto.metodo, status: StatusPagamento.PENDENTE }
@@ -73,7 +73,14 @@ export class PagamentoService {
       orderBy: { createdAt: 'desc' },
     });
 
-    if (pagamentoExistente && (pagamentoExistente.pixCopiaECola || pagamentoExistente.pixQrCodeUrl)) {
+    if (
+      pagamentoExistente &&
+      (pagamentoExistente.pixCopiaECola || pagamentoExistente.pixQrCodeUrl) &&
+      !pagamentoExistente.pixCopiaECola?.includes('sandbox') &&
+      !pagamentoExistente.pixCopiaECola?.includes('seupercurso-sandbox') &&
+      !pagamentoExistente.asaasPaymentId?.startsWith('pay_mock_') &&
+      !pagamentoExistente.asaasPaymentId?.startsWith('pay_pix_mock_')
+    ) {
       return pagamentoExistente;
     }
 
@@ -155,21 +162,36 @@ export class PagamentoService {
     const isAprovado = asaasRes.status === 'APROVADO';
 
     const [pagamentoCriado] = await this.prisma.$transaction([
-      this.prisma.pagamento.create({
-        data: {
-          inscricaoId: dto.inscricaoId || null,
-          pedidoId: dto.pedidoId || null,
-          valor: valorCobrado,
-          metodo: dto.metodo,
-          status: isAprovado ? StatusPagamento.APROVADO : StatusPagamento.PENDENTE,
-          gateway: 'asaas',
-          codigoTransacao: asaasRes.asaasPaymentId,
-          asaasPaymentId: asaasRes.asaasPaymentId,
-          pixCopiaECola: asaasRes.pixCopiaECola || null,
-          pixQrCodeUrl: asaasRes.pixQrCodeUrl || null,
-          dataPagamento: isAprovado ? new Date() : null,
-        },
-      }),
+      pagamentoExistente
+        ? this.prisma.pagamento.update({
+            where: { id: pagamentoExistente.id },
+            data: {
+              valor: valorCobrado,
+              metodo: dto.metodo,
+              status: isAprovado ? StatusPagamento.APROVADO : StatusPagamento.PENDENTE,
+              gateway: 'asaas',
+              codigoTransacao: asaasRes.asaasPaymentId,
+              asaasPaymentId: asaasRes.asaasPaymentId,
+              pixCopiaECola: asaasRes.pixCopiaECola || null,
+              pixQrCodeUrl: asaasRes.pixQrCodeUrl || null,
+              dataPagamento: isAprovado ? new Date() : null,
+            },
+          })
+        : this.prisma.pagamento.create({
+            data: {
+              inscricaoId: dto.inscricaoId || null,
+              pedidoId: dto.pedidoId || null,
+              valor: valorCobrado,
+              metodo: dto.metodo,
+              status: isAprovado ? StatusPagamento.APROVADO : StatusPagamento.PENDENTE,
+              gateway: 'asaas',
+              codigoTransacao: asaasRes.asaasPaymentId,
+              asaasPaymentId: asaasRes.asaasPaymentId,
+              pixCopiaECola: asaasRes.pixCopiaECola || null,
+              pixQrCodeUrl: asaasRes.pixQrCodeUrl || null,
+              dataPagamento: isAprovado ? new Date() : null,
+            },
+          }),
       ...(isAprovado
         ? [
             this.prisma.inscricao.updateMany({

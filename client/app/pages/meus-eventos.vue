@@ -24,7 +24,8 @@ import {
   Award,
   X,
   Smartphone,
-  Copy
+  Copy,
+  RefreshCw
 } from 'lucide-vue-next'
 import type { InscricaoComEvento } from '~/composables/useInscricao'
 
@@ -130,30 +131,43 @@ async function abrirModalPagamento(inscricao: InscricaoComEvento) {
     abaPagamento.value = 'CREDITO'
   }
 
-  const pagamentoPixExistente = inscricao.pagamentos?.find(
-    (p) => p.metodo === 'PIX' && (p.pixCopiaECola || p.pixQrCodeUrl)
+  const pagamentoPixValido = inscricao.pagamentos?.find(
+    (p) =>
+      p.metodo === 'PIX' &&
+      (p.pixCopiaECola || p.pixQrCodeUrl) &&
+      !p.pixCopiaECola?.includes('sandbox') &&
+      !p.pixCopiaECola?.includes('seupercurso-sandbox') &&
+      !p.asaasPaymentId?.startsWith('pay_mock_') &&
+      !p.asaasPaymentId?.startsWith('pay_pix_mock_')
   )
 
-  if (pagamentoPixExistente) {
+  if (pagamentoPixValido) {
     dadosPix.value = {
       id: inscricao.id,
-      valor: String(pagamentoPixExistente.valor || '0.00'),
-      pixCopiaECola: pagamentoPixExistente.pixCopiaECola || undefined,
-      pixQrCodeUrl: pagamentoPixExistente.pixQrCodeUrl || undefined,
+      valor: String(pagamentoPixValido.valor || '0.00'),
+      pixCopiaECola: pagamentoPixValido.pixCopiaECola || undefined,
+      pixQrCodeUrl: pagamentoPixValido.pixQrCodeUrl || undefined,
       eventoNome: evento?.nome || 'Evento'
     }
     gerandoPix.value = false
     return
   }
 
+  await gerarNovoPix()
+}
+
+async function gerarNovoPix() {
+  if (!inscricaoAtualPagamento.value) return
+  gerandoPix.value = true
+  erroPixModal.value = ''
   try {
-    const res = await pagarInscricao(inscricao.id, 'PIX')
+    const res = await pagarInscricao(inscricaoAtualPagamento.value.id, 'PIX')
     dadosPix.value = {
-      id: inscricao.id,
+      id: inscricaoAtualPagamento.value.id,
       valor: String(res.valor || '0.00'),
       pixCopiaECola: res.pixCopiaECola,
       pixQrCodeUrl: res.pixQrCodeUrl,
-      eventoNome: evento?.nome || 'Evento'
+      eventoNome: inscricaoAtualPagamento.value.categoria?.modalidade?.evento?.nome || 'Evento'
     }
   } catch (e) {
     erroPixModal.value = extrairErro(e)
@@ -761,6 +775,16 @@ async function confirmarCancelamento(id: string) {
                     <template v-else><Copy :size="14" /> Copiar Código</template>
                   </button>
                 </div>
+
+                <button
+                  type="button"
+                  :disabled="gerandoPix"
+                  class="w-full mt-2 py-2.5 text-xs font-bold text-slate-600 hover:text-slate-900 border border-slate-200 rounded-xl hover:bg-slate-50 transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  @click="gerarNovoPix"
+                >
+                  <RefreshCw :size="13" :class="{ 'animate-spin': gerandoPix }" />
+                  <span>{{ gerandoPix ? 'Atualizando PIX...' : 'Atualizar / Gerar Novo QR Code' }}</span>
+                </button>
               </div>
             </div>
           </div>
