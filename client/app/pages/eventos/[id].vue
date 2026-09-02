@@ -141,9 +141,56 @@ const inscricaoCriada = ref<{ id?: string; pedidoId?: string; valor: string; met
 
 const tamanhos = ['PP', 'P', 'M', 'G', 'GG', 'XGG']
 
+const storageKey = `checkout_carrinho_${eventoId}`
+
+function salvarEstadoCheckout() {
+  if (import.meta.client) {
+    try {
+      sessionStorage.setItem(storageKey, JSON.stringify({
+        step: step.value,
+        carrinho: carrinho.value,
+        cupomCodigo: cupomCodigo.value,
+      }))
+    } catch {}
+  }
+}
+
+function recuperarEstadoCheckout() {
+  if (import.meta.client) {
+    try {
+      const saved = sessionStorage.getItem(storageKey)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed.carrinho && Array.isArray(parsed.carrinho) && parsed.carrinho.length > 0) {
+          carrinho.value = parsed.carrinho
+        }
+        if (parsed.step && parsed.step > 1) {
+          step.value = parsed.step
+        }
+        if (parsed.cupomCodigo) {
+          cupomCodigo.value = parsed.cupomCodigo
+        }
+      }
+    } catch {}
+  }
+}
+
+function limparEstadoCheckout() {
+  if (import.meta.client) {
+    try {
+      sessionStorage.removeItem(storageKey)
+    } catch {}
+  }
+}
+
+watch([carrinho, step, cupomCodigo], () => {
+  salvarEstadoCheckout()
+}, { deep: true })
+
 onMounted(async () => {
   try {
     await fetchEvento(eventoId)
+    recuperarEstadoCheckout()
     if (eventoSelecionado.value) {
       if (eventoSelecionado.value.aceitaPix !== false) {
         metodoPagamentoSelecionado.value = 'PIX'
@@ -602,6 +649,7 @@ async function onInscrever() {
       pixCopiaECola: (pagamentoRes as any)?.pixCopiaECola,
       pixQrCodeUrl: (pagamentoRes as any)?.pixQrCodeUrl
     }
+    limparEstadoCheckout()
   } catch (e: any) {
     erroInscricao.value = extrairErro(e)
   } finally {
