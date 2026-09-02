@@ -184,8 +184,9 @@ function exportarRelatorioCSV() {
               v-if="financeiro.totalTaxaGateway > 0"
               class="mt-1 text-[11px] text-emerald-100"
             >
-              Tarifas do gateway ({{ formatarValor(financeiro.totalTaxaGateway) }}) são pagas
-              pela plataforma e não saem do seu repasse.
+              Já descontadas as tarifas do gateway
+              ({{ formatarValor(financeiro.totalTaxaGateway) }}), cobradas pelo Asaas antes
+              da divisão.
             </p>
             <p class="mt-1 text-[11px] text-emerald-100 flex items-center gap-1.5">
               <Lock :size="12" /> Saldo na sua subconta Asaas — saque só para o CPF/CNPJ cadastrado

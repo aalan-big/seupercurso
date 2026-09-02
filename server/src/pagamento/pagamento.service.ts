@@ -23,17 +23,6 @@ const HORAS_VALIDADE_PIX = 24;
 /** Tolerância (em reais) na conferência do valor pago vs. valor cobrado. */
 const TOLERANCIA_VALOR = 0.05;
 
-/**
- * Estimativa da tarifa do gateway, usada só como piso de segurança.
- *
- * A plataforma absorve a tarifa do Asaas: o organizador recebe o valor base
- * menos a comissão, independente dela. Em inscrição barata, porém, a comissão
- * pode não cobrir a tarifa e a plataforma receberia menos que zero — nesse caso
- * o repasse é reduzido até o ponto em que a plataforma fica zerada, nunca
- * negativa. O valor real vem do Asaas depois, no netValue.
- */
-const TAXA_GATEWAY_ESTIMADA = 2.0;
-
 const INSCRICAO_COMPLETA_INCLUDE = {
   cliente: { include: { pf: true, pj: true, usuario: true } },
   dependente: true,
@@ -131,10 +120,11 @@ export class PagamentoService {
       (valorBaseTotal * (comissaoPercentual / 100)).toFixed(2),
     );
 
-    // O organizador recebe o valor base menos a comissão; a tarifa do gateway
-    // sai da parte da plataforma. Juros de cartão são acréscimos pagos pelo
-    // comprador e também ficam com a plataforma, não entram no repasse.
-    let valorLiquidoOrganizador = Number(
+    // Percentual do repasse: o organizador fica com o valor base menos a
+    // comissão. Como o Asaas aplica o split sobre o líquido, a tarifa do
+    // gateway é descontada antes e cabe ao organizador — o painel mostra a
+    // tarifa separada para essa diferença ficar visível.
+    const valorLiquidoOrganizador = Number(
       (valorBaseTotal - comissaoPlataforma).toFixed(2),
     );
 
@@ -147,16 +137,6 @@ export class PagamentoService {
       valorCobrado = Number(((valorBaseTotal + taxaFixaCartao) * (1 + percentualJurosAsaas)).toFixed(2));
     }
 
-    // Piso de segurança: nunca repassar mais do que sobra depois da tarifa.
-    const tetoRepasse = Number((valorCobrado - TAXA_GATEWAY_ESTIMADA).toFixed(2));
-    if (valorLiquidoOrganizador > tetoRepasse) {
-      this.logger.warn(
-        `Comissão de R$ ${comissaoPlataforma.toFixed(2)} não cobre a tarifa do gateway ` +
-          `em uma cobrança de R$ ${valorCobrado.toFixed(2)}. Repasse reduzido de ` +
-          `R$ ${valorLiquidoOrganizador.toFixed(2)} para R$ ${Math.max(0, tetoRepasse).toFixed(2)}.`,
-      );
-      valorLiquidoOrganizador = Math.max(0, tetoRepasse);
-    }
 
     const clienteComprador = primeiraInscricao.cliente;
     const nomeCliente =

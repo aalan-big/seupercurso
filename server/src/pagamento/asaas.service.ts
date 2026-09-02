@@ -119,32 +119,30 @@ export class AsaasService {
   }
 
   /**
-   * Monta o split do organizador em valor fixo.
+   * Monta o split do organizador em percentual do valor cobrado.
    *
-   * `fixedValue` garante que o organizador receba exatamente o combinado: a
-   * tarifa do gateway sai da parte da plataforma. Com `percentualValue` o
-   * percentual incidiria sobre o líquido, fazendo o organizador pagar a maior
-   * parte da tarifa sem que nada dissesse isso.
+   * O Asaas aplica o percentual sobre o valor LIQUIDO da cobranca, ou seja,
+   * depois de descontada a tarifa do gateway. Por decisao de negocio a tarifa
+   * fica com o organizador: ele recebe o percentual combinado sobre o liquido,
+   * e a plataforma o restante. O painel mostra a tarifa separada para que a
+   * diferenca fique visivel.
    *
-   * Em cobrança parcelada o Asaas aplica o split a cada parcela, por isso o
-   * valor e dividido pelo numero de parcelas.
+   * Percentual tambem e o formato correto em cobranca parcelada, onde o Asaas
+   * aplica o split a cada parcela — um valor fixo seria repassado N vezes.
    */
   private montarSplit(
     walletId: string | null | undefined,
     valorCobrado: number,
     valorLiquidoOrganizador?: number,
-    parcelas = 1,
   ) {
     if (!walletId || walletId.startsWith('wal_mock_')) return undefined;
     if (!valorCobrado || valorCobrado <= 0) return undefined;
 
     const liquido = Math.max(0, Math.min(valorLiquidoOrganizador ?? 0, valorCobrado));
-    if (liquido <= 0) return undefined;
+    const percentual = Number(((liquido / valorCobrado) * 100).toFixed(2));
+    if (percentual <= 0) return undefined;
 
-    const porParcela = Number((liquido / Math.max(1, parcelas)).toFixed(2));
-    if (porParcela <= 0) return undefined;
-
-    return [{ walletId, fixedValue: porParcela }];
+    return [{ walletId, percentualValue: percentual }];
   }
 
   /**
@@ -333,7 +331,6 @@ export class AsaasService {
       params.organizadorWalletId,
       params.valorTotal,
       params.valorLiquidoOrganizador,
-      params.parcelas || 1,
     );
 
     const body = {

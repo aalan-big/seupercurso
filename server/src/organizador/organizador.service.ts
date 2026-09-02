@@ -260,6 +260,7 @@ export class OrganizadorService {
       quantidadePagamentos: number;
       totalArrecadado: number;
       comissaoPlataforma: number;
+      taxaGateway: number;
     }
 
     const porEvento = new Map<string, ResumoEvento>();
@@ -269,12 +270,15 @@ export class OrganizadorService {
 
     for (const pagamento of pagamentos) {
       const valor = Number(pagamento.valor);
-      const comissao = valor * (percentual / 100);
+      // O Asaas desconta a tarifa antes de dividir, entao a comissao e o
+      // repasse incidem sobre o liquido. Calcular sobre o bruto fazia o painel
+      // prometer um repasse maior do que o saldo que aparece na subconta.
+      const taxa = Number(pagamento.taxaGateway ?? 0);
+      const baseDivisivel = Math.max(0, valor - taxa);
+      const comissao = baseDivisivel * (percentual / 100);
       totalArrecadado += valor;
       comissaoPlataforma += comissao;
-      // A tarifa e informada pelo Asaas e absorvida pela plataforma; entra aqui
-      // so para ficar visivel ao organizador de onde vem a diferenca.
-      totalTaxaGateway += Number(pagamento.taxaGateway ?? 0);
+      totalTaxaGateway += taxa;
 
       const evento = (pagamento.inscricao as any)?.categoria?.modalidade?.evento || (pagamento as any).pedido?.inscricoes?.[0]?.categoria?.modalidade?.evento;
       if (!evento) continue;
@@ -284,10 +288,12 @@ export class OrganizadorService {
         quantidadePagamentos: 0,
         totalArrecadado: 0,
         comissaoPlataforma: 0,
+        taxaGateway: 0,
       };
       atual.quantidadePagamentos += 1;
       atual.totalArrecadado += valor;
       atual.comissaoPlataforma += comissao;
+      atual.taxaGateway += taxa;
       porEvento.set(evento.id, atual);
     }
 
@@ -301,7 +307,8 @@ export class OrganizadorService {
       _sum: { valor: true },
     });
 
-    const totalRepasse = totalArrecadado - comissaoPlataforma;
+    // Repasse real: bruto menos a tarifa do gateway e menos a comissao.
+    const totalRepasse = totalArrecadado - totalTaxaGateway - comissaoPlataforma;
     const totalSacado = Number(saquesAgregados._sum.valor ?? 0);
 
     // O saldo sacável é o da subconta no Asaas, não o nosso cálculo: só ele
@@ -317,7 +324,7 @@ export class OrganizadorService {
       comissaoPercentual: percentual,
       totalArrecadado,
       comissaoPlataforma,
-      /** Tarifas do gateway ja cobradas, absorvidas pela plataforma. */
+      /** Tarifas do gateway ja descontadas antes da divisao do split. */
       totalTaxaGateway: Number(totalTaxaGateway.toFixed(2)),
       totalRepasse,
       totalSacado,
@@ -328,7 +335,7 @@ export class OrganizadorService {
       bloqueioSaque: bloqueio,
       porEvento: Array.from(porEvento.values()).map((e) => ({
         ...e,
-        repasse: e.totalArrecadado - e.comissaoPlataforma,
+        repasse: e.totalArrecadado - e.taxaGateway - e.comissaoPlataforma,
       })),
     };
   }

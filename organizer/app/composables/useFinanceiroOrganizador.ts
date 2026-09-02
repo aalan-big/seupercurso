@@ -4,6 +4,8 @@ export interface ResumoEventoFinanceiro {
   quantidadePagamentos: number
   totalArrecadado: number
   comissaoPlataforma: number
+  /** Tarifa do gateway descontada antes da divisao. */
+  taxaGateway: number
   repasse: number
 }
 
@@ -12,7 +14,7 @@ export interface FinanceiroOrganizador {
   totalArrecadado: number
   comissaoPlataforma: number
   totalRepasse: number
-  /** Tarifas do gateway ja cobradas, absorvidas pela plataforma. */
+  /** Tarifas do gateway ja descontadas antes da divisao do split. */
   totalTaxaGateway: number
   /** Soma dos saques ja solicitados (processando + concluidos). */
   totalSacado: number

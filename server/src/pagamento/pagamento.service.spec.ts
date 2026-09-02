@@ -220,16 +220,14 @@ describe('PagamentoService', () => {
       await service.create(usuarioId, dto);
 
       expect(asaasService.gerarCobrancaPix).toHaveBeenCalledWith(
-        // base 60, comissão 10% => repasse 54; a tarifa do gateway sai da
-        // parte da plataforma e não reduz o repasse
+        // base 60, comissão 10% => 90% do líquido para o organizador
         expect.objectContaining({ valorLiquidoOrganizador: 54 }),
       );
     });
 
-    it('reduz o repasse quando a comissão não cobre a tarifa, para a plataforma não ficar negativa', async () => {
-      // Inscrição de R$ 5,50: comissão de 10% (R$ 0,55) é menor que a tarifa
-      // estimada do gateway (R$ 2,00). Sem o piso, a plataforma repassaria
-      // R$ 4,95 e ficaria devendo.
+    it('mantém o percentual do repasse independente do valor da inscrição', async () => {
+      // O split e percentual sobre o liquido, entao a tarifa do gateway sai da
+      // parte do organizador e o repasse combinado nao muda com o valor.
       prisma.loteModalidadePreco.findUnique.mockResolvedValue({
         id: 'preco-1',
         valor: '5.50',
@@ -238,7 +236,7 @@ describe('PagamentoService', () => {
       await service.create(usuarioId, dto);
 
       expect(asaasService.gerarCobrancaPix).toHaveBeenCalledWith(
-        expect.objectContaining({ valorLiquidoOrganizador: 3.5 }),
+        expect.objectContaining({ valorLiquidoOrganizador: 4.95 }),
       );
     });
   });
