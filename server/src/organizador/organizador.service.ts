@@ -100,11 +100,19 @@ export class OrganizadorService {
 
     const cliente = await this.prisma.cliente.findUnique({
       where: { id: organizador.clienteId },
-      select: { pj: { select: { id: true } } },
+      select: {
+        pj: { select: { id: true } },
+        usuario: { select: { email: true } },
+      },
     });
 
-    // O painel precisa saber o tipo para exigir a natureza jurídica só de PJ.
-    return { ...organizador, tipoPessoa: cliente?.pj ? 'PJ' : 'PF' };
+    // O painel precisa saber o tipo para exigir a natureza jurídica só de PJ, e
+    // o e-mail de login para mostrar qual seria usado na conta de recebimento.
+    return {
+      ...organizador,
+      tipoPessoa: cliente?.pj ? 'PJ' : 'PF',
+      emailLogin: cliente?.usuario.email ?? null,
+    };
   }
 
   async listarMeusEventos(usuarioId: string) {
@@ -1700,7 +1708,12 @@ export class OrganizadorService {
 
     const nome = cliente?.pf?.nomeCompleto || cliente?.pj?.razaoSocial || cliente?.usuario.email || 'Organizador Eventos';
     const cpfCnpj = cliente?.pf?.cpf || cliente?.pj?.cnpj || '00000000000';
-    const email = cliente?.usuario.email || 'organizador@seupercurso.com.br';
+    // O Asaas exige e-mail único por conta: quem já tem conta lá (inclusive a
+    // conta-mãe da plataforma) precisa de um e-mail dedicado para a subconta.
+    const email =
+      organizador.emailRecebimento ||
+      cliente?.usuario.email ||
+      'organizador@seupercurso.com.br';
     const endereco = cliente?.enderecos[0];
 
     // PJ sem natureza jurídica seria recusado pelo Asaas; espera o dado chegar.

@@ -186,6 +186,9 @@ model Organizador {
   chavePix               String?
   /// Renda mensal (PF) ou faturamento mensal (PJ). Exigido pelo Asaas ao abrir a subconta.
   rendaFaturamentoMensal Decimal?          @db.Decimal(12, 2)
+  /// E-mail da conta de recebimento no Asaas. O Asaas exige e-mail unico por
+  /// conta, entao quem ja tem conta la precisa informar outro aqui.
+  emailRecebimento       String?
   /// Natureza juridica da empresa. Exigido pelo Asaas quando o organizador e PJ.
   tipoEmpresa            TipoEmpresa?
   banco                  String?

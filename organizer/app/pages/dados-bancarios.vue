@@ -16,8 +16,11 @@ const form = reactive({
   tipoConta: '',
   // Exigidos pelo Asaas para abrir a conta de recebimento.
   rendaFaturamentoMensal: '' as string | number,
-  tipoEmpresa: ''
+  tipoEmpresa: '',
+  emailRecebimento: ''
 })
+
+const emailLogin = computed(() => organizador.value?.emailLogin || '')
 
 const ehPessoaJuridica = computed(() => organizador.value?.tipoPessoa === 'PJ')
 
@@ -87,6 +90,7 @@ onMounted(async () => {
       ? Number(organizador.value.rendaFaturamentoMensal)
       : ''
     form.tipoEmpresa = organizador.value?.tipoEmpresa || ''
+    form.emailRecebimento = organizador.value?.emailRecebimento || ''
     alteracoes.value = await listarAlteracoes()
   } catch (e) {
     erro.value = extrairErro(e)
@@ -104,7 +108,8 @@ async function onSalvar() {
       ...form,
       rendaFaturamentoMensal: Number(form.rendaFaturamentoMensal) || undefined,
       // O Asaas recusa companyType em conta de pessoa física.
-      tipoEmpresa: ehPessoaJuridica.value ? form.tipoEmpresa || undefined : undefined
+      tipoEmpresa: ehPessoaJuridica.value ? form.tipoEmpresa || undefined : undefined,
+      emailRecebimento: form.emailRecebimento || undefined
     })
     sucesso.value = 'Dados bancários salvos.'
   } catch (e) {
@@ -119,7 +124,7 @@ async function onSalvar() {
   <div>
     <h1 class="text-2xl font-extrabold uppercase tracking-tight text-primary">Dados bancários</h1>
     <p class="mt-1 text-sm text-slate-500">
-      Onde os repasses das suas inscrições vão cair. Enquanto o pagamento ainda é simulado, esses dados ficam só guardados aqui.
+      Dados necessários para abrir sua conta de recebimento no Asaas, onde caem os repasses das suas inscrições.
     </p>
 
     <p v-if="carregando" class="mt-8 text-sm text-slate-500">Carregando...</p>
@@ -129,12 +134,12 @@ async function onSalvar() {
         <CheckCircle :size="20" class="text-emerald-600" />
         <div class="space-y-1">
           <p class="font-black text-sm text-emerald-950">Sua conta de recebimento está ativa</p>
-          <p class="text-[11px] text-emerald-800 leading-relaxed">Tudo certo! Você já pode receber automaticamente os pagamentos das suas inscrições, via PIX e Cartão, com o dinheiro liberado em até 2 dias.</p>
+          <p class="text-[11px] text-emerald-800 leading-relaxed">Tudo certo! Sua parte das inscrições cai automaticamente nesta conta. PIX fica disponível no mesmo dia; cartão, conforme o prazo de liberação do Asaas.</p>
         </div>
       </div>
 
       <div
-        v-else-if="(organizador?.chavePix || organizador?.conta) && organizador?.status !== 'APROVADO'"
+        v-else-if="organizador?.rendaFaturamentoMensal && organizador?.status !== 'APROVADO'"
         class="mt-4 rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-xs text-amber-900 flex items-start gap-3 shadow-2xs"
       >
         <Clock :size="20" class="text-amber-600" />
@@ -150,7 +155,7 @@ async function onSalvar() {
         <div class="space-y-1">
           <p class="font-black text-sm text-blue-950">Trava de Segurança de Titularidade Ativa (PF / PJ)</p>
           <p class="text-[11px] text-blue-800 leading-relaxed">
-            Por regras de compliance do BACEN e prevenção a fraudes, <strong>os saques via PIX só são processados para contas bancárias ou chaves PIX de titularidade do próprio organizador</strong> (mesmo CPF ou CNPJ cadastrado). Não são permitidas transferências para contas de terceiros.
+            O saque vai <strong>sempre para a chave PIX do seu CPF/CNPJ cadastrado</strong>, em qualquer banco — o destino não é escolhido. Como a chave é o próprio documento, o sistema bancário garante que o dinheiro cai em conta sua. Alterar o CPF/CNPJ exige envio do documento e análise.
           </p>
         </div>
       </div>
@@ -185,6 +190,23 @@ async function onSalvar() {
             Exigido pelo Asaas para abrir sua conta de recebimento. Sem esse dado o repasse
             automático das inscrições não é ativado.
           </p>
+
+          <div class="mt-4">
+            <label class="mb-1 block text-sm font-semibold text-slate-700">
+              E-mail da conta de recebimento
+            </label>
+            <input
+              v-model="form.emailRecebimento"
+              type="email"
+              :placeholder="emailLogin || 'seu@email.com'"
+              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+            />
+            <p class="mt-1.5 text-xs text-slate-500">
+              Deixe em branco para usar o e-mail da sua conta. Preencha apenas se
+              <strong>você já tiver uma conta no Asaas</strong> com esse endereço — o Asaas não
+              permite dois cadastros com o mesmo e-mail.
+            </p>
+          </div>
 
           <div v-if="ehPessoaJuridica" class="mt-4">
             <label class="mb-1 block text-sm font-semibold text-slate-700">Natureza jurídica</label>

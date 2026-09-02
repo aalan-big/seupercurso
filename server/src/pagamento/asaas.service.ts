@@ -209,10 +209,29 @@ export class AsaasService {
 
       if (!response.ok) {
         this.logger.error(`Erro ao criar subconta Asaas: ${JSON.stringify(data)}`);
-        if (data.errors && data.errors[0]?.code === 'invalid_cpfCnpj') {
+
+        const descricao: string = data.errors?.[0]?.description || '';
+
+        if (data.errors?.[0]?.code === 'invalid_cpfCnpj') {
           throw new BadRequestException('CPF/CNPJ inválido para conta Asaas.');
         }
-        throw new BadRequestException(data.errors?.[0]?.description || 'Erro ao criar subconta Asaas.');
+
+        // O Asaas exige e-mail único em toda a plataforma. A mensagem crua dele
+        // não diz o que fazer, e o organizador fica travado sem entender.
+        if (/e-?mail.*(já|ja).*(uso|cadastrad)/i.test(descricao)) {
+          throw new BadRequestException(
+            `Este e-mail já pertence a outra conta no Asaas (${params.email}). ` +
+              'Informe um e-mail diferente no campo "E-mail da conta de recebimento" para abrir sua conta.',
+          );
+        }
+
+        if (/cpf|cnpj/i.test(descricao) && /(já|ja).*(uso|cadastrad)/i.test(descricao)) {
+          throw new BadRequestException(
+            'Este CPF/CNPJ já possui uma conta no Asaas. Entre em contato com o suporte para vincular a conta existente.',
+          );
+        }
+
+        throw new BadRequestException(descricao || 'Erro ao criar subconta Asaas.');
       }
 
       // O Asaas devolve a apiKey da subconta uma única vez, na criação. Sem
