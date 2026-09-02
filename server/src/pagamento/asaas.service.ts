@@ -448,6 +448,38 @@ export class AsaasService {
   }
 
   /**
+   * Situação do cadastro da subconta no Asaas.
+   *
+   * `asaasWalletId` preenchido significa apenas que a subconta foi criada. O
+   * Asaas ainda analisa documentos e bloqueia PIX até aprovar — sem consultar
+   * isso, o organizador só descobria o bloqueio ao tentar sacar.
+   */
+  async consultarStatusSubconta(apiKeySubconta: string) {
+    if (!apiKeySubconta) return null;
+
+    try {
+      const res = await fetch(`${this.apiBaseUrl}/myAccount/status`, {
+        headers: this.getHeaders(apiKeySubconta),
+      });
+      if (!res.ok) {
+        this.logger.warn(`Nao foi possivel consultar o status da subconta: HTTP ${res.status}`);
+        return null;
+      }
+
+      const data = await res.json();
+      return {
+        geral: (data.general as string) ?? null,
+        documentacao: (data.documentation as string) ?? null,
+        dadosComerciais: (data.commercialInfo as string) ?? null,
+        dadosBancarios: (data.bankAccountInfo as string) ?? null,
+      };
+    } catch (err) {
+      this.logger.warn(`Falha ao consultar status da subconta no Asaas: ${err}`);
+      return null;
+    }
+  }
+
+  /**
    * Saldo real da subconta do organizador. É a única fonte confiável do quanto
    * ele pode sacar — nosso cálculo de repasse não conhece taxas, estornos nem
    * o prazo de liberação do cartão.

@@ -48,6 +48,18 @@ watch(
   }
 )
 
+function fecharModalSaque() {
+  modalSaqueAberto.value = false
+  erroSaque.value = ''
+}
+
+function onTeclaModal(e: KeyboardEvent) {
+  if (e.key === 'Escape' && modalSaqueAberto.value) fecharModalSaque()
+}
+
+onMounted(() => window.addEventListener('keydown', onTeclaModal))
+onBeforeUnmount(() => window.removeEventListener('keydown', onTeclaModal))
+
 async function realizarSaquePix() {
   if (!financeiro.value || !saqueLiberado.value) return
 
@@ -300,10 +312,18 @@ function exportarRelatorioCSV() {
 
     <!-- MODAL DE SAQUE VIA PIX -->
     <Teleport to="body">
-      <div v-if="modalSaqueAberto && financeiro" class="fixed inset-0 z-[300] flex items-center justify-center p-4">
-        <div class="fixed inset-0 bg-slate-950/75 backdrop-blur-xs" @click="modalSaqueAberto = false"></div>
+      <!--
+        overflow-y-auto + items-start: sem isso o modal mais alto que a tela
+        ficava centralizado, o cabecalho com o Fechar saia da area visivel e o
+        usuario ficava preso sem conseguir sair.
+      -->
+      <div
+        v-if="modalSaqueAberto && financeiro"
+        class="fixed inset-0 z-[300] flex items-start justify-center overflow-y-auto overscroll-contain p-4 sm:items-center"
+      >
+        <div class="fixed inset-0 bg-slate-950/75 backdrop-blur-xs" @click="fecharModalSaque"></div>
 
-        <div class="relative w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl z-[301] p-6 space-y-5">
+        <div class="relative my-auto w-full max-w-md rounded-3xl bg-white shadow-2xl z-[301] p-6 space-y-5">
           <div class="flex items-center justify-between border-b border-slate-100 pb-3">
             <div class="flex items-center gap-2">
               <Banknote :size="22" class="text-emerald-600" />
@@ -315,7 +335,7 @@ function exportarRelatorioCSV() {
             <button
               type="button"
               class="rounded-xl bg-slate-100 p-2 text-xs font-bold text-slate-500 hover:bg-slate-200 transition inline-flex items-center gap-1"
-              @click="modalSaqueAberto = false"
+              @click="fecharModalSaque"
             >
               <X :size="13" /> Fechar
             </button>
@@ -339,6 +359,23 @@ function exportarRelatorioCSV() {
           </div>
 
           <div v-else class="space-y-4 text-xs">
+            <div
+              v-if="financeiro.statusSubconta && financeiro.statusSubconta.geral !== 'APPROVED'"
+              class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-900"
+            >
+              <p class="font-black uppercase tracking-wider">Conta em análise no Asaas</p>
+              <p class="mt-1">
+                O Asaas ainda está analisando os documentos da sua conta de recebimento e só
+                libera o PIX depois de aprovar. Procure o e-mail do Asaas na caixa de entrada
+                do endereço cadastrado e conclua o envio da documentação.
+              </p>
+              <p class="mt-1.5 text-[10px] text-amber-700">
+                Documentação: {{ financeiro.statusSubconta.documentacao || '—' }} ·
+                Dados comerciais: {{ financeiro.statusSubconta.dadosComerciais || '—' }} ·
+                Dados bancários: {{ financeiro.statusSubconta.dadosBancarios || '—' }}
+              </p>
+            </div>
+
             <div class="rounded-2xl bg-emerald-50 p-4 border border-emerald-200 space-y-1 text-center">
               <span class="text-xs font-bold uppercase tracking-wider text-emerald-800">Valor Total Disponível</span>
               <p class="text-3xl font-black text-emerald-900">{{ formatarValor(financeiro.saldoDisponivel) }}</p>
@@ -382,7 +419,7 @@ function exportarRelatorioCSV() {
               v-if="!comprovanteSaque"
               type="button"
               class="rounded-xl border border-slate-300 px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 transition"
-              @click="modalSaqueAberto = false"
+              @click="fecharModalSaque"
             >
               Cancelar
             </button>
@@ -391,7 +428,7 @@ function exportarRelatorioCSV() {
               v-if="comprovanteSaque"
               type="button"
               class="w-full rounded-xl bg-slate-900 py-2.5 text-xs font-bold text-white transition"
-              @click="modalSaqueAberto = false"
+              @click="fecharModalSaque"
             >
               Concluir
             </button>

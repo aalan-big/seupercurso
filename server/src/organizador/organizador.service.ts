@@ -314,11 +314,18 @@ export class OrganizadorService {
     // O saldo sacável é o da subconta no Asaas, não o nosso cálculo: só ele
     // conhece taxas, estornos e o prazo de liberação do cartão.
     const apiKeySubconta = decifrarCredencial(organizador.asaasApiKey);
-    const saldoAsaas = apiKeySubconta
-      ? await this.asaasService.consultarSaldoSubconta(apiKeySubconta)
-      : null;
+    const [saldoAsaas, statusSubconta] = apiKeySubconta
+      ? await Promise.all([
+          this.asaasService.consultarSaldoSubconta(apiKeySubconta),
+          this.asaasService.consultarStatusSubconta(apiKeySubconta),
+        ])
+      : [null, null];
 
-    const bloqueio = await this.motivoBloqueioSaque(organizador.clienteId, organizador);
+    const bloqueio = await this.motivoBloqueioSaque(
+      organizador.clienteId,
+      organizador,
+      statusSubconta,
+    );
 
     return {
       comissaoPercentual: percentual,
@@ -332,6 +339,8 @@ export class OrganizadorService {
       saldoAsaas,
       saldoDisponivel: saldoAsaas ?? 0,
       subcontaAtiva: !!apiKeySubconta,
+      /** Situacao da analise da subconta no Asaas (KYC do gateway). */
+      statusSubconta,
       bloqueioSaque: bloqueio,
       porEvento: Array.from(porEvento.values()).map((e) => ({
         ...e,
@@ -348,6 +357,10 @@ export class OrganizadorService {
   private async motivoBloqueioSaque(
     clienteId: string,
     organizador: { asaasApiKey: string | null; asaasWalletId: string | null },
+    statusSubconta?: {
+      geral: string | null;
+      documentacao: string | null;
+    } | null,
   ): Promise<string | null> {
     if (!organizador.asaasWalletId) {
       return 'Sua conta de recebimento ainda não foi criada. Complete os dados bancários.';
@@ -355,6 +368,14 @@ export class OrganizadorService {
 
     if (!organizador.asaasApiKey) {
       return 'Sua conta de recebimento está sem credencial de acesso. Contate o suporte.';
+    }
+
+    // O Asaas analisa os documentos da subconta antes de liberar PIX. Sem este
+    // aviso o organizador so descobria o bloqueio ao confirmar a transferencia.
+    if (statusSubconta?.geral && statusSubconta.geral !== 'APPROVED') {
+      return statusSubconta.documentacao === 'REJECTED'
+        ? 'O Asaas recusou os documentos da sua conta de recebimento. Verifique o e-mail cadastrado e reenvie a documentação.'
+        : 'Sua conta de recebimento ainda está em análise pelo Asaas. Envie a documentação pelo e-mail que o Asaas mandou e aguarde a aprovação para sacar.';
     }
 
     const trocaPendente = await this.prisma.solicitacaoAlteracaoDocumento.findFirst({

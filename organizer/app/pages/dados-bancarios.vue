@@ -133,8 +133,12 @@ async function onSalvar() {
       <div v-if="organizador?.asaasWalletId" class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 text-xs text-emerald-900 flex items-start gap-3 shadow-2xs">
         <CheckCircle :size="20" class="text-emerald-600" />
         <div class="space-y-1">
-          <p class="font-black text-sm text-emerald-950">Sua conta de recebimento está ativa</p>
-          <p class="text-[11px] text-emerald-800 leading-relaxed">Tudo certo! Sua parte das inscrições cai automaticamente nesta conta. PIX fica disponível no mesmo dia; cartão, conforme o prazo de liberação do Asaas.</p>
+          <p class="font-black text-sm text-emerald-950">Conta de recebimento criada</p>
+          <p class="text-[11px] text-emerald-800 leading-relaxed">
+            Sua parte das inscrições já é direcionada para esta conta. Para <strong>sacar</strong>,
+            o Asaas ainda precisa aprovar a documentação — ele envia as instruções por e-mail, e o
+            andamento aparece na tela Financeiro.
+          </p>
         </div>
       </div>
 

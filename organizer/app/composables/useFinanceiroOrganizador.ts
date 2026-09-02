@@ -24,6 +24,13 @@ export interface FinanceiroOrganizador {
   saldoDisponivel: number
   /** false enquanto a subconta do organizador nao estiver criada. */
   subcontaAtiva: boolean
+  /** Situacao da analise da subconta no Asaas; null quando nao ha subconta. */
+  statusSubconta: {
+    geral: string | null
+    documentacao: string | null
+    dadosComerciais: string | null
+    dadosBancarios: string | null
+  } | null
   /** Motivo que impede o saque agora, ou null quando esta liberado. */
   bloqueioSaque: string | null
   porEvento: ResumoEventoFinanceiro[]
