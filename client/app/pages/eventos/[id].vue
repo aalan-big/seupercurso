@@ -629,47 +629,56 @@ async function onInscrever() {
       <template v-else>
 
         <!-- Sucesso Inscrição -->
-        <div v-if="inscricaoCriada" class="max-w-2xl mx-auto bg-white border border-slate-200 rounded-3xl p-8 shadow-xl text-center space-y-6 text-slate-800">
-          <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto border border-emerald-200">
+        <div v-if="inscricaoCriada" class="max-w-2xl mx-auto bg-white border border-slate-200 rounded-3xl p-5 sm:p-8 shadow-xl text-center space-y-5 text-slate-800">
+          <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto border border-emerald-200 shadow-xs">
             <CheckCircle class="w-10 h-10" />
           </div>
 
           <div>
-            <h2 class="text-2xl sm:text-3xl font-black text-slate-900">Inscrições Geradas com Sucesso!</h2>
-            <p class="text-sm font-semibold text-slate-500 mt-1">
+            <h2 class="text-xl sm:text-3xl font-black text-slate-900">Inscrições Geradas com Sucesso!</h2>
+            <p class="text-xs sm:text-sm font-semibold text-slate-500 mt-1">
               {{ carrinho.length }} atleta(s) cadastrado(s) no evento <strong class="text-slate-800">{{ eventoSelecionado.nome }}</strong>.
             </p>
           </div>
 
-          <!-- PIX QR Code / Copia e Cola -->
-          <div v-if="inscricaoCriada.metodo === 'PIX' && inscricaoCriada.pixCopiaECola" class="p-6 bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
-            <p class="text-xs uppercase tracking-wider font-black text-orange-600">Pagamento via PIX</p>
-            <p class="text-3xl font-black text-slate-900">R$ {{ Number(inscricaoCriada.valor).toFixed(2) }}</p>
-
-            <div v-if="inscricaoCriada.pixQrCodeUrl" class="bg-white p-3 inline-block rounded-2xl mx-auto border border-slate-200 shadow-sm">
-              <img :src="inscricaoCriada.pixQrCodeUrl" alt="QR Code PIX" class="w-48 h-48 mx-auto" />
+          <!-- PIX QR Code / Copia e Cola Responsivo -->
+          <div v-if="inscricaoCriada.metodo === 'PIX' && inscricaoCriada.pixCopiaECola" class="p-4 sm:p-6 bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
+            <div class="space-y-1">
+              <span class="inline-block px-3 py-1 bg-orange-100 text-orange-800 border border-orange-200 rounded-full text-[11px] font-black uppercase tracking-wider">
+                Pagamento via PIX
+              </span>
+              <p class="text-2xl sm:text-3xl font-black text-slate-900 pt-1">R$ {{ Number(inscricaoCriada.valor).toFixed(2) }}</p>
             </div>
 
-            <div class="space-y-2">
-              <label class="block text-xs font-bold text-slate-700">Código PIX Copia e Cola:</label>
-              <div class="flex items-center gap-2">
+            <!-- Imagem QR Code Responsiva -->
+            <div v-if="inscricaoCriada.pixQrCodeUrl" class="bg-white p-3 inline-block rounded-2xl mx-auto border border-slate-200 shadow-sm max-w-full">
+              <img :src="inscricaoCriada.pixQrCodeUrl" alt="QR Code PIX" class="w-44 h-44 sm:w-52 sm:h-52 mx-auto object-contain" />
+              <p class="text-[11px] font-bold text-slate-500 mt-2">Aponte a câmera do app do seu banco</p>
+            </div>
+
+            <!-- Código Copia e Cola com Botão de Ação Destacado -->
+            <div class="space-y-2 text-left max-w-md mx-auto">
+              <label class="block text-xs font-bold text-slate-700">PIX Copia e Cola:</label>
+              <div class="flex flex-col sm:flex-row items-stretch gap-2">
                 <input
                   type="text"
                   readonly
                   :value="inscricaoCriada.pixCopiaECola"
-                  class="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-mono text-slate-800 focus:outline-none shadow-sm"
+                  class="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-mono text-slate-800 focus:outline-none shadow-xs truncate select-all"
+                  @click="(e) => (e.target as HTMLInputElement).select()"
                 />
                 <button
                   @click="copiarPixCode(inscricaoCriada.pixCopiaECola!)"
-                  class="px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-black uppercase tracking-wider rounded-xl transition flex items-center gap-1.5 shadow-sm"
+                  class="px-5 py-3 sm:py-2.5 bg-orange-500 hover:bg-orange-600 active:scale-[0.98] text-white text-xs font-black uppercase tracking-wider rounded-xl transition flex items-center justify-center gap-1.5 shadow-sm shrink-0"
                 >
                   <Copy class="w-4 h-4" />
-                  <span>{{ pixCopiado ? 'Copiado!' : 'Copiar' }}</span>
+                  <span>{{ pixCopiado ? 'Copiado com Sucesso!' : 'Copiar Código' }}</span>
                 </button>
               </div>
             </div>
-            <p class="text-xs font-semibold text-slate-500">
-              Após o pagamento no app do seu banco, suas inscrições serão confirmadas automaticamente!
+
+            <p class="text-[11px] sm:text-xs font-semibold text-slate-500 pt-1">
+              Assim que você pagar no app do seu banco, o sistema confirmará automaticamente suas inscrições e enviará os vouchers por e-mail!
             </p>
           </div>
 
@@ -677,11 +686,11 @@ async function onInscrever() {
             Sua compra via Cartão de Crédito foi processada com sucesso. Confira suas inscrições em "Minhas Inscrições".
           </div>
 
-          <div class="pt-4 flex flex-col sm:flex-row gap-3 justify-center">
-            <NuxtLink to="/minhas-inscricoes" class="px-6 py-3 bg-orange-600 hover:bg-orange-500 text-white font-bold text-sm rounded-xl transition shadow-lg">
+          <div class="pt-3 flex flex-col sm:flex-row gap-3 justify-center">
+            <NuxtLink to="/minhas-inscricoes" class="w-full sm:w-auto px-6 py-3.5 bg-orange-600 hover:bg-orange-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition shadow-md text-center">
               Ver Minhas Inscrições
             </NuxtLink>
-            <NuxtLink to="/" class="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold text-sm rounded-xl transition">
+            <NuxtLink to="/" class="w-full sm:w-auto px-6 py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs uppercase tracking-wider rounded-xl transition text-center">
               Voltar ao Início
             </NuxtLink>
           </div>

@@ -730,34 +730,35 @@ async function confirmarCancelamento(id: string) {
 
             <div v-else-if="dadosPix" class="space-y-4">
               <div class="flex flex-col items-center bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                <img v-if="dadosPix.pixQrCodeUrl" :src="dadosPix.pixQrCodeUrl" alt="QR Code PIX" class="w-48 h-48 rounded-xl bg-white p-1" />
-                <div v-else class="w-48 h-48 flex items-center justify-center bg-slate-100 rounded-xl text-xs text-slate-400 font-bold">
+                <img v-if="dadosPix.pixQrCodeUrl" :src="dadosPix.pixQrCodeUrl" alt="QR Code PIX" class="w-44 h-44 sm:w-52 sm:h-52 rounded-xl bg-white p-2 border border-slate-200 shadow-2xs max-w-full object-contain" />
+                <div v-else class="w-44 h-44 flex items-center justify-center bg-slate-100 rounded-xl text-xs text-slate-400 font-bold">
                   Gerando QR Code...
                 </div>
-                <p class="text-[11px] font-semibold text-slate-500 mt-2">Abra o app do seu banco e escaneie o código acima.</p>
+                <p class="text-[11px] font-bold text-slate-500 mt-2">Abra o app do seu banco e escaneie o código</p>
               </div>
 
-              <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-1">
-                <p class="text-[10px] text-slate-400 font-black uppercase tracking-wider">Valor Total</p>
-                <p class="text-2xl font-black text-emerald-600">R$ {{ Number(dadosPix.valor).toFixed(2) }}</p>
+              <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-1 text-center">
+                <p class="text-[10px] text-slate-400 font-black uppercase tracking-wider">Valor da Inscrição</p>
+                <p class="text-2xl sm:text-3xl font-black text-emerald-600">R$ {{ Number(dadosPix.valor).toFixed(2) }}</p>
               </div>
 
-              <div v-if="dadosPix.pixCopiaECola" class="space-y-2">
-                <label class="block text-xs font-bold uppercase tracking-wider text-slate-600">Código PIX Copia e Cola</label>
-                <div class="flex gap-2">
+              <div v-if="dadosPix.pixCopiaECola" class="space-y-2 text-left">
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-600">PIX Copia e Cola:</label>
+                <div class="flex flex-col sm:flex-row items-stretch gap-2">
                   <input
                     type="text"
                     readonly
                     :value="dadosPix.pixCopiaECola"
-                    class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-mono text-slate-700 truncate"
+                    class="w-full flex-1 rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-mono text-slate-700 truncate select-all"
+                    @click="(e) => (e.target as HTMLInputElement).select()"
                   />
                   <button
                     type="button"
-                    class="flex items-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-xs font-black text-slate-950 shadow hover:bg-amber-400 transition shrink-0"
+                    class="flex items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-5 py-3 sm:py-2.5 text-xs font-black text-slate-950 shadow hover:bg-amber-400 active:scale-[0.98] transition shrink-0 uppercase tracking-wider"
                     @click="copiarPix"
                   >
-                    <template v-if="pixCopiado"><Check :size="14" /> Copiado!</template>
-                    <template v-else><Copy :size="14" /> Copiar PIX</template>
+                    <template v-if="pixCopiado"><Check :size="14" /> Copiado com Sucesso!</template>
+                    <template v-else><Copy :size="14" /> Copiar Código</template>
                   </button>
                 </div>
               </div>

@@ -61,15 +61,27 @@ export class AsaasService {
   private readonly logger = new Logger(AsaasService.name);
   private readonly apiBaseUrl: string;
   private readonly apiKey: string;
+  private readonly isProd: boolean;
 
   constructor(private readonly configService: ConfigService) {
-    const isProd = this.configService.get<string>('NODE_ENV') === 'production';
-    this.apiBaseUrl = isProd
+    this.apiKey = (this.configService.get<string>('ASAAS_API_KEY') || '').trim();
+    const asaasEnv = this.configService.get<string>('ASAAS_ENV')?.toLowerCase();
+    const isKeySandbox = this.apiKey.includes('hmlg') || this.apiKey.includes('sandbox');
+
+    if (asaasEnv === 'production') {
+      this.isProd = true;
+    } else if (asaasEnv === 'sandbox') {
+      this.isProd = false;
+    } else {
+      // Auto-detecta: se a chave começar com $aact_hmlg_ usa Sandbox mesmo com NODE_ENV=production
+      this.isProd = this.configService.get<string>('NODE_ENV') === 'production' && !isKeySandbox;
+    }
+
+    this.apiBaseUrl = this.isProd
       ? 'https://api.asaas.com/v3'
       : 'https://sandbox.asaas.com/api/v3';
-    this.apiKey =
-      this.configService.get<string>('ASAAS_API_KEY') ||
-      '$aact_YTU5YTE0M2M2N2I4MTliNzA0MDhhZDYwNI=='; // Token Sandbox padronizado
+
+    this.logger.log(`Asaas inicializado em modo: ${this.isProd ? 'PRODUÇÃO (api.asaas.com)' : 'SANDBOX / HOMOLOGAÇÃO (sandbox.asaas.com)'}`);
   }
 
   private getHeaders() {
@@ -83,11 +95,16 @@ export class AsaasService {
    * Cria uma subconta no Asaas para o organizador receber os pagamentos diretamente com split.
    */
   async criarSubcontaOrganizador(params: CriarSubcontaParams) {
+    if (!this.apiKey) {
+      this.logger.warn('ASAAS_API_KEY não configurada. Usando walletId de mock.');
+      return { accountId: `acc_mock_${Date.now()}`, walletId: `wal_mock_${Date.now()}` };
+    }
+
     const body = {
       name: params.nome,
       email: params.email,
       cpfCnpj: params.cpfCnpj.replace(/\D/g, ''),
-      mobilePhone: params.telefone || '88999999999',
+      mobilePhone: params.telefone ? params.telefone.replace(/\D/g, '') : '88999999999',
       birthDate: params.dataNascimento,
       postalCode: params.cep?.replace(/\D/g, ''),
       address: params.logradouro,
@@ -107,11 +124,10 @@ export class AsaasService {
 
       if (!response.ok) {
         this.logger.error(`Erro ao criar subconta Asaas: ${JSON.stringify(data)}`);
-        // Se a conta já existir no Asaas, tenta consultar o walletId
         if (data.errors && data.errors[0]?.code === 'invalid_cpfCnpj') {
           throw new BadRequestException('CPF/CNPJ inválido para conta Asaas.');
         }
-        return { accountId: `acc_mock_${Date.now()}`, walletId: `wal_mock_${Date.now()}` };
+        throw new BadRequestException(data.errors?.[0]?.description || 'Erro ao criar subconta Asaas.');
       }
 
       return {
@@ -119,11 +135,9 @@ export class AsaasService {
         walletId: data.walletId || data.id,
       };
     } catch (error) {
-      this.logger.warn(`Fallback Asaas Sandbox para Subconta: ${error}`);
-      return {
-        accountId: `acc_sandbox_${Date.now()}`,
-        walletId: `wal_sandbox_${Date.now()}`,
-      };
+      if (error instanceof BadRequestException) throw error;
+      this.logger.error(`Falha ao conectar no Asaas para criar Subconta: ${error}`);
+      throw new BadRequestException('Não foi possível conectar ao Asaas para ativar a conta do organizador.');
     }
   }
 
@@ -131,7 +145,7 @@ export class AsaasService {
    * Gera uma cobrança PIX com QR Code e Copia e Cola no Asaas (com Split de Pagamento)
    */
   async gerarCobrancaPix(params: GerarPixParams) {
-    const split = params.organizadorWalletId
+    const split = params.organizadorWalletId && !params.organizadorWalletId.startsWith('wal_mock_')
       ? [
           {
             walletId: params.organizadorWalletId,
@@ -161,7 +175,9 @@ export class AsaasService {
 
       const paymentData = await resPayment.json();
       if (!resPayment.ok) {
-        throw new Error(paymentData.errors?.[0]?.description || 'Erro ao gerar PIX.');
+        const errorDesc = paymentData.errors?.[0]?.description || 'Erro ao gerar PIX no gateway.';
+        this.logger.error(`Erro Asaas ao gerar cobrança PIX: ${JSON.stringify(paymentData)}`);
+        throw new BadRequestException(`Erro Asaas: ${errorDesc}`);
       }
 
       // Buscar o QR Code do PIX gerado
@@ -170,19 +186,19 @@ export class AsaasService {
       });
       const qrData = await resQr.json();
 
+      if (!resQr.ok) {
+        this.logger.error(`Erro ao obter QR Code PIX do Asaas: ${JSON.stringify(qrData)}`);
+      }
+
       return {
         asaasPaymentId: paymentData.id,
-        pixCopiaECola: qrData.payload || paymentData.invoiceUrl,
+        pixCopiaECola: qrData.payload || paymentData.invoiceUrl || paymentData.bankSlipUrl,
         pixQrCodeUrl: qrData.encodedImage ? `data:image/png;base64,${qrData.encodedImage}` : null,
       };
-    } catch (err) {
-      this.logger.warn(`Simulação PIX Sandbox Asaas ativada para ${referenciaExterna}: ${err}`);
-      const mockPixCode = `00020126580014br.gov.bcb.pix0136seupercurso-sandbox-${referenciaExterna.slice(0, 8)}5204000053039865405${params.valor.toFixed(2)}5802BR5909SEUPERCURSO6007IGUATU62070503***6304ABCD`;
-      return {
-        asaasPaymentId: `pay_pix_mock_${Date.now()}`,
-        pixCopiaECola: mockPixCode,
-        pixQrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(mockPixCode)}`,
-      };
+    } catch (err: any) {
+      if (err instanceof BadRequestException) throw err;
+      this.logger.error(`Falha ao conectar com o gateway Asaas para PIX: ${err.message || err}`);
+      throw new BadRequestException('Erro ao comunicar com o Asaas para gerar o PIX. Verifique as credenciais da API.');
     }
   }
 
@@ -190,7 +206,7 @@ export class AsaasService {
    * Processa pagamento em Cartão de Crédito com antecipação em D+2 e Split Automático
    */
   async processarPagamentoCartao(params: ProcessarCartaoParams) {
-    const split = params.organizadorWalletId
+    const split = params.organizadorWalletId && !params.organizadorWalletId.startsWith('wal_mock_')
       ? [
           {
             walletId: params.organizadorWalletId,
@@ -239,42 +255,30 @@ export class AsaasService {
 
       const data = await res.json();
       if (!res.ok) {
-        // Se estiver em modo de teste/dev ou ambiente sandbox, aprova a transação em dev se a API do Asaas rejeitar por CEP/Mock
-        if (!this.apiKey || this.apiKey.includes('mock') || this.apiKey.includes('$') || process.env.NODE_ENV !== 'production') {
-          return {
-            asaasPaymentId: `pay_cartao_mock_${randomUUID()}`,
-            status: 'APROVADO',
-          };
-        }
-        throw new BadRequestException(
-          data.errors?.[0]?.description || 'Cartão recusado. Verifique os dados.',
-        );
+        const errorDesc = data.errors?.[0]?.description || 'Cartão recusado. Verifique os dados.';
+        this.logger.error(`Erro Asaas ao processar Cartão: ${JSON.stringify(data)}`);
+        throw new BadRequestException(errorDesc);
       }
 
       return {
         asaasPaymentId: data.id,
         status: data.status === 'CONFIRMED' || data.status === 'RECEIVED' ? 'APROVADO' : 'PENDENTE',
       };
-    } catch (e) {
+    } catch (e: any) {
       if (e instanceof BadRequestException) throw e;
-      if (!this.apiKey || this.apiKey.includes('mock') || this.apiKey.includes('$') || process.env.NODE_ENV !== 'production') {
-        return {
-          asaasPaymentId: `pay_cartao_mock_${randomUUID()}`,
-          status: 'APROVADO',
-        };
-      }
-      throw new BadRequestException('Erro ao conectar ao gateway de pagamento.');
+      this.logger.error(`Falha ao conectar com gateway Asaas para Cartão: ${e.message || e}`);
+      throw new BadRequestException('Erro ao processar cartão no gateway de pagamento. Verifique os dados ou tente novamente.');
     }
   }
 
   /**
    * Realiza o saque/transferência via PIX da subconta do organizador para a chave PIX dele
+   * Omitimos scheduleDate para que o Asaas execute a transferência imediatamente em vez de agendar e expirar.
    */
   async solicitarSaquePix(params: { valor: number; chavePix: string; walletId?: string | null }) {
     const body = {
       value: params.valor,
       pixAddressKey: params.chavePix,
-      scheduleDate: new Date().toISOString().slice(0, 10),
       description: 'Saque de Vendas de Inscrições - SeuPercurso',
     };
 
@@ -287,9 +291,9 @@ export class AsaasService {
 
       const data = await response.json();
       if (!response.ok) {
-        throw new BadRequestException(
-          data.errors?.[0]?.description || 'Erro ao processar transferência via PIX no Asaas.',
-        );
+        const errorMsg = data.errors?.[0]?.description || 'Erro ao processar transferência via PIX no Asaas.';
+        this.logger.error(`Erro Asaas ao solicitar saque: ${JSON.stringify(data)}`);
+        throw new BadRequestException(errorMsg);
       }
 
       return {
@@ -297,20 +301,16 @@ export class AsaasService {
         status: data.status || 'DONE',
         valor: data.value,
       };
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof BadRequestException) throw error;
-      this.logger.warn(`Simulação Saque PIX Sandbox Asaas para chave ${params.chavePix}: ${error}`);
-      return {
-        transferId: `transfer_mock_${Date.now()}`,
-        status: 'DONE',
-        valor: params.valor,
-      };
+      this.logger.error(`Falha ao solicitar saque no Asaas: ${error.message || error}`);
+      throw new BadRequestException('Não foi possível processar a transferência PIX no momento. Tente novamente mais tarde.');
     }
   }
 
   private async obterOuCriarClienteAsaas(cliente: { nome: string; cpfCnpj: string; email: string }) {
+    const doc = cliente.cpfCnpj.replace(/\D/g, '');
     try {
-      const doc = cliente.cpfCnpj.replace(/\D/g, '');
       const searchRes = await fetch(`${this.apiBaseUrl}/customers?cpfCnpj=${doc}`, {
         headers: this.getHeaders(),
       });
@@ -330,8 +330,12 @@ export class AsaasService {
         }),
       });
       const createData = await createRes.json();
+      if (!createRes.ok) {
+        this.logger.warn(`Erro ao criar cliente Asaas: ${JSON.stringify(createData)}`);
+      }
       return createData.id || `cus_mock_${Date.now()}`;
-    } catch {
+    } catch (err) {
+      this.logger.warn(`Erro ao obter/criar cliente no Asaas: ${err}`);
       return `cus_mock_${Date.now()}`;
     }
   }

@@ -170,6 +170,40 @@ function exportarRelatorioCSV() {
         </div>
       </div>
 
+      <!-- Guia de Prazos de Liquidação e Compensação -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs">
+        <div class="flex items-start gap-3.5 border-b md:border-b-0 md:border-r border-slate-100 pb-3 md:pb-0 md:pr-4">
+          <div class="rounded-xl bg-emerald-100 p-2 text-emerald-700 shrink-0">
+            <Zap :size="20" />
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 class="text-xs font-black uppercase text-slate-800">Pagamentos via PIX</h3>
+              <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-800">D+0 (Na hora)</span>
+            </div>
+            <p class="text-[11px] text-slate-500 mt-1 leading-relaxed">
+              O dinheiro cai na sua Subconta Asaas imediatamente após o pagamento pelo atleta e já fica liberado para saque instantâneo.
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-start gap-3.5">
+          <div class="rounded-xl bg-blue-100 p-2 text-blue-700 shrink-0">
+            <CreditCard :size="20" />
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 class="text-xs font-black uppercase text-slate-800">Pagamentos via Cartão de Crédito</h3>
+              <span class="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-black text-blue-800">D+2 a D+30</span>
+            </div>
+            <p class="text-[11px] text-slate-500 mt-1 leading-relaxed">
+              <strong>Com antecipação ativa:</strong> liberado em até <strong>2 dias úteis (D+2)</strong>.<br />
+              <strong>Sem antecipação:</strong> liberado em <strong>30 dias</strong> (à vista) ou a cada 30 dias por parcela.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <!-- Tabela Detalhada por Evento -->
       <div class="space-y-3 pt-4">
         <div class="flex items-center justify-between">
