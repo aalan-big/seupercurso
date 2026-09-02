@@ -12,6 +12,10 @@ export interface FinanceiroOrganizador {
   totalArrecadado: number
   comissaoPlataforma: number
   totalRepasse: number
+  /** Soma dos saques ja solicitados (processando + concluidos). */
+  totalSacado: number
+  /** Repasse ainda disponivel para saque: totalRepasse - totalSacado. */
+  saldoDisponivel: number
   porEvento: ResumoEventoFinanceiro[]
 }
 

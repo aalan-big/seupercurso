@@ -95,18 +95,18 @@ enum StatusSolicitacaoArte {
 // ---------------------------------------------------------------------------
 
 model Usuario {
-  id                  String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email               String        @unique
-  passwordHash        String
-  emailVerificado     Boolean       @default(false)
-  emailToken          String?
-  emailTokenExpiraEm  DateTime?
-  resetToken          String?
-  resetTokenExpiraEm  DateTime?
-  status              StatusUsuario @default(ATIVO)
-  ultimoLogin         DateTime?
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
+  id                 String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email              String        @unique
+  passwordHash       String
+  emailVerificado    Boolean       @default(false)
+  emailToken         String?
+  emailTokenExpiraEm DateTime?
+  resetToken         String?
+  resetTokenExpiraEm DateTime?
+  status             StatusUsuario @default(ATIVO)
+  ultimoLogin        DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
   cliente Cliente?
 }
@@ -199,6 +199,7 @@ model Organizador {
   eventos          Evento[]
   staff            Staff[]
   solicitacoesArte SolicitacaoArte[]
+  saques           Saque[]
 }
 
 model Admin {
@@ -397,13 +398,13 @@ model Pedido {
 }
 
 model Inscricao {
-  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  clienteId     String          @db.Uuid
-  categoriaId   String          @db.Uuid
-  loteId        String          @db.Uuid
-  cupomId       String?         @db.Uuid
-  pedidoId      String?         @db.Uuid
-  dependenteId  String?         @db.Uuid
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clienteId    String  @db.Uuid
+  categoriaId  String  @db.Uuid
+  loteId       String  @db.Uuid
+  cupomId      String? @db.Uuid
+  pedidoId     String? @db.Uuid
+  dependenteId String? @db.Uuid
 
   // Dados do atleta participante (caso seja diferente do próprio titular)
   atletaNome           String?
@@ -446,6 +447,7 @@ model Pagamento {
   pixQrCodeUrl    String?
   pixCopiaECola   String?
   dataPagamento   DateTime?
+  expiraEm        DateTime?
   createdAt       DateTime        @default(now())
 
   inscricao Inscricao? @relation(fields: [inscricaoId], references: [id])
@@ -539,4 +541,28 @@ model AuditLog {
   @@index([categoria])
   @@index([nivel])
   @@index([createdAt])
+}
+
+enum StatusSaque {
+  PROCESSANDO
+  CONCLUIDO
+  FALHOU
+}
+
+/// Registra cada retirada solicitada pelo organizador, para que o saldo
+/// disponivel possa ser calculado como (repasse aprovado - saques nao falhados).
+model Saque {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizadorId String      @db.Uuid
+  valor         Decimal     @db.Decimal(10, 2)
+  status        StatusSaque @default(PROCESSANDO)
+  chaveDestino  String
+  transferId    String?     @unique
+  motivoFalha   String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  organizador Organizador @relation(fields: [organizadorId], references: [id])
+
+  @@index([organizadorId, status])
 }

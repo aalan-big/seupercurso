@@ -17,6 +17,7 @@ export interface PagamentoDaInscricao {
   metodo: string
   status: string
   codigoTransacao: string | null
+  asaasPaymentId?: string | null
   pixCopiaECola?: string | null
   pixQrCodeUrl?: string | null
   dataPagamento: string | null
@@ -198,6 +199,9 @@ export function useInscricao() {
       anoValidade?: string
       ccv?: string
       parcelas?: number
+      cpfTitular?: string
+      cep?: string
+      numeroResidencia?: string
     },
     pedidoId?: string
   ) {
@@ -215,7 +219,11 @@ export function useInscricao() {
               cartaoMesValidade: cartaoDados.mesValidade,
               cartaoAnoValidade: cartaoDados.anoValidade,
               cartaoCcv: cartaoDados.ccv,
-              parcelas: cartaoDados.parcelas
+              parcelas: cartaoDados.parcelas,
+              // Sem CPF do titular e endereço o antifraude do Asaas recusa a cobrança.
+              cpfTitular: cartaoDados.cpfTitular,
+              cep: cartaoDados.cep,
+              numeroResidencia: cartaoDados.numeroResidencia
             }
           : {})
       }

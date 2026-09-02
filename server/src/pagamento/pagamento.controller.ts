@@ -1,9 +1,12 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
+  Ip,
   Param,
+  ParseUUIDPipe,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -25,25 +28,20 @@ export class PagamentoController {
   create(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreatePagamentoDto,
+    @Ip() ip: string,
   ) {
-    return this.pagamentoService.create(user.userId, dto);
+    return this.pagamentoService.create(user.userId, dto, ip);
   }
 
-  @HttpCode(HttpStatus.OK)
-  @Post(':id/simular-aprovacao')
-  simularAprovacao(
+  /**
+   * Acompanhamento da cobrança pelo comprador (usado no polling da tela de PIX).
+   * Reconcilia com o Asaas quando o webhook atrasa ou falha.
+   */
+  @Get(':id/status')
+  obterStatus(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.pagamentoService.simularAprovacao(user.userId, id);
-  }
-
-  @HttpCode(HttpStatus.OK)
-  @Post(':id/simular-recusa')
-  simularRecusa(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
-  ) {
-    return this.pagamentoService.simularRecusa(user.userId, id);
+    return this.pagamentoService.obterStatus(user.userId, id);
   }
 }

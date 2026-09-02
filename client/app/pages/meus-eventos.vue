@@ -58,8 +58,25 @@ const cartaoForm = reactive({
   mesValidade: '12',
   anoValidade: '2028',
   ccv: '',
-  parcelas: 1
+  parcelas: 1,
+  // Exigidos pelo antifraude do Asaas.
+  cpfTitular: '',
+  cep: '',
+  numeroResidencia: ''
 })
+
+function formatarCpfTitular(e: Event) {
+  const digitos = (e.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 11)
+  cartaoForm.cpfTitular = digitos
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+}
+
+function formatarCep(e: Event) {
+  const digitos = (e.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 8)
+  cartaoForm.cep = digitos.replace(/(\d{5})(\d)/, '$1-$2')
+}
 
 function formatarNumeroCartao(val: string) {
   const apenasNumeros = val.replace(/\D/g, '').slice(0, 16)
@@ -73,11 +90,46 @@ function onInputNumeroCartao(e: Event) {
 
 const dadosPix = ref<{
   id: string
+  pagamentoId?: string
   valor: string
   pixCopiaECola?: string
   pixQrCodeUrl?: string
   eventoNome: string
 } | null>(null)
+
+// Acompanhamento automatico da cobranca PIX enquanto o modal esta aberto.
+const { consultarStatus } = usePagamento()
+const statusPagamento = ref<'PENDENTE' | 'APROVADO' | 'EXPIRADO' | 'RECUSADO' | 'ESTORNADO' | 'CANCELADO'>('PENDENTE')
+let timerStatus: ReturnType<typeof setInterval> | null = null
+
+function pararAcompanhamento() {
+  if (timerStatus) {
+    clearInterval(timerStatus)
+    timerStatus = null
+  }
+}
+
+function acompanharPagamento(pagamentoId?: string) {
+  pararAcompanhamento()
+  statusPagamento.value = 'PENDENTE'
+  if (!pagamentoId) return
+
+  timerStatus = setInterval(async () => {
+    try {
+      const res = await consultarStatus(pagamentoId)
+      if (!res) return
+      statusPagamento.value = res.status
+      if (res.status !== 'PENDENTE') {
+        pararAcompanhamento()
+        if (res.status === 'APROVADO') await fetchMinhas()
+      }
+    } catch {
+      // Falha de rede pontual nao deve encerrar o acompanhamento.
+    }
+  }, 5000)
+}
+
+onBeforeUnmount(pararAcompanhamento)
 
 const valorBasePagamento = computed(() => {
   const v = dadosPix.value?.valor || inscricaoAtualPagamento.value?.valor || 0
@@ -144,12 +196,14 @@ async function abrirModalPagamento(inscricao: InscricaoComEvento) {
   if (pagamentoPixValido) {
     dadosPix.value = {
       id: inscricao.id,
+      pagamentoId: pagamentoPixValido.id,
       valor: String(pagamentoPixValido.valor || '0.00'),
       pixCopiaECola: pagamentoPixValido.pixCopiaECola || undefined,
       pixQrCodeUrl: pagamentoPixValido.pixQrCodeUrl || undefined,
       eventoNome: evento?.nome || 'Evento'
     }
     gerandoPix.value = false
+    acompanharPagamento(pagamentoPixValido.id)
     return
   }
 
@@ -164,11 +218,13 @@ async function gerarNovoPix() {
     const res = await pagarInscricao(inscricaoAtualPagamento.value.id, 'PIX')
     dadosPix.value = {
       id: inscricaoAtualPagamento.value.id,
+      pagamentoId: res.id,
       valor: String(res.valor || '0.00'),
       pixCopiaECola: res.pixCopiaECola,
       pixQrCodeUrl: res.pixQrCodeUrl,
       eventoNome: inscricaoAtualPagamento.value.categoria?.modalidade?.evento?.nome || 'Evento'
     }
+    acompanharPagamento(res.id)
   } catch (e) {
     erroPixModal.value = extrairErro(e)
   } finally {
@@ -178,8 +234,15 @@ async function gerarNovoPix() {
 
 async function processarPagamentoCartao() {
   if (!inscricaoAtualPagamento.value) return
-  if (!cartaoForm.numero || !cartaoForm.holderName || !cartaoForm.ccv) {
-    erroPixModal.value = 'Preencha todos os dados do cartão.'
+  if (
+    !cartaoForm.numero ||
+    !cartaoForm.holderName ||
+    !cartaoForm.ccv ||
+    !cartaoForm.cpfTitular ||
+    !cartaoForm.cep ||
+    !cartaoForm.numeroResidencia
+  ) {
+    erroPixModal.value = 'Preencha todos os dados do cartão e do titular.'
     return
   }
 
@@ -193,11 +256,15 @@ async function processarPagamentoCartao() {
       mesValidade: cartaoForm.mesValidade,
       anoValidade: cartaoForm.anoValidade,
       ccv: cartaoForm.ccv,
-      parcelas: Number(cartaoForm.parcelas)
+      parcelas: Number(cartaoForm.parcelas),
+      cpfTitular: cartaoForm.cpfTitular,
+      cep: cartaoForm.cep,
+      numeroResidencia: cartaoForm.numeroResidencia
     })
     sucessoCartao.value = true
     await fetchMinhas()
     setTimeout(() => {
+      pararAcompanhamento()
       modalPixAberto.value = false
       sucessoCartao.value = false
     }, 2000)
@@ -206,6 +273,11 @@ async function processarPagamentoCartao() {
   } finally {
     processandoCartao.value = false
   }
+}
+
+function fecharModalPagamento() {
+  pararAcompanhamento()
+  modalPixAberto.value = false
 }
 
 function copiarPix() {
@@ -706,7 +778,7 @@ async function confirmarCancelamento(id: string) {
               <h3 class="flex items-center gap-2 text-base font-black text-slate-900"><CreditCard :size="18" /> Efetuar Pagamento</h3>
               <p class="text-xs font-semibold text-slate-500">{{ dadosPix?.eventoNome || inscricaoAtualPagamento?.categoria?.modalidade?.evento?.nome || 'Inscrição' }}</p>
             </div>
-            <button type="button" class="text-slate-400 hover:text-slate-600 p-1" @click="modalPixAberto = false"><X :size="18" /></button>
+            <button type="button" class="text-slate-400 hover:text-slate-600 p-1" @click="fecharModalPagamento"><X :size="18" /></button>
           </div>
 
           <!-- Seleção de Abas PIX vs CARTÃO DE CRÉDITO -->
@@ -786,6 +858,30 @@ async function confirmarCancelamento(id: string) {
                   <span>{{ gerandoPix ? 'Atualizando PIX...' : 'Atualizar / Gerar Novo QR Code' }}</span>
                 </button>
               </div>
+
+              <!-- Estado da cobranca, atualizado automaticamente a cada 5s -->
+              <div
+                v-if="statusPagamento === 'APROVADO'"
+                class="flex items-center justify-center gap-2 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-black uppercase tracking-wider"
+              >
+                <CheckCircle :size="14" />
+                <span>Pagamento confirmado!</span>
+              </div>
+
+              <div
+                v-else-if="statusPagamento === 'EXPIRADO'"
+                class="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs font-bold text-center"
+              >
+                Este código PIX expirou. Gere um novo QR Code acima.
+              </div>
+
+              <div
+                v-else
+                class="flex items-center justify-center gap-2 text-[11px] font-semibold text-slate-500"
+              >
+                <span class="w-3 h-3 border-2 border-amber-500 border-t-transparent rounded-full animate-spin shrink-0"></span>
+                <span>Aguardando o pagamento… a confirmação aparece aqui automaticamente.</span>
+              </div>
             </div>
           </div>
 
@@ -859,6 +955,45 @@ async function confirmarCancelamento(id: string) {
               </div>
 
               <div>
+                <label class="block text-[11px] font-bold uppercase text-slate-700 mb-1">CPF do Titular</label>
+                <input
+                  :value="cartaoForm.cpfTitular"
+                  @input="formatarCpfTitular"
+                  type="text"
+                  inputmode="numeric"
+                  placeholder="000.000.000-00"
+                  required
+                  class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-xs font-mono font-bold focus:border-amber-500 focus:outline-none"
+                />
+              </div>
+
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-[11px] font-bold uppercase text-slate-700 mb-1">CEP do Titular</label>
+                  <input
+                    :value="cartaoForm.cep"
+                    @input="formatarCep"
+                    type="text"
+                    inputmode="numeric"
+                    placeholder="00000-000"
+                    required
+                    class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-xs font-mono font-bold focus:border-amber-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label class="block text-[11px] font-bold uppercase text-slate-700 mb-1">Nº do Endereço</label>
+                  <input
+                    v-model="cartaoForm.numeroResidencia"
+                    type="text"
+                    placeholder="100"
+                    maxlength="10"
+                    required
+                    class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-xs font-bold focus:border-amber-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
                 <label class="block text-[11px] font-bold uppercase text-slate-700 mb-1">Opções de Parcelamento</label>
                 <select
                   v-model="cartaoForm.parcelas"
@@ -884,7 +1019,7 @@ async function confirmarCancelamento(id: string) {
           <button
             type="button"
             class="w-full rounded-xl bg-slate-900 py-3 text-xs font-bold uppercase tracking-wider text-white shadow hover:bg-slate-800 transition"
-            @click="modalPixAberto = false"
+            @click="fecharModalPagamento"
           >
             Fechar
           </button>

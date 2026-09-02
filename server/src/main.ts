@@ -30,10 +30,37 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+
+  // Origens explicitas: `origin: true` refletia qualquer site que chamasse a API
+  // com as credenciais do usuario logado.
+  const origensPermitidas = [
+    process.env.CLIENT_URL,
+    process.env.ORGANIZER_URL,
+    process.env.ADMIN_URL,
+    ...(process.env.NODE_ENV !== 'production'
+      ? [
+          'http://localhost:3001',
+          'http://localhost:3002',
+          'http://localhost:3003',
+        ]
+      : []),
+  ].filter((url): url is string => !!url);
+
   app.enableCors({
-    origin: true,
+    origin: (origin, callback) => {
+      // Requisicoes sem Origin (curl, apps nativos, webhook do Asaas) seguem valendo.
+      if (!origin || origensPermitidas.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error(`Origem nao permitida pelo CORS: ${origin}`));
+    },
     credentials: true,
   });
+
+  // Necessario para que @Ip() devolva o IP real do comprador atras do Nginx —
+  // o antifraude do Asaas rejeita cobrancas com o IP do proxy.
+  app.set('trust proxy', 1);
   await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
 
 }

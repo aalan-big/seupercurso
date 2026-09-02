@@ -4,6 +4,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -16,8 +17,28 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificacaoAdminService } from '../admin/notificacao-admin.service';
 import { CategoriaAuditLog, NivelAuditLog } from '../generated/prisma/enums';
 
+/** Cobranças PIX do Asaas vencem em 24h; espelhamos isso no nosso registro. */
+const HORAS_VALIDADE_PIX = 24;
+
+/** Tolerância (em reais) na conferência do valor pago vs. valor cobrado. */
+const TOLERANCIA_VALOR = 0.05;
+
+const INSCRICAO_COMPLETA_INCLUDE = {
+  cliente: { include: { pf: true, pj: true, usuario: true } },
+  dependente: true,
+  categoria: {
+    include: {
+      modalidade: {
+        include: { evento: { include: { organizador: true } } },
+      },
+    },
+  },
+} as const;
+
 @Injectable()
 export class PagamentoService {
+  private readonly logger = new Logger(PagamentoService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly asaasService: AsaasService,
@@ -26,7 +47,7 @@ export class PagamentoService {
     private readonly notificacaoAdminService: NotificacaoAdminService,
   ) {}
 
-  async create(usuarioId: string, dto: CreatePagamentoDto) {
+  async create(usuarioId: string, dto: CreatePagamentoDto, remoteIp?: string) {
     const clienteId = await this.getClienteIdOuFalhar(usuarioId);
 
     if (!dto.inscricaoId && !dto.pedidoId) {
@@ -37,21 +58,7 @@ export class PagamentoService {
       where: dto.pedidoId
         ? { pedidoId: dto.pedidoId, clienteId }
         : { id: dto.inscricaoId, clienteId },
-      include: {
-        cliente: { include: { pf: true, pj: true, usuario: true } },
-        dependente: true,
-        categoria: {
-          include: {
-            modalidade: {
-              include: {
-                evento: {
-                  include: { organizador: true },
-                },
-              },
-            },
-          },
-        },
-      },
+      include: INSCRICAO_COMPLETA_INCLUDE,
     });
 
     if (!inscricoes || inscricoes.length === 0) {
@@ -65,6 +72,11 @@ export class PagamentoService {
       throw new ConflictException('As inscrições deste pedido já estão confirmadas.');
     }
 
+    const primeiraInscricao = inscricoes[0];
+    const evento = primeiraInscricao.categoria.modalidade.evento;
+
+    this.validarMetodoAceitoPeloEvento(evento, dto.metodo);
+
     // Se já existe uma tentativa de pagamento pendente para esta inscrição/pedido com este método, reaproveita apenas se for válido e real
     const pagamentoExistente = await this.prisma.pagamento.findFirst({
       where: dto.pedidoId
@@ -73,8 +85,12 @@ export class PagamentoService {
       orderBy: { createdAt: 'desc' },
     });
 
+    const aindaValido =
+      !pagamentoExistente?.expiraEm || pagamentoExistente.expiraEm > new Date();
+
     if (
       pagamentoExistente &&
+      aindaValido &&
       (pagamentoExistente.pixCopiaECola || pagamentoExistente.pixQrCodeUrl) &&
       !pagamentoExistente.pixCopiaECola?.includes('sandbox') &&
       !pagamentoExistente.pixCopiaECola?.includes('seupercurso-sandbox') &&
@@ -98,11 +114,18 @@ export class PagamentoService {
       valorBaseTotal += valorItem;
     }
 
-    const primeiraInscricao = inscricoes[0];
-    const evento = primeiraInscricao.categoria.modalidade.evento;
     const organizadorWalletId = evento.organizador?.asaasWalletId;
     const comissaoPercentual = Number(evento.organizador?.comissaoPercentual ?? 10);
-    const comissaoPlataforma = valorBaseTotal * (comissaoPercentual / 100);
+    const comissaoPlataforma = Number(
+      (valorBaseTotal * (comissaoPercentual / 100)).toFixed(2),
+    );
+
+    // O organizador recebe sempre o valor base menos a comissão. Juros e taxa de
+    // cartão são acréscimos pagos pelo comprador que ficam com a plataforma
+    // justamente para cobrir a tarifa do gateway — não entram no repasse.
+    const valorLiquidoOrganizador = Number(
+      (valorBaseTotal - comissaoPlataforma).toFixed(2),
+    );
 
     let valorCobrado = valorBaseTotal;
 
@@ -123,6 +146,8 @@ export class PagamentoService {
       clienteComprador.pj?.cnpj ||
       '00000000000';
     const emailCliente = clienteComprador.usuario.email;
+    const telefoneCliente =
+      clienteComprador.pf?.celular || clienteComprador.pj?.celularComercial || null;
 
     const refId = dto.pedidoId ? dto.pedidoId : primeiraInscricao.id;
 
@@ -136,60 +161,69 @@ export class PagamentoService {
         valor: valorCobrado,
         cliente: { nome: nomeCliente, cpfCnpj: cpfCnpjCliente, email: emailCliente },
         organizadorWalletId,
-        comissaoPlataforma,
+        valorLiquidoOrganizador,
       });
     } else if (dto.metodo === MetodoPagamento.CARTAO_CREDITO) {
       asaasRes = await this.asaasService.processarPagamentoCartao({
         inscricaoId: refId,
         valorTotal: valorCobrado,
-        cliente: { nome: nomeCliente, cpfCnpj: cpfCnpjCliente, email: emailCliente },
+        cliente: {
+          nome: nomeCliente,
+          cpfCnpj: cpfCnpjCliente,
+          email: emailCliente,
+          telefone: telefoneCliente,
+        },
         cartao: {
-          holderName: dto.cartaoHolderName || nomeCliente,
-          number: dto.cartaoNumero?.replace(/\D/g, '') || '4444555566667777',
-          expiryMonth: dto.cartaoMesValidade || '12',
-          expiryYear: dto.cartaoAnoValidade || '2030',
-          ccv: dto.cartaoCcv || '123',
-          cpfTitular: dto.cpfTitular || cpfCnpjCliente,
-          cep: dto.cep || (clienteComprador as any).endereco?.cep || '60000000',
-          numeroResidencia: dto.numeroResidencia || (clienteComprador as any).endereco?.numero || '100',
+          holderName: dto.cartaoHolderName!,
+          number: dto.cartaoNumero!,
+          expiryMonth: dto.cartaoMesValidade!,
+          expiryYear: dto.cartaoAnoValidade!,
+          ccv: dto.cartaoCcv!,
+          cpfTitular: dto.cpfTitular,
+          cep: dto.cep,
+          numeroResidencia: dto.numeroResidencia,
         },
         parcelas: dto.parcelas || 1,
         organizadorWalletId,
-        comissaoPlataforma,
+        valorLiquidoOrganizador,
+        remoteIp,
       });
+    } else {
+      throw new BadRequestException(
+        'Método de pagamento não suportado. Utilize PIX ou cartão de crédito.',
+      );
     }
 
     const isAprovado = asaasRes.status === 'APROVADO';
+    const expiraEm =
+      dto.metodo === MetodoPagamento.PIX
+        ? new Date(Date.now() + HORAS_VALIDADE_PIX * 60 * 60 * 1000)
+        : null;
+
+    const dadosPagamento = {
+      valor: valorCobrado,
+      metodo: dto.metodo,
+      status: isAprovado ? StatusPagamento.APROVADO : StatusPagamento.PENDENTE,
+      gateway: 'asaas',
+      codigoTransacao: asaasRes.asaasPaymentId,
+      asaasPaymentId: asaasRes.asaasPaymentId,
+      pixCopiaECola: asaasRes.pixCopiaECola || null,
+      pixQrCodeUrl: asaasRes.pixQrCodeUrl || null,
+      dataPagamento: isAprovado ? new Date() : null,
+      expiraEm,
+    };
 
     const [pagamentoCriado] = await this.prisma.$transaction([
       pagamentoExistente
         ? this.prisma.pagamento.update({
             where: { id: pagamentoExistente.id },
-            data: {
-              valor: valorCobrado,
-              metodo: dto.metodo,
-              status: isAprovado ? StatusPagamento.APROVADO : StatusPagamento.PENDENTE,
-              gateway: 'asaas',
-              codigoTransacao: asaasRes.asaasPaymentId,
-              asaasPaymentId: asaasRes.asaasPaymentId,
-              pixCopiaECola: asaasRes.pixCopiaECola || null,
-              pixQrCodeUrl: asaasRes.pixQrCodeUrl || null,
-              dataPagamento: isAprovado ? new Date() : null,
-            },
+            data: dadosPagamento,
           })
         : this.prisma.pagamento.create({
             data: {
               inscricaoId: dto.inscricaoId || null,
               pedidoId: dto.pedidoId || null,
-              valor: valorCobrado,
-              metodo: dto.metodo,
-              status: isAprovado ? StatusPagamento.APROVADO : StatusPagamento.PENDENTE,
-              gateway: 'asaas',
-              codigoTransacao: asaasRes.asaasPaymentId,
-              asaasPaymentId: asaasRes.asaasPaymentId,
-              pixCopiaECola: asaasRes.pixCopiaECola || null,
-              pixQrCodeUrl: asaasRes.pixQrCodeUrl || null,
-              dataPagamento: isAprovado ? new Date() : null,
+              ...dadosPagamento,
             },
           }),
       ...(isAprovado
@@ -217,60 +251,238 @@ export class PagamentoService {
       usuarioId,
     });
 
+    // Cartão aprovado na hora não gera webhook de confirmação pendente,
+    // então os vouchers precisam sair aqui.
+    if (isAprovado) {
+      await this.notificarConfirmacao(pagamentoCriado.id);
+    }
+
     return pagamentoCriado;
   }
 
-  async simularAprovacao(usuarioId: string, pagamentoId: string) {
-    const pagamento = await this.buscarPagamentoDoClienteOuFalhar(
-      usuarioId,
-      pagamentoId,
-    );
+  /**
+   * Status de uma cobrança para acompanhamento pelo comprador.
+   *
+   * Reconcilia com o Asaas quando o pagamento ainda está pendente: o webhook pode
+   * falhar ou atrasar, e sem isso o comprador que já pagou o PIX ficava preso na
+   * tela sem confirmação.
+   */
+  async obterStatus(usuarioId: string, pagamentoId: string) {
+    const clienteId = await this.getClienteIdOuFalhar(usuarioId);
 
-    await this.prisma.$transaction([
-      this.prisma.pagamento.update({
-        where: { id: pagamento.id },
-        data: { status: StatusPagamento.APROVADO, dataPagamento: new Date() },
-      }),
-      this.prisma.inscricao.updateMany({
-        where: pagamento.pedidoId
-          ? { pedidoId: pagamento.pedidoId }
-          : { id: pagamento.inscricaoId! },
-        data: { status: StatusInscricao.CONFIRMADA },
-      }),
-    ]);
+    const pagamento = await this.prisma.pagamento.findUnique({
+      where: { id: pagamentoId },
+      include: { inscricao: true, pedido: true },
+    });
 
-    const inscricoesAtualizadas = await this.prisma.inscricao.findMany({
-      where: pagamento.pedidoId
-        ? { pedidoId: pagamento.pedidoId }
-        : { id: pagamento.inscricaoId! },
-      include: {
-        cliente: { include: { pf: true, pj: true, usuario: true } },
-        dependente: true,
-        categoria: {
-          include: {
-            modalidade: {
-              include: { evento: true },
-            },
-          },
-        },
+    if (!pagamento) {
+      throw new NotFoundException('Pagamento não encontrado.');
+    }
+
+    const donoDoPagamento =
+      pagamento.inscricao?.clienteId === clienteId ||
+      pagamento.pedido?.clienteId === clienteId;
+
+    if (!donoDoPagamento) {
+      throw new ForbiddenException('Este pagamento não pertence a você.');
+    }
+
+    if (pagamento.status === StatusPagamento.PENDENTE && pagamento.asaasPaymentId) {
+      const remoto = await this.asaasService.consultarPagamento(pagamento.asaasPaymentId);
+
+      if (remoto && (remoto.status === 'RECEIVED' || remoto.status === 'CONFIRMED')) {
+        await this.confirmarPagamento({
+          asaasPaymentId: pagamento.asaasPaymentId,
+          valorPago: remoto.valor,
+          origem: 'reconciliacao',
+        });
+      } else if (pagamento.expiraEm && pagamento.expiraEm < new Date()) {
+        await this.prisma.pagamento.updateMany({
+          where: { id: pagamento.id, status: StatusPagamento.PENDENTE },
+          data: { status: StatusPagamento.EXPIRADO },
+        });
+      }
+    }
+
+    return this.prisma.pagamento.findUnique({
+      where: { id: pagamento.id },
+      select: {
+        id: true,
+        status: true,
+        metodo: true,
+        valor: true,
+        expiraEm: true,
+        dataPagamento: true,
+        pixCopiaECola: true,
+        pixQrCodeUrl: true,
+      },
+    });
+  }
+
+  /**
+   * Confirma uma cobrança aprovada no gateway: marca o pagamento, confirma as
+   * inscrições e dispara os vouchers.
+   *
+   * É idempotente — reenvios de webhook do Asaas não reprocessam nem reenviam
+   * e-mails. Usada pelo webhook e pela reconciliação de status.
+   */
+  async confirmarPagamento(params: {
+    asaasPaymentId: string;
+    referenciaExterna?: string | null;
+    valorPago?: number;
+    origem: 'webhook' | 'reconciliacao';
+  }) {
+    const { asaasPaymentId, referenciaExterna, valorPago, origem } = params;
+
+    const pagamentoExistente = await this.prisma.pagamento.findFirst({
+      where: {
+        OR: [
+          { asaasPaymentId },
+          ...(referenciaExterna
+            ? [{ pedidoId: referenciaExterna }, { inscricaoId: referenciaExterna }]
+            : []),
+        ],
       },
     });
 
-    if (inscricoesAtualizadas.length > 0) {
-      const primeiraInscricao = inscricoesAtualizadas[0];
-      const evento = primeiraInscricao.categoria.modalidade.evento;
-      const comprador = primeiraInscricao.cliente;
-      const nomeComprador = comprador.pf?.nomeCompleto || comprador.pj?.razaoSocial || comprador.usuario.email;
+    // Idempotência: um reenvio do Asaas não deve reprocessar nem reenviar vouchers.
+    if (pagamentoExistente?.status === StatusPagamento.APROVADO) {
+      this.logger.log(
+        `Pagamento ${pagamentoExistente.id} já estava aprovado; ignorando ${origem} duplicado.`,
+      );
+      return { jaProcessado: true, pagamentoId: pagamentoExistente.id };
+    }
 
-      const atletasVouchers = inscricoesAtualizadas.map((insc) => ({
+    // Confere o valor efetivamente pago contra o valor cobrado.
+    if (
+      pagamentoExistente &&
+      typeof valorPago === 'number' &&
+      valorPago > 0 &&
+      Number(pagamentoExistente.valor) - valorPago > TOLERANCIA_VALOR
+    ) {
+      this.logger.error(
+        `Valor divergente no pagamento ${pagamentoExistente.id}: cobrado R$ ${Number(
+          pagamentoExistente.valor,
+        ).toFixed(2)}, pago R$ ${valorPago.toFixed(2)}. Confirmação bloqueada.`,
+      );
+      this.auditLogService.log({
+        categoria: CategoriaAuditLog.FINANCEIRO,
+        nivel: NivelAuditLog.ERROR,
+        mensagem: `Pagamento ${asaasPaymentId} recebido com valor menor que o cobrado; confirmação bloqueada.`,
+        detalhes: {
+          pagamentoId: pagamentoExistente.id,
+          valorCobrado: Number(pagamentoExistente.valor),
+          valorPago,
+        },
+      });
+      return { valorDivergente: true, pagamentoId: pagamentoExistente.id };
+    }
+
+    const pedidoId =
+      pagamentoExistente?.pedidoId ||
+      (referenciaExterna ? await this.descobrirSeEhPedido(referenciaExterna) : null);
+    const inscricaoId =
+      pagamentoExistente?.inscricaoId || (!pedidoId ? referenciaExterna || null : null);
+
+    if (!pagamentoExistente && !pedidoId && !inscricaoId) {
+      this.logger.warn(
+        `Pagamento ${asaasPaymentId} aprovado no Asaas sem referência local (ref=${referenciaExterna}).`,
+      );
+      return { ignorado: true };
+    }
+
+    const pagamentoId = await this.prisma.$transaction(async (tx) => {
+      if (pagamentoExistente) {
+        await tx.pagamento.update({
+          where: { id: pagamentoExistente.id },
+          data: {
+            status: StatusPagamento.APROVADO,
+            dataPagamento: new Date(),
+            asaasPaymentId,
+          },
+        });
+      }
+
+      await tx.inscricao.updateMany({
+        where: pedidoId ? { pedidoId } : { id: inscricaoId! },
+        data: { status: StatusInscricao.CONFIRMADA },
+      });
+
+      if (pagamentoExistente) return pagamentoExistente.id;
+
+      // Cobrança aprovada sem registro local (registro perdido ou criada fora do
+      // fluxo): materializa o pagamento para que ele apareça no financeiro do
+      // organizador e do admin em vez de sumir do relatório.
+      const criado = await tx.pagamento.create({
+        data: {
+          inscricaoId,
+          pedidoId,
+          valor: valorPago ?? 0,
+          metodo: MetodoPagamento.PIX,
+          status: StatusPagamento.APROVADO,
+          gateway: 'asaas',
+          codigoTransacao: asaasPaymentId,
+          asaasPaymentId,
+          dataPagamento: new Date(),
+        },
+      });
+      return criado.id;
+    });
+
+    await this.notificarConfirmacao(pagamentoId);
+
+    return { confirmado: true, pagamentoId };
+  }
+
+  /** Marca uma cobrança como estornada/cancelada a partir do webhook. */
+  async registrarEstorno(asaasPaymentId: string) {
+    await this.prisma.pagamento.updateMany({
+      where: { asaasPaymentId },
+      data: { status: StatusPagamento.ESTORNADO },
+    });
+  }
+
+  /**
+   * Envia os vouchers ao comprador e notifica a comissão no painel admin.
+   * Nunca propaga erro: a confirmação do pagamento já foi persistida.
+   */
+  private async notificarConfirmacao(pagamentoId: string) {
+    try {
+      const pagamento = await this.prisma.pagamento.findUnique({
+        where: { id: pagamentoId },
+      });
+      if (!pagamento) return;
+
+      const inscricoes = await this.prisma.inscricao.findMany({
+        where: pagamento.pedidoId
+          ? { pedidoId: pagamento.pedidoId }
+          : { id: pagamento.inscricaoId! },
+        include: INSCRICAO_COMPLETA_INCLUDE,
+      });
+
+      if (inscricoes.length === 0) return;
+
+      const primeira = inscricoes[0];
+      const evento = primeira.categoria.modalidade.evento;
+      const comprador = primeira.cliente;
+      const nomeComprador =
+        comprador.pf?.nomeCompleto || comprador.pj?.razaoSocial || comprador.usuario.email;
+
+      const valorTotal = Number(pagamento.valor);
+
+      const atletasVouchers = inscricoes.map((insc) => ({
         inscricaoId: insc.id,
-        nomeAtleta: insc.dependente?.nomeCompleto || insc.atletaNome || comprador.pf?.nomeCompleto || 'Atleta Esportivo',
+        nomeAtleta:
+          insc.dependente?.nomeCompleto ||
+          insc.atletaNome ||
+          comprador.pf?.nomeCompleto ||
+          'Atleta Esportivo',
         cpfAtleta: insc.dependente?.cpf || insc.atletaCpf || comprador.pf?.cpf || null,
         modalidade: insc.categoria.modalidade.nome,
         categoria: insc.categoria.nome,
         tamanhoCamisa: insc.tamanhoCamisa || 'N/A',
         numeroPeito: insc.numeroPeito,
-        valor: Number(pagamento.valor).toFixed(2),
+        valor: valorTotal.toFixed(2),
       }));
 
       await this.emailService.enviarConfirmacaoInscricaoBatch({
@@ -280,57 +492,44 @@ export class PagamentoService {
         dataEvento: new Date(evento.dataInicio).toLocaleDateString('pt-BR'),
         localEvento: evento.local,
         cidadeEstado: `${evento.cidade}/${evento.estado}`,
-        valorTotal: Number(pagamento.valor).toFixed(2),
+        valorTotal: valorTotal.toFixed(2),
         atletas: atletasVouchers,
       });
 
-      // Disparar notificação em tempo real da comissão para o Painel Admin (Web Push)
-      const valorTotalNum = Number(pagamento.valor);
-      const comissaoPlataforma = valorTotalNum * 0.10;
-      this.notificacaoAdminService.notificarComissao(comissaoPlataforma, valorTotalNum);
+      // Comissão real do organizador — antes estava fixada em 10%.
+      const comissaoPercentual = Number(evento.organizador?.comissaoPercentual ?? 10);
+      const comissaoPlataforma = valorTotal * (comissaoPercentual / 100);
+      if (comissaoPlataforma > 0) {
+        this.notificacaoAdminService.notificarComissao(comissaoPlataforma, valorTotal);
+      }
+    } catch (err) {
+      this.logger.error(
+        `Falha ao notificar confirmação do pagamento ${pagamentoId}: ${err}`,
+      );
     }
-
-    return this.prisma.pagamento.findUnique({ where: { id: pagamento.id } });
   }
 
-  async simularRecusa(usuarioId: string, pagamentoId: string) {
-    const pagamento = await this.buscarPagamentoDoClienteOuFalhar(
-      usuarioId,
-      pagamentoId,
-    );
-
-    return this.prisma.pagamento.update({
-      where: { id: pagamento.id },
-      data: { status: StatusPagamento.RECUSADO },
-    });
-  }
-
-  private async buscarPagamentoDoClienteOuFalhar(
-    usuarioId: string,
-    pagamentoId: string,
+  private validarMetodoAceitoPeloEvento(
+    evento: { aceitaPix: boolean; aceitaCartao: boolean },
+    metodo: MetodoPagamento,
   ) {
-    const clienteId = await this.getClienteIdOuFalhar(usuarioId);
-
-    const pagamento = await this.prisma.pagamento.findUnique({
-      where: { id: pagamentoId },
-      include: { inscricao: true, pedido: true },
-    });
-    if (!pagamento) {
-      throw new NotFoundException('Pagamento não encontrado.');
+    if (metodo === MetodoPagamento.PIX && evento.aceitaPix === false) {
+      throw new BadRequestException('Este evento não aceita pagamento via PIX.');
     }
-
-    const donoDoPagamento =
-      (pagamento.inscricao && pagamento.inscricao.clienteId === clienteId) ||
-      (pagamento.pedido && pagamento.pedido.clienteId === clienteId);
-
-    if (!donoDoPagamento) {
-      throw new ForbiddenException('Este pagamento não pertence a você.');
+    if (metodo === MetodoPagamento.CARTAO_CREDITO && evento.aceitaCartao === false) {
+      throw new BadRequestException(
+        'Este evento não aceita pagamento com cartão de crédito.',
+      );
     }
-    if (pagamento.status !== StatusPagamento.PENDENTE) {
-      throw new BadRequestException('Este pagamento já foi processado.');
-    }
+  }
 
-    return pagamento;
+  private async descobrirSeEhPedido(refId: string): Promise<string | null> {
+    try {
+      const pedido = await this.prisma.pedido.findUnique({ where: { id: refId } });
+      return pedido ? pedido.id : null;
+    } catch {
+      return null;
+    }
   }
 
   private async getClienteIdOuFalhar(usuarioId: string): Promise<string> {

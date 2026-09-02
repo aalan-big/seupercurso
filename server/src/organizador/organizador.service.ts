@@ -18,6 +18,7 @@ import {
   StatusOrganizador,
   StatusPagamento,
   StatusResultado,
+  StatusSaque,
 } from '../generated/prisma/enums';
 import { montarSerieDiaria } from '../common/montar-serie-diaria';
 import { CreateEventoDto } from './dto/create-evento.dto';
@@ -197,24 +198,36 @@ export class OrganizadorService {
   async obterFinanceiro(usuarioId: string) {
     const organizador = await this.getOrganizadorOuFalhar(usuarioId);
 
+    // O checkout agrupa inscrições em um Pedido, então o pagamento fica ligado ao
+    // pedido e não à inscrição. Filtrar só por `inscricao` deixava de fora
+    // praticamente todas as vendas reais.
+    const eventoDoOrganizador = {
+      categoria: { modalidade: { evento: { organizadorId: organizador.id } } },
+    };
+    const eventoSelect = {
+      categoria: {
+        select: {
+          modalidade: {
+            select: { evento: { select: { id: true, nome: true } } },
+          },
+        },
+      },
+    } as const;
+
     const pagamentos = await this.prisma.pagamento.findMany({
       where: {
         status: StatusPagamento.APROVADO,
-        inscricao: {
-          categoria: { modalidade: { evento: { organizadorId: organizador.id } } },
-        },
+        OR: [
+          { inscricao: eventoDoOrganizador },
+          { pedido: { inscricoes: { some: eventoDoOrganizador } } },
+        ],
       },
       select: {
         valor: true,
-        inscricao: {
+        inscricao: { select: eventoSelect },
+        pedido: {
           select: {
-            categoria: {
-              select: {
-                modalidade: {
-                  select: { evento: { select: { id: true, nome: true } } },
-                },
-              },
-            },
+            inscricoes: { take: 1, select: eventoSelect },
           },
         },
       },
@@ -255,11 +268,26 @@ export class OrganizadorService {
       porEvento.set(evento.id, atual);
     }
 
+    // Saques já solicitados precisam sair do saldo — sem isso o mesmo repasse
+    // poderia ser retirado várias vezes.
+    const saquesAgregados = await this.prisma.saque.aggregate({
+      where: {
+        organizadorId: organizador.id,
+        status: { in: [StatusSaque.PROCESSANDO, StatusSaque.CONCLUIDO] },
+      },
+      _sum: { valor: true },
+    });
+
+    const totalRepasse = totalArrecadado - comissaoPlataforma;
+    const totalSacado = Number(saquesAgregados._sum.valor ?? 0);
+
     return {
       comissaoPercentual: percentual,
       totalArrecadado,
       comissaoPlataforma,
-      totalRepasse: totalArrecadado - comissaoPlataforma,
+      totalRepasse,
+      totalSacado,
+      saldoDisponivel: Number(Math.max(0, totalRepasse - totalSacado).toFixed(2)),
       porEvento: Array.from(porEvento.values()).map((e) => ({
         ...e,
         repasse: e.totalArrecadado - e.comissaoPlataforma,
@@ -1648,20 +1676,81 @@ export class OrganizadorService {
 
     const chaveDestinoFinal = organizador.chavePix || cpfCnpjTitular;
 
-    const resSaque = await this.asaasService.solicitarSaquePix({
-      valor,
-      chavePix: chaveDestinoFinal,
-      walletId: organizador.asaasWalletId,
+    if (!Number.isFinite(valor) || valor <= 0) {
+      throw new BadRequestException('Informe um valor de saque válido.');
+    }
+
+    // Trava de saldo: antes o valor não era confrontado com o repasse disponível,
+    // então qualquer quantia podia ser solicitada.
+    const financeiro = await this.obterFinanceiro(usuarioId);
+    const valorArredondado = Number(valor.toFixed(2));
+
+    if (valorArredondado > financeiro.saldoDisponivel) {
+      throw new BadRequestException(
+        `Saldo insuficiente. Disponível para saque: R$ ${financeiro.saldoDisponivel.toFixed(2)}.`,
+      );
+    }
+
+    // Registra o saque antes de chamar o gateway para que o saldo já fique
+    // reservado — duas solicitações simultâneas não podem sacar o mesmo dinheiro.
+    const saque = await this.prisma.saque.create({
+      data: {
+        organizadorId: organizador.id,
+        valor: valorArredondado,
+        chaveDestino: chaveDestinoFinal,
+        status: StatusSaque.PROCESSANDO,
+      },
+    });
+
+    let resSaque: { transferId: string; status: string; valor: number };
+    try {
+      resSaque = await this.asaasService.solicitarSaquePix({
+        valor: valorArredondado,
+        chavePix: chaveDestinoFinal,
+        walletId: organizador.asaasWalletId,
+      });
+    } catch (err) {
+      // Libera o saldo reservado: saques FALHOU não entram no total sacado.
+      await this.prisma.saque.update({
+        where: { id: saque.id },
+        data: {
+          status: StatusSaque.FALHOU,
+          motivoFalha: err instanceof Error ? err.message : String(err),
+        },
+      });
+
+      this.auditLogService.log({
+        categoria: CategoriaAuditLog.FINANCEIRO,
+        nivel: NivelAuditLog.ERROR,
+        mensagem: `Falha ao processar saque PIX de R$ ${valorArredondado.toFixed(2)}`,
+        detalhes: {
+          saqueId: saque.id,
+          organizadorId: organizador.id,
+          erro: err instanceof Error ? err.message : String(err),
+        },
+        usuarioId,
+      });
+
+      throw err;
+    }
+
+    await this.prisma.saque.update({
+      where: { id: saque.id },
+      data: { status: StatusSaque.CONCLUIDO, transferId: resSaque.transferId },
     });
 
     this.auditLogService.log({
       categoria: CategoriaAuditLog.FINANCEIRO,
       nivel: NivelAuditLog.SUCCESS,
-      mensagem: `Solicitação de Saque PIX de R$ ${valor.toFixed(2)} processada`,
+      mensagem: `Solicitação de Saque PIX de R$ ${valorArredondado.toFixed(2)} processada`,
       detalhes: {
-        valor,
+        valor: valorArredondado,
+        saqueId: saque.id,
         transferId: resSaque.transferId,
         chaveDestino: chaveDestinoFinal,
+        saldoRestante: Number(
+          (financeiro.saldoDisponivel - valorArredondado).toFixed(2),
+        ),
         organizadorId: organizador.id,
       },
       usuarioId,
@@ -1669,10 +1758,13 @@ export class OrganizadorService {
 
     return {
       sucesso: true,
-      mensagem: `Saque de R$ ${valor.toFixed(2)} enviado para processamento via PIX com trava de titularidade ativada.`,
+      mensagem: `Saque de R$ ${valorArredondado.toFixed(2)} enviado para processamento via PIX com trava de titularidade ativada.`,
       transferId: resSaque.transferId,
       chaveDestino: `CPF/CNPJ Titular: ${cliente?.pf?.cpf || cliente?.pj?.cnpj} (${chaveDestinoFinal})`,
-      valor,
+      valor: valorArredondado,
+      saldoRestante: Number(
+        (financeiro.saldoDisponivel - valorArredondado).toFixed(2),
+      ),
     };
   }
 

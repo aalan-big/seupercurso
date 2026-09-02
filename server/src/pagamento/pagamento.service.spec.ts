@@ -58,7 +58,9 @@ describe('PagamentoService', () => {
         create: jest.fn(),
         findUnique: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn(),
       },
+      pedido: { findUnique: jest.fn().mockResolvedValue(null) },
       loteModalidadePreco: { findUnique: jest.fn().mockResolvedValue({ id: 'preco-1', valor: '60' }) },
       $transaction: jest.fn(),
     };
@@ -73,6 +75,7 @@ describe('PagamentoService', () => {
         asaasPaymentId: 'pay_asaas_456',
         status: 'APROVADO',
       }),
+      consultarPagamento: jest.fn().mockResolvedValue(null),
     };
 
     emailService = {
@@ -113,9 +116,14 @@ describe('PagamentoService', () => {
       inscricaoId: inscricaoPadrao.id,
       status: 'PENDENTE',
     });
-    prisma.$transaction.mockResolvedValue([
-      { id: 'pagamento-1', inscricaoId: inscricaoPadrao.id, status: 'PENDENTE' },
-    ]);
+    // `create` usa a forma em array e `confirmarPagamento` a forma com callback.
+    prisma.$transaction.mockImplementation((arg: any) =>
+      typeof arg === 'function'
+        ? arg(prisma)
+        : Promise.resolve([
+            { id: 'pagamento-1', inscricaoId: inscricaoPadrao.id, status: 'PENDENTE' },
+          ]),
+    );
   });
 
   describe('create', () => {
@@ -158,15 +166,149 @@ describe('PagamentoService', () => {
       );
       expect(resultado).toEqual(expect.objectContaining({ id: 'pagamento-1' }));
     });
+
+    it('recusa PIX quando o evento não aceita PIX', async () => {
+      prisma.inscricao.findMany.mockResolvedValue([
+        {
+          ...inscricaoPadrao,
+          categoria: {
+            ...inscricaoPadrao.categoria,
+            modalidade: {
+              ...inscricaoPadrao.categoria.modalidade,
+              evento: {
+                ...inscricaoPadrao.categoria.modalidade.evento,
+                aceitaPix: false,
+              },
+            },
+          },
+        },
+      ]);
+
+      await expect(service.create(usuarioId, dto)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(asaasService.gerarCobrancaPix).not.toHaveBeenCalled();
+    });
+
+    it('recusa cartão quando o evento não aceita cartão', async () => {
+      prisma.inscricao.findMany.mockResolvedValue([
+        {
+          ...inscricaoPadrao,
+          categoria: {
+            ...inscricaoPadrao.categoria,
+            modalidade: {
+              ...inscricaoPadrao.categoria.modalidade,
+              evento: {
+                ...inscricaoPadrao.categoria.modalidade.evento,
+                aceitaCartao: false,
+              },
+            },
+          },
+        },
+      ]);
+
+      await expect(
+        service.create(usuarioId, {
+          inscricaoId: 'inscricao-1',
+          metodo: 'CARTAO_CREDITO' as const,
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(asaasService.processarPagamentoCartao).not.toHaveBeenCalled();
+    });
+
+    it('repassa ao organizador o valor base menos a comissão, sem os juros do cartão', async () => {
+      await service.create(usuarioId, dto);
+
+      expect(asaasService.gerarCobrancaPix).toHaveBeenCalledWith(
+        // base 60, comissão 10% => repasse 54
+        expect.objectContaining({ valorLiquidoOrganizador: 54 }),
+      );
+    });
   });
 
-  describe('simularAprovacao', () => {
+  describe('confirmarPagamento', () => {
+    const pagamentoPendente = {
+      id: 'pagamento-1',
+      status: 'PENDENTE',
+      valor: '60',
+      inscricaoId: inscricaoPadrao.id,
+      pedidoId: null,
+      asaasPaymentId: 'pay_asaas_123',
+    };
+
+    it('não reprocessa um pagamento já aprovado (webhook duplicado)', async () => {
+      prisma.pagamento.findFirst.mockResolvedValue({
+        ...pagamentoPendente,
+        status: 'APROVADO',
+      });
+
+      const resultado = await service.confirmarPagamento({
+        asaasPaymentId: 'pay_asaas_123',
+        valorPago: 60,
+        origem: 'webhook',
+      });
+
+      expect(resultado).toEqual(
+        expect.objectContaining({ jaProcessado: true }),
+      );
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(emailService.enviarConfirmacaoInscricaoBatch).not.toHaveBeenCalled();
+    });
+
+    it('bloqueia a confirmação quando o valor pago é menor que o cobrado', async () => {
+      prisma.pagamento.findFirst.mockResolvedValue(pagamentoPendente);
+
+      const resultado = await service.confirmarPagamento({
+        asaasPaymentId: 'pay_asaas_123',
+        valorPago: 1,
+        origem: 'webhook',
+      });
+
+      expect(resultado).toEqual(
+        expect.objectContaining({ valorDivergente: true }),
+      );
+      expect(prisma.inscricao.updateMany).not.toHaveBeenCalled();
+      expect(emailService.enviarConfirmacaoInscricaoBatch).not.toHaveBeenCalled();
+    });
+
+    it('aprova o pagamento, confirma a inscrição e envia os vouchers', async () => {
+      prisma.pagamento.findFirst.mockResolvedValue(pagamentoPendente);
+      prisma.pagamento.findUnique.mockResolvedValue({
+        ...pagamentoPendente,
+        status: 'APROVADO',
+      });
+
+      const resultado = await service.confirmarPagamento({
+        asaasPaymentId: 'pay_asaas_123',
+        valorPago: 60,
+        origem: 'webhook',
+      });
+
+      expect(resultado).toEqual(
+        expect.objectContaining({ confirmado: true, pagamentoId: 'pagamento-1' }),
+      );
+      expect(prisma.pagamento.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'APROVADO' }),
+        }),
+      );
+      expect(prisma.inscricao.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { status: 'CONFIRMADA' },
+        }),
+      );
+      expect(emailService.enviarConfirmacaoInscricaoBatch).toHaveBeenCalled();
+      expect(notificacaoAdminService.notificarComissao).toHaveBeenCalledWith(6, 60);
+    });
+  });
+
+  describe('obterStatus', () => {
     it('lança NotFoundException se o pagamento não existir', async () => {
       prisma.pagamento.findUnique.mockResolvedValue(null);
 
-      await expect(
-        service.simularAprovacao(usuarioId, 'pagamento-1'),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.obterStatus(usuarioId, 'pagamento-1')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('lança ForbiddenException se o pagamento for de outro cliente', async () => {
@@ -175,49 +317,36 @@ describe('PagamentoService', () => {
         status: 'PENDENTE',
         inscricaoId: inscricaoPadrao.id,
         inscricao: { clienteId: 'outro-cliente' },
+        pedido: null,
       });
 
-      await expect(
-        service.simularAprovacao(usuarioId, 'pagamento-1'),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.obterStatus(usuarioId, 'pagamento-1')).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
-    it('lança BadRequestException se o pagamento já foi processado', async () => {
+    it('marca como EXPIRADO um PIX vencido que o gateway não recebeu', async () => {
+      asaasService.consultarPagamento = jest
+        .fn()
+        .mockResolvedValue({ status: 'PENDING', valor: 60 });
+
       prisma.pagamento.findUnique.mockResolvedValue({
         id: 'pagamento-1',
-        status: 'APROVADO',
+        status: 'PENDENTE',
         inscricaoId: inscricaoPadrao.id,
         inscricao: { clienteId },
+        pedido: null,
+        asaasPaymentId: 'pay_asaas_123',
+        expiraEm: new Date(Date.now() - 1000),
       });
 
-      await expect(
-        service.simularAprovacao(usuarioId, 'pagamento-1'),
-      ).rejects.toThrow(BadRequestException);
-    });
+      await service.obterStatus(usuarioId, 'pagamento-1');
 
-    it('aprova o pagamento e confirma a inscrição em uma transação', async () => {
-      const pagamentoAprovado = { id: 'pagamento-1', status: 'APROVADO' };
-      prisma.pagamento.findUnique
-        .mockResolvedValueOnce({
-          id: 'pagamento-1',
-          status: 'PENDENTE',
-          inscricaoId: inscricaoPadrao.id,
-          inscricao: { clienteId },
-        })
-        .mockResolvedValueOnce(pagamentoAprovado);
-
-      prisma.$transaction.mockResolvedValue([
-        pagamentoAprovado,
-        { id: inscricaoPadrao.id, status: 'CONFIRMADA' },
-      ]);
-
-      const resultado = await service.simularAprovacao(
-        usuarioId,
-        'pagamento-1',
+      expect(prisma.pagamento.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { status: 'EXPIRADO' },
+        }),
       );
-
-      expect(prisma.$transaction).toHaveBeenCalled();
-      expect(resultado).toEqual(pagamentoAprovado);
     });
   });
 });

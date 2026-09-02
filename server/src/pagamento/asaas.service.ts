@@ -26,7 +26,8 @@ export interface GerarPixParams {
     email: string;
   };
   organizadorWalletId?: string | null;
-  comissaoPlataforma?: number;
+  /** Quanto do valor cobrado pertence ao organizador (já descontada a comissão). */
+  valorLiquidoOrganizador?: number;
   /** Sobrescreve o externalReference enviado ao Asaas (padrão: inscricaoId). */
   referenciaExterna?: string;
   /** Sobrescreve a descrição da cobrança (padrão: referência à inscrição). */
@@ -40,6 +41,7 @@ export interface ProcessarCartaoParams {
     nome: string;
     cpfCnpj: string;
     email: string;
+    telefone?: string | null;
   };
   cartao: {
     holderName: string;
@@ -53,7 +55,10 @@ export interface ProcessarCartaoParams {
   };
   parcelas?: number;
   organizadorWalletId?: string | null;
-  comissaoPlataforma?: number;
+  /** Quanto do valor cobrado pertence ao organizador (já descontada a comissão). */
+  valorLiquidoOrganizador?: number;
+  /** IP de origem do comprador, exigido pelo antifraude do Asaas. */
+  remoteIp?: string;
 }
 
 @Injectable()
@@ -77,11 +82,53 @@ export class AsaasService {
       this.isProd = this.configService.get<string>('NODE_ENV') === 'production' && !isKeySandbox;
     }
 
+    if (this.isProd && isKeySandbox) {
+      throw new Error(
+        'ASAAS_ENV=production foi definido, mas a ASAAS_API_KEY é de homologação ($aact_hmlg_). ' +
+          'Use a chave de produção ou defina ASAAS_ENV=sandbox.',
+      );
+    }
+
     this.apiBaseUrl = this.isProd
       ? 'https://api.asaas.com/v3'
       : 'https://sandbox.asaas.com/api/v3';
 
     this.logger.log(`Asaas inicializado em modo: ${this.isProd ? 'PRODUÇÃO (api.asaas.com)' : 'SANDBOX / HOMOLOGAÇÃO (sandbox.asaas.com)'}`);
+
+    // Alerta ruidoso: aplicação rodando como produção contra o sandbox significa
+    // que nenhuma cobrança gerada aos clientes é real.
+    if (!this.isProd && this.configService.get<string>('NODE_ENV') === 'production') {
+      this.logger.error(
+        '*** ATENÇÃO: a API está em NODE_ENV=production mas o Asaas está em SANDBOX. ' +
+          'Nenhuma cobrança PIX/cartão gerada será cobrada de verdade. ' +
+          'Defina ASAAS_API_KEY de produção e ASAAS_ENV=production para faturar. ***',
+      );
+    }
+
+    if (!this.apiKey) {
+      this.logger.error('ASAAS_API_KEY não configurada: cobranças PIX/cartão irão falhar.');
+    }
+  }
+
+  /**
+   * Monta o split do organizador em percentual do valor cobrado.
+   *
+   * Usamos `percentualValue` em vez de `fixedValue` porque em cobranças parceladas
+   * o Asaas aplica o split a cada parcela — um valor fixo seria repassado N vezes.
+   */
+  private montarSplit(
+    walletId: string | null | undefined,
+    valorCobrado: number,
+    valorLiquidoOrganizador?: number,
+  ) {
+    if (!walletId || walletId.startsWith('wal_mock_')) return undefined;
+    if (!valorCobrado || valorCobrado <= 0) return undefined;
+
+    const liquido = Math.max(0, Math.min(valorLiquidoOrganizador ?? 0, valorCobrado));
+    const percentual = Number(((liquido / valorCobrado) * 100).toFixed(2));
+    if (percentual <= 0) return undefined;
+
+    return [{ walletId, percentualValue: percentual }];
   }
 
   private getHeaders() {
@@ -145,14 +192,11 @@ export class AsaasService {
    * Gera uma cobrança PIX com QR Code e Copia e Cola no Asaas (com Split de Pagamento)
    */
   async gerarCobrancaPix(params: GerarPixParams) {
-    const split = params.organizadorWalletId && !params.organizadorWalletId.startsWith('wal_mock_')
-      ? [
-          {
-            walletId: params.organizadorWalletId,
-            fixedValue: Math.max(0, params.valor - (params.comissaoPlataforma || 0)),
-          },
-        ]
-      : undefined;
+    const split = this.montarSplit(
+      params.organizadorWalletId,
+      params.valor,
+      params.valorLiquidoOrganizador,
+    );
 
     const referenciaExterna = params.referenciaExterna ?? params.inscricaoId ?? randomUUID();
 
@@ -206,14 +250,13 @@ export class AsaasService {
    * Processa pagamento em Cartão de Crédito com antecipação em D+2 e Split Automático
    */
   async processarPagamentoCartao(params: ProcessarCartaoParams) {
-    const split = params.organizadorWalletId && !params.organizadorWalletId.startsWith('wal_mock_')
-      ? [
-          {
-            walletId: params.organizadorWalletId,
-            fixedValue: Math.max(0, params.valorTotal - (params.comissaoPlataforma || 0)),
-          },
-        ]
-      : undefined;
+    this.validarDadosCartao(params.cartao);
+
+    const split = this.montarSplit(
+      params.organizadorWalletId,
+      params.valorTotal,
+      params.valorLiquidoOrganizador,
+    );
 
     const body = {
       customer: await this.obterOuCriarClienteAsaas(params.cliente),
@@ -239,10 +282,14 @@ export class AsaasService {
         name: params.cartao.holderName || params.cliente.nome,
         email: params.cliente.email,
         cpfCnpj: (params.cartao.cpfTitular || params.cliente.cpfCnpj).replace(/\D/g, ''),
-        postalCode: (params.cartao.cep || (params.cliente as any).endereco?.cep || '60000000').replace(/\D/g, ''),
-        addressNumber: params.cartao.numeroResidencia || (params.cliente as any).endereco?.numero || '100',
-        mobilePhone: '88999999999',
+        postalCode: params.cartao.cep!.replace(/\D/g, ''),
+        addressNumber: params.cartao.numeroResidencia!,
+        ...(params.cliente.telefone
+          ? { mobilePhone: params.cliente.telefone.replace(/\D/g, '') }
+          : {}),
       },
+      // O antifraude do Asaas exige o IP de origem do comprador em cobranças de cartão.
+      ...(params.remoteIp ? { remoteIp: params.remoteIp } : {}),
       ...(split ? { split } : {}),
     };
 
@@ -305,6 +352,62 @@ export class AsaasService {
       if (error instanceof BadRequestException) throw error;
       this.logger.error(`Falha ao solicitar saque no Asaas: ${error.message || error}`);
       throw new BadRequestException('Não foi possível processar a transferência PIX no momento. Tente novamente mais tarde.');
+    }
+  }
+
+  /**
+   * Rejeita cobranças de cartão incompletas em vez de completá-las com dados
+   * fictícios — um cartão "de teste" preenchido pelo servidor aprovaria uma
+   * inscrição que o comprador nunca pagou.
+   */
+  private validarDadosCartao(cartao: ProcessarCartaoParams['cartao']) {
+    const faltando: string[] = [];
+
+    if (!cartao.holderName?.trim()) faltando.push('nome impresso no cartão');
+    if (!cartao.number?.replace(/\D/g, '')) faltando.push('número do cartão');
+    if (!cartao.expiryMonth?.trim()) faltando.push('mês de validade');
+    if (!cartao.expiryYear?.trim()) faltando.push('ano de validade');
+    if (!cartao.ccv?.trim()) faltando.push('código de segurança (CVV)');
+    if (!cartao.cpfTitular?.replace(/\D/g, '')) faltando.push('CPF/CNPJ do titular');
+    if (!cartao.cep?.replace(/\D/g, '')) faltando.push('CEP do titular');
+    if (!cartao.numeroResidencia?.trim()) faltando.push('número do endereço do titular');
+
+    if (faltando.length > 0) {
+      throw new BadRequestException(
+        `Dados do cartão incompletos: informe ${faltando.join(', ')}.`,
+      );
+    }
+
+    const numero = cartao.number.replace(/\D/g, '');
+    if (numero.length < 13 || numero.length > 19) {
+      throw new BadRequestException('Número de cartão inválido.');
+    }
+  }
+
+  /**
+   * Consulta o status atual de uma cobrança no Asaas.
+   * Usada para reconciliar quando o webhook não chega.
+   */
+  async consultarPagamento(asaasPaymentId: string) {
+    if (!this.apiKey || !asaasPaymentId || asaasPaymentId.startsWith('pay_mock_')) {
+      return null;
+    }
+
+    try {
+      const res = await fetch(`${this.apiBaseUrl}/payments/${asaasPaymentId}`, {
+        headers: this.getHeaders(),
+      });
+      if (!res.ok) return null;
+
+      const data = await res.json();
+      return {
+        status: data.status as string,
+        valor: Number(data.value ?? 0),
+        externalReference: data.externalReference as string | undefined,
+      };
+    } catch (err) {
+      this.logger.warn(`Falha ao consultar pagamento ${asaasPaymentId} no Asaas: ${err}`);
+      return null;
     }
   }
 

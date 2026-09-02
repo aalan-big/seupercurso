@@ -265,32 +265,26 @@ export class AdminService {
   }
 
   async obterFinanceiro() {
-    const pagamentos = await this.prisma.pagamento.findMany({
-      where: { status: StatusPagamento.APROVADO },
-      select: {
-        valor: true,
-        inscricao: {
-          select: {
-            categoria: {
-              select: {
-                modalidade: {
-                  select: {
-                    evento: {
-                      select: {
-                        id: true,
-                        nome: true,
-                        organizador: {
-                          select: {
-                            id: true,
-                            comissaoPercentual: true,
-                            cliente: {
-                              select: {
-                                usuario: { select: { email: true } },
-                                pf: { select: { nomeCompleto: true } },
-                                pj: { select: { razaoSocial: true } },
-                              },
-                            },
-                          },
+    // O checkout agrupa inscrições em um Pedido; sem carregar `pedido.inscricoes`
+    // essas vendas caíam no `if (!evento) continue` e sumiam do relatório.
+    const eventoSelect = {
+      categoria: {
+        select: {
+          modalidade: {
+            select: {
+              evento: {
+                select: {
+                  id: true,
+                  nome: true,
+                  organizador: {
+                    select: {
+                      id: true,
+                      comissaoPercentual: true,
+                      cliente: {
+                        select: {
+                          usuario: { select: { email: true } },
+                          pf: { select: { nomeCompleto: true } },
+                          pj: { select: { razaoSocial: true } },
                         },
                       },
                     },
@@ -298,6 +292,19 @@ export class AdminService {
                 },
               },
             },
+          },
+        },
+      },
+    } as const;
+
+    const pagamentos = await this.prisma.pagamento.findMany({
+      where: { status: StatusPagamento.APROVADO },
+      select: {
+        valor: true,
+        inscricao: { select: eventoSelect },
+        pedido: {
+          select: {
+            inscricoes: { take: 1, select: eventoSelect },
           },
         },
       },
@@ -329,6 +336,7 @@ export class AdminService {
       const evento = (pagamento.inscricao as any)?.categoria?.modalidade?.evento || (pagamento as any).pedido?.inscricoes?.[0]?.categoria?.modalidade?.evento;
       if (!evento) continue;
       const organizador = evento.organizador;
+      if (!organizador) continue;
       const percentual = Number(organizador.comissaoPercentual);
       const comissao = valor * (percentual / 100);
 

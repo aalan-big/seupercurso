@@ -1,5 +1,16 @@
 import type { PagamentoDaInscricao } from './useInscricao'
 
+export interface StatusPagamento {
+  id: string
+  status: 'PENDENTE' | 'APROVADO' | 'RECUSADO' | 'ESTORNADO' | 'CANCELADO' | 'EXPIRADO'
+  metodo: string
+  valor: string
+  expiraEm?: string | null
+  dataPagamento?: string | null
+  pixCopiaECola?: string | null
+  pixQrCodeUrl?: string | null
+}
+
 export function usePagamento() {
   const api = useApi()
 
@@ -7,13 +18,13 @@ export function usePagamento() {
     return api<PagamentoDaInscricao>('/pagamentos', { method: 'POST', body: { inscricaoId, metodo } })
   }
 
-  async function simularAprovacao(pagamentoId: string) {
-    return api<PagamentoDaInscricao>(`/pagamentos/${pagamentoId}/simular-aprovacao`, { method: 'POST' })
+  /**
+   * Consulta o status da cobranca. O backend reconcilia com o Asaas quando o
+   * pagamento ainda esta pendente, entao serve para acompanhar o PIX em tempo real.
+   */
+  async function consultarStatus(pagamentoId: string) {
+    return api<StatusPagamento>(`/pagamentos/${pagamentoId}/status`)
   }
 
-  async function simularRecusa(pagamentoId: string) {
-    return api<PagamentoDaInscricao>(`/pagamentos/${pagamentoId}/simular-recusa`, { method: 'POST' })
-  }
-
-  return { criar, simularAprovacao, simularRecusa }
+  return { criar, consultarStatus }
 }

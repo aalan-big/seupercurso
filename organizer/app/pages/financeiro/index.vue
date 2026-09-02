@@ -14,7 +14,7 @@ const erro = ref('')
 const modalSaqueAberto = ref(false)
 const solicitandoSaque = ref(false)
 const erroSaque = ref('')
-const comprovanteSaque = ref<{ transferId: string; chaveDestino: string; valor: number } | null>(null)
+const comprovanteSaque = ref<{ transferId: string; chaveDestino: string; valor: number; saldoRestante?: number } | null>(null)
 
 onMounted(async () => {
   erro.value = ''
@@ -34,7 +34,7 @@ function formatarValor(valor: number) {
 }
 
 async function realizarSaquePix() {
-  if (!financeiro.value || financeiro.value.totalRepasse <= 0) return
+  if (!financeiro.value || financeiro.value.saldoDisponivel <= 0) return
   solicitandoSaque.value = true
   erroSaque.value = ''
   comprovanteSaque.value = null
@@ -44,7 +44,7 @@ async function realizarSaquePix() {
       '/organizadores/me/financeiro/saque',
       {
         method: 'POST',
-        body: { valor: financeiro.value.totalRepasse }
+        body: { valor: financeiro.value.saldoDisponivel }
       }
     )
     comprovanteSaque.value = res
@@ -152,7 +152,7 @@ function exportarRelatorioCSV() {
               <span class="text-xs font-bold uppercase tracking-wider text-emerald-100">Saldo Líquido Disponível</span>
               <span class="rounded-lg bg-white/20 p-2 text-white"><Lock :size="16" /></span>
             </div>
-            <p class="mt-2 text-3xl font-black text-white">{{ formatarValor(financeiro.totalRepasse) }}</p>
+            <p class="mt-2 text-3xl font-black text-white">{{ formatarValor(financeiro.saldoDisponivel) }}</p>
             <p class="mt-1 text-[11px] text-emerald-100 flex items-center gap-1.5">
               <Lock :size="12" /> Trava de Titularidade Ativa: Repasse restrito ao mesmo CPF/CNPJ
             </p>
@@ -161,7 +161,7 @@ function exportarRelatorioCSV() {
           <!-- Botão de Saque em Destaque -->
           <button
             type="button"
-            :disabled="financeiro.totalRepasse <= 0"
+            :disabled="financeiro.saldoDisponivel <= 0"
             class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-white py-3 text-xs font-black uppercase tracking-wider text-emerald-950 shadow hover:bg-emerald-50 transition active:scale-[0.99] disabled:opacity-50"
             @click="modalSaqueAberto = true"
           >
@@ -303,7 +303,7 @@ function exportarRelatorioCSV() {
           <div v-else class="space-y-4 text-xs">
             <div class="rounded-2xl bg-emerald-50 p-4 border border-emerald-200 space-y-1 text-center">
               <span class="text-xs font-bold uppercase tracking-wider text-emerald-800">Valor Total Disponível</span>
-              <p class="text-3xl font-black text-emerald-900">{{ formatarValor(financeiro.totalRepasse) }}</p>
+              <p class="text-3xl font-black text-emerald-900">{{ formatarValor(financeiro.saldoDisponivel) }}</p>
             </div>
 
             <div class="rounded-xl bg-slate-50 p-3 text-[11px] text-slate-600 space-y-1">
