@@ -1,0 +1,67 @@
+import { TarifaService } from './tarifa.service';
+import { MetodoPagamento } from '../generated/prisma/enums';
+
+const svc = new TarifaService({ get: () => undefined } as any);
+
+describe('auditoria do repasse da tarifa', () => {
+  const casos = [20, 50, 80, 150];
+
+  it('PIX: o que sobra apos a tarifa e o valor da inscricao', () => {
+    for (const base of casos) {
+      const cobrado = svc.calcularValorCobrado(base, MetodoPagamento.PIX);
+      const sobra = cobrado - cobrado * 0.0099;
+      console.log(
+        'PIX  base ' + base.toFixed(2) + ' -> atleta paga ' + cobrado.toFixed(2) +
+        ' | tarifa ' + (cobrado - base).toFixed(2) + ' | sobra ' + sobra.toFixed(2),
+      );
+      expect(Math.abs(sobra - base)).toBeLessThan(0.02);
+    }
+  });
+
+  it('CARTAO: idem', () => {
+    for (const base of casos) {
+      const cobrado = svc.calcularValorCobrado(base, MetodoPagamento.CARTAO_CREDITO);
+      const sobra = cobrado - cobrado * 0.0398;
+      console.log(
+        'CART base ' + base.toFixed(2) + ' -> atleta paga ' + cobrado.toFixed(2) +
+        ' | tarifa ' + (cobrado - base).toFixed(2) + ' | sobra ' + sobra.toFixed(2),
+      );
+      expect(Math.abs(sobra - base)).toBeLessThan(0.02);
+    }
+  });
+
+  it('carrinho de varios atletas cobra a tarifa uma vez, como o gateway faz', () => {
+    const separado = 3 * svc.calcularValorCobrado(50, MetodoPagamento.PIX);
+    const junto = svc.calcularValorCobrado(150, MetodoPagamento.PIX);
+    console.log('3 atletas de 50: separado ' + separado.toFixed(2) + ' | junto ' + junto.toFixed(2));
+    expect(Math.abs(separado - junto)).toBeLessThan(0.02);
+  });
+
+  it('o valor mostrado no Brick e o mesmo que o servidor cobra', () => {
+    const noBrick = svc.calcularOpcoesParcelamento(150)[0].total;
+    const noServidor = svc.calcularValorCobrado(150, MetodoPagamento.CARTAO_CREDITO, 6);
+    console.log('cartao 150 -> Brick ' + noBrick.toFixed(2) + ' | servidor 6x ' + noServidor.toFixed(2));
+    expect(noBrick).toBe(noServidor);
+  });
+
+  it('divisao completa do dinheiro numa inscricao de R$ 150', () => {
+    const base = 150;
+    const comissaoPercentual = 10;
+
+    const atletaPaga = svc.calcularValorCobrado(base, MetodoPagamento.PIX);
+    const tarifaMp = Number((atletaPaga * 0.0099).toFixed(2));
+    const applicationFee = Number((base * (comissaoPercentual / 100)).toFixed(2));
+    const organizador = Number((atletaPaga - tarifaMp - applicationFee).toFixed(2));
+
+    console.log('Atleta paga .......... ' + atletaPaga.toFixed(2));
+    console.log('Tarifa Mercado Pago .. ' + tarifaMp.toFixed(2));
+    console.log('Sua comissao (10%) ... ' + applicationFee.toFixed(2));
+    console.log('Organizador recebe ... ' + organizador.toFixed(2));
+
+    // A comissao incide sobre o valor da inscricao, nao sobre o valor cobrado:
+    // nao se cobra comissao em cima da tarifa do gateway.
+    expect(applicationFee).toBe(15);
+    // O organizador fica com o valor da inscricao menos a comissao.
+    expect(organizador).toBe(135);
+  });
+});
