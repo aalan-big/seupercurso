@@ -463,6 +463,15 @@ function formatarPreco(valor: number | null) {
   return valor === null ? 'Sem preço definido' : `R$ ${valor.toFixed(2)}`
 }
 
+function formatarCpf(val: string | null | undefined) {
+  if (!val) return ''
+  const nums = val.replace(/\D/g, '').slice(0, 11)
+  return nums
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+}
+
 function formatarData(iso: string) {
   if (!iso) return ''
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' })
@@ -524,6 +533,32 @@ function voltar() {
 // dado de cartao passa por aqui nem pelo nosso servidor.
 const { montar: montarBrick, desmontar: desmontarBrick } = useMercadoPagoBrick()
 
+// A tarifa do gateway e a taxa de servico vem do servidor, com o eventoId, para
+// a tela mostrar exatamente o que sera cobrado: quem paga a comissao e escolha
+// do organizador e o front nao conhece a comissao de cada um.
+const { buscar: buscarTarifas } = useTarifas()
+const tarifas = ref<TabelaTarifas | null>(null)
+
+watch(
+  () => valorTotalCalculado.value,
+  async (base) => {
+    if (!base || base <= 0) {
+      tarifas.value = null
+      return
+    }
+    try {
+      tarifas.value = await buscarTarifas(base, eventoId)
+    } catch {
+      tarifas.value = null
+    }
+  },
+  { immediate: true }
+)
+
+const taxaServico = computed(() => tarifas.value?.taxaServico ?? 0)
+const taxaPix = computed(() => tarifas.value?.pixTarifa ?? 0)
+const totalPix = computed(() => tarifas.value?.pixTotal ?? valorTotalCalculado.value)
+
 const opcoesParcelamentoCalculadas = computed(() => {
   const base = valorTotalCalculado.value
   if (!base) return []
@@ -559,8 +594,10 @@ const totalCartao = computed(
   () => tarifas.value?.parcelamento?.[0]?.total ?? valorTotalCalculado.value
 )
 
+// Só a tarifa do gateway: a taxa de serviço já aparece na linha dela, e sem
+// descontar aqui o resumo somaria a comissão duas vezes.
 const taxaCartao = computed(() =>
-  Math.max(0, totalCartao.value - valorTotalCalculado.value)
+  Math.max(0, totalCartao.value - valorTotalCalculado.value - taxaServico.value)
 )
 
 const valorFinalComMetodo = computed(() =>
