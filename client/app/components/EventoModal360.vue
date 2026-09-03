@@ -249,23 +249,27 @@ async function submeterTransferencia() {
       <div
         class="relative w-full max-w-4xl overflow-hidden rounded-3xl bg-white shadow-2xl transition-all my-auto max-h-[94vh] flex flex-col z-[101]"
       >
+        <!--
+          Botao Fechar preso ao modal, e nao ao cabecalho: o cabecalho e
+          clipado quando o flex o encolhe, e numa janela baixa o X sumia junto,
+          deixando o usuario sem como fechar.
+        -->
+        <button
+          type="button"
+          class="absolute top-4 right-4 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white transition hover:bg-black/60"
+          @click="fechar"
+        >
+          <X :size="18" />
+        </button>
+
         <!-- Cabeçalho Visual com Banner / Gradiente -->
-        <div class="relative bg-slate-900 text-white p-6 pb-5 overflow-hidden">
+        <div class="relative shrink-0 bg-slate-900 text-white p-6 pb-5 overflow-hidden">
           <div
             v-if="bannerUrlFormatted"
             class="absolute inset-0 opacity-30 bg-cover bg-center"
             :style="{ backgroundImage: `url('${bannerUrlFormatted}')` }"
           ></div>
           <div v-else class="absolute inset-0 bg-gradient-to-r from-primary via-slate-800 to-secondary opacity-90"></div>
-
-          <!-- Botão Fechar -->
-          <button
-            type="button"
-            class="absolute top-4 right-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white transition hover:bg-black/60"
-            @click="fechar"
-          >
-            <X :size="18" />
-          </button>
 
           <div class="relative z-10 space-y-1.5">
             <div class="flex items-center gap-2">
@@ -288,7 +292,7 @@ async function submeterTransferencia() {
         </div>
 
         <!-- Abas de Navegação Interna do Modal -->
-        <div class="flex border-b border-slate-200 bg-slate-50 px-4 sm:px-6 overflow-x-auto">
+        <div class="flex shrink-0 border-b border-slate-200 bg-slate-50 px-4 sm:px-6 overflow-x-auto">
           <button
             type="button"
             class="flex items-center gap-1.5 border-b-2 py-3 px-3 text-xs sm:text-sm font-bold transition whitespace-nowrap"
@@ -692,7 +696,7 @@ async function submeterTransferencia() {
         </div>
 
         <!-- Rodapé do Modal -->
-        <div class="border-t border-slate-200 bg-slate-50 px-6 py-4 flex items-center justify-between">
+        <div class="shrink-0 border-t border-slate-200 bg-slate-50 px-6 py-4 flex items-center justify-between">
           <span class="text-xs text-slate-400">SeuPercurso Eventos Esportivos</span>
           <button
             type="button"
