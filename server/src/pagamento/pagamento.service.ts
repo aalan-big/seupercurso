@@ -137,6 +137,18 @@ export class PagamentoService {
       );
     }
 
+    // Quando a propria plataforma organiza o evento, a conta que recebe e a
+    // nossa: o Mercado Pago recusa a comissao ("You cannot use application_fee
+    // with this payment") e a venda inteira falha. Nao ha o que reter, porque o
+    // dinheiro ja cai todo aqui. O valor cobrado do atleta nao muda.
+    const recebedorEhAPropriaPlataforma = evento.organizadorId
+      ? await this.mpOAuthService.recebedorEhAPropriaPlataforma(
+          evento.organizadorId,
+        )
+      : false;
+
+    const comissaoRetida = recebedorEhAPropriaPlataforma ? 0 : comissaoPlataforma;
+
     const parcelas = Math.max(1, dto.parcelas || 1);
 
     // Quem paga a comissão é escolha do organizador, por evento. Absorvendo,
@@ -179,7 +191,7 @@ export class PagamentoService {
             descricao,
             cliente,
             tokenRecebedor,
-            comissaoPlataforma,
+            comissaoPlataforma: comissaoRetida,
             expiraEm: expiraEm ?? undefined,
           })
         : await this.gateway.processarPagamentoCartao({
@@ -192,7 +204,7 @@ export class PagamentoService {
             metodoBandeira: dto.metodoBandeira,
             emissor: dto.emissor,
             tokenRecebedor,
-            comissaoPlataforma,
+            comissaoPlataforma: comissaoRetida,
             remoteIp,
           });
 

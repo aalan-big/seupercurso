@@ -70,7 +70,10 @@ describe('PagamentoService', () => {
       $transaction: jest.fn(),
     };
 
-    mpOAuth = { obterTokenValido: jest.fn().mockResolvedValue('TOKEN-ORG') };
+    mpOAuth = {
+      obterTokenValido: jest.fn().mockResolvedValue('TOKEN-ORG'),
+      recebedorEhAPropriaPlataforma: jest.fn().mockResolvedValue(false),
+    };
 
     gateway = {
       nome: 'mercadopago',
@@ -241,6 +244,19 @@ describe('PagamentoService', () => {
           comissaoPlataforma: 6,
           tokenRecebedor: 'TOKEN-ORG',
         }),
+      );
+    });
+
+    it('não envia comissão quando quem recebe é a própria conta da plataforma', async () => {
+      mpOAuth.recebedorEhAPropriaPlataforma.mockResolvedValue(true);
+
+      await service.create(usuarioId, dto);
+
+      // O Mercado Pago recusa application_fee quando o recebedor e a conta dona
+      // da aplicacao, e a venda inteira falha. Nao ha o que reter: o dinheiro ja
+      // cai todo aqui. O atleta continua pagando o mesmo.
+      expect(gateway.gerarCobrancaPix).toHaveBeenCalledWith(
+        expect.objectContaining({ comissaoPlataforma: 0, valor: 60.6 }),
       );
     });
 

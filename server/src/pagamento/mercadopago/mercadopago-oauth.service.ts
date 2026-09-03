@@ -26,6 +26,7 @@ export class MercadoPagoOAuthService {
   private readonly clientId: string;
   private readonly clientSecret: string;
   private readonly redirectUri: string;
+  private idContaPlataforma: string | null = null;
 
   constructor(
     private readonly configService: ConfigService,
@@ -145,6 +146,60 @@ export class MercadoPagoOAuthService {
         `Falha ao renovar o token do organizador ${organizadorId}: ${err}`,
       );
       return decifrarCredencial(organizador.mpAccessToken);
+    }
+  }
+
+  /**
+   * True quando a conta conectada pelo organizador e a propria conta dona da
+   * aplicacao — o caso da plataforma organizando o proprio evento.
+   *
+   * O Mercado Pago recusa `application_fee` nessa situacao ("You cannot use
+   * application_fee with this payment") e a cobranca inteira falha. Como o
+   * dinheiro ja cai na nossa conta, nao ha comissao a reter.
+   */
+  async recebedorEhAPropriaPlataforma(organizadorId: string): Promise<boolean> {
+    const idPlataforma = await this.obterIdContaPlataforma();
+    if (!idPlataforma) return false;
+
+    const organizador = await this.prisma.organizador.findUnique({
+      where: { id: organizadorId },
+      select: { mpUserId: true },
+    });
+
+    return organizador?.mpUserId === idPlataforma;
+  }
+
+  /**
+   * Id da conta dona da aplicacao, resolvido uma vez e guardado em memoria.
+   *
+   * So o sucesso e memorizado: guardar a falha deixaria a comissao sendo
+   * enviada de novo depois de uma instabilidade, voltando a derrubar a venda.
+   */
+  private async obterIdContaPlataforma(): Promise<string | null> {
+    if (this.idContaPlataforma) return this.idContaPlataforma;
+
+    const token = (
+      this.configService.get<string>('MP_ACCESS_TOKEN') || ''
+    ).trim();
+    if (!token) return null;
+
+    try {
+      const res = await fetch(`${API}/users/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        this.logger.warn(
+          `Nao foi possivel identificar a conta da plataforma no Mercado Pago: HTTP ${res.status}.`,
+        );
+        return null;
+      }
+
+      const dados = (await res.json()) as { id: number | string };
+      this.idContaPlataforma = String(dados.id);
+      return this.idContaPlataforma;
+    } catch (err) {
+      this.logger.warn(`Falha ao consultar a conta da plataforma: ${err}`);
+      return null;
     }
   }
 
