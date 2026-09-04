@@ -2,6 +2,19 @@ import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { EventoService } from './evento.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { StatusEvento } from '../generated/prisma/enums';
+
+/**
+ * A vitrine mostra evento publicado, com inscricoes encerradas e finalizado: um
+ * evento que ja aconteceu continua tendo pagina, resultado e certificado.
+ */
+const STATUS_VISIVEIS = [
+  StatusEvento.PUBLICADO,
+  StatusEvento.INSCRICOES_ENCERRADAS,
+  StatusEvento.FINALIZADO,
+];
+
+const UUID_EVENTO = '963bdda4-193c-4c11-9293-237477ebc195';
 
 describe('EventoService', () => {
   let service: EventoService;
@@ -28,7 +41,7 @@ describe('EventoService', () => {
   });
 
   describe('findPublicados', () => {
-    it('busca eventos com status PUBLICADO ordenados por dataInicio', async () => {
+    it('busca os eventos visiveis ordenados por dataInicio', async () => {
       prisma.evento.findMany.mockResolvedValue([
         { id: 'evento-1', nome: 'Corrida de Verão', lotes: [] },
       ]);
@@ -37,7 +50,7 @@ describe('EventoService', () => {
 
       expect(prisma.evento.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { status: 'PUBLICADO' },
+          where: { status: { in: STATUS_VISIVEIS } },
           orderBy: { dataInicio: 'asc' },
         }),
       );
@@ -77,7 +90,8 @@ describe('EventoService', () => {
   });
 
   describe('findOneDetalhado', () => {
-    it('lança NotFoundException se o evento não existir ou não estiver publicado', async () => {
+    it('lança NotFoundException se o evento não existir ou não estiver visível', async () => {
+      prisma.evento.findMany.mockResolvedValue([]);
       prisma.evento.findFirst.mockResolvedValue(null);
 
       await expect(
@@ -85,23 +99,53 @@ describe('EventoService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('retorna o evento com modalidades e lotes', async () => {
+    it('retorna o evento enriquecido com as vagas restantes', async () => {
+      // `capacidade: null` significa evento sem limite de vagas. Precisa vir no
+      // fixture: o servico compara com null, e um campo ausente viraria NaN.
       const evento = {
-        id: 'evento-1',
+        id: UUID_EVENTO,
         nome: 'Corrida de Verão',
+        capacidade: null,
         modalidades: [],
         lotes: [],
       };
       prisma.evento.findFirst.mockResolvedValue(evento);
 
-      const resultado = await service.findOneDetalhado('evento-1');
+      const resultado = await service.findOneDetalhado(UUID_EVENTO);
 
       expect(prisma.evento.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 'evento-1', status: 'PUBLICADO' },
+          where: { id: UUID_EVENTO, status: { in: STATUS_VISIVEIS } },
         }),
       );
-      expect(resultado).toEqual(evento);
+      expect(resultado).toEqual({ ...evento, vagasRestantes: null });
+
+      // Id ja e um UUID: nao ha por que varrer a tabela procurando prefixo.
+      expect(prisma.evento.findMany).not.toHaveBeenCalled();
+    });
+
+    it('aceita o começo do id e resolve para o evento inteiro', async () => {
+      const evento = {
+        id: UUID_EVENTO,
+        nome: 'Corrida de Verão',
+        capacidade: null,
+        modalidades: [],
+        lotes: [],
+      };
+      prisma.evento.findMany.mockResolvedValue([
+        { id: 'outro-evento-qualquer' },
+        { id: UUID_EVENTO },
+      ]);
+      prisma.evento.findFirst.mockResolvedValue(evento);
+
+      await service.findOneDetalhado('963BDDA4');
+
+      // Casa sem diferenciar maiusculas, e consulta pelo id completo.
+      expect(prisma.evento.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: UUID_EVENTO, status: { in: STATUS_VISIVEIS } },
+        }),
+      );
     });
   });
 });
