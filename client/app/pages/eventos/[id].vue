@@ -600,6 +600,14 @@ const taxaCartao = computed(() =>
   Math.max(0, totalCartao.value - valorTotalCalculado.value - taxaServico.value)
 )
 
+// O botao anunciava "ate 12x" fixo no HTML. Com o teto configuravel — e ainda
+// cortado pelo valor minimo de parcela — o texto prometia o que o formulario
+// nao ia oferecer.
+const rotuloParcelamento = computed(() => {
+  const n = tarifas.value?.parcelamento?.length ?? 0
+  return n > 1 ? `Parcele em até ${n}x` : 'Aprovação na hora'
+})
+
 const valorFinalComMetodo = computed(() =>
   metodoPagamentoSelecionado.value === 'CREDITO'
     ? totalCartao.value
@@ -1190,7 +1198,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                   :class="metodoPagamentoSelecionado === 'CREDITO' ? 'bg-orange-50 border-orange-500 text-slate-900 font-bold shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300'"
                 >
                   <span class="text-base font-black">Cartão de Crédito</span>
-                  <span class="text-[11px] text-slate-500 font-semibold">Parcele em até 12x</span>
+                  <span class="text-[11px] text-slate-500 font-semibold">{{ rotuloParcelamento }}</span>
                 </button>
               </div>
 
