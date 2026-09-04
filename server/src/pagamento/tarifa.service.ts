@@ -87,7 +87,7 @@ export class TarifaService {
         'TARIFA_CARTAO_PERCENTUAL_PARCELA',
         0,
       ),
-      maxParcelas: this.numero('MAX_PARCELAS', 12),
+      maxParcelas: this.numero('MAX_PARCELAS', 5),
       valorMinimoParcela: this.numero('VALOR_MINIMO_PARCELA', 15),
     };
   }

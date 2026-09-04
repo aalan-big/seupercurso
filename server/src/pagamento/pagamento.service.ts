@@ -188,7 +188,13 @@ export class PagamentoService {
 
     const comissaoRetida = recebedorEhAPropriaPlataforma ? 0 : comissaoPlataforma;
 
-    const parcelas = Math.max(1, dto.parcelas || 1);
+    // O teto vinha so do Brick, no navegador. Uma requisicao montada a mao
+    // podia pedir 12x mesmo com o limite configurado em 5, e o parcelamento
+    // extra sairia do repasse de quem vende.
+    const parcelas = Math.min(
+      Math.max(1, dto.parcelas || 1),
+      this.tarifaService.obterTabela().maxParcelas,
+    );
 
     // Quem paga a comissão é escolha do organizador, por evento. Absorvendo,
     // ela sai do repasse dele; repassando, vira taxa de serviço somada ao valor

@@ -634,7 +634,10 @@ watch(
       valor,
       eventoId,
       email: cliente.value?.usuario?.email,
-      maxParcelas: tarifas.value?.maxParcelas ?? 12,
+      // A lista `parcelamento` ja vem cortada pelo valor minimo de parcela;
+      // `maxParcelas` e o teto cru e ignorava isso, deixando o Brick oferecer
+      // 12x de centavos numa inscricao barata.
+      maxParcelas: tarifas.value?.parcelamento?.length ?? 1,
       onPagar: (dados) => onInscrever(dados),
       onErro: (mensagem) => {
         erroInscricao.value = mensagem
