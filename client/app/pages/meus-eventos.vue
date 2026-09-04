@@ -260,7 +260,7 @@ watch(
 
     await nextTick()
     await montarBrick({
-      container: '#brick-cartao-modal',
+      container: 'brick-cartao-modal',
       valor: total,
       eventoId:
         inscricaoAtualPagamento.value?.categoria?.modalidade?.evento?.id,

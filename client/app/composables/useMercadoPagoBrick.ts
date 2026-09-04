@@ -83,6 +83,7 @@ export function useMercadoPagoBrick() {
   }
 
   async function montar(opcoes: {
+    /** Id do elemento, sem `#`: o SDK recusa seletor CSS. */
     container: string
     valor: number
     /** Evento da cobranca; define de qual conta e a chave de tokenizacao. */
@@ -120,7 +121,12 @@ export function useMercadoPagoBrick() {
       const mp = new window.MercadoPago(publicKey, { locale: 'pt-BR' })
       const bricks = mp.bricks()
 
-      controller = await bricks.create('payment', opcoes.container, {
+      // O SDK quer o id cru e recusa seletor: passar '#brick-cartao' fazia o
+      // create() rejeitar com "Remove the '#' from target". Normalizar aqui
+      // evita que a proxima tela repita o engano.
+      const alvo = opcoes.container.replace(/^#/, '')
+
+      controller = await bricks.create('payment', alvo, {
         initialization: {
           amount: Number(opcoes.valor.toFixed(2)),
           ...(opcoes.email ? { payer: { email: opcoes.email } } : {})

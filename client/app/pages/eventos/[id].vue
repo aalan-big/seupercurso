@@ -630,7 +630,7 @@ watch(
 
     await nextTick()
     await montarBrick({
-      container: '#brick-cartao',
+      container: 'brick-cartao',
       valor,
       eventoId,
       email: cliente.value?.usuario?.email,
