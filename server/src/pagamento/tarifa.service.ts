@@ -72,7 +72,15 @@ export class TarifaService {
         fixo: this.numero('TARIFA_PIX_FIXA', 0),
       },
       cartao: {
-        percentual: this.numero('TARIFA_CARTAO_PERCENTUAL', 0.0398),
+        // A taxa do Mercado Pago depende do prazo de liberacao da conta que
+        // recebe: ~4,98% na hora, ~4,49% em 14 dias, ~3,98% em 30 dias. O
+        // padrao era 3,98% enquanto a conta recebia na hora, e o gross-up
+        // cobrava menos do que o gateway descontava — a diferenca saia do
+        // repasse de quem vendeu, nunca da comissao da plataforma.
+        //
+        // Errar para cima e menos grave que para baixo: o organizador recebe
+        // alguns centavos a mais em vez de receber menos do que foi prometido.
+        percentual: this.numero('TARIFA_CARTAO_PERCENTUAL', 0.0498),
         fixo: this.numero('TARIFA_CARTAO_FIXA', 0),
       },
       cartaoPercentualPorParcela: this.numero(

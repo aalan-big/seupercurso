@@ -3,13 +3,18 @@ import { MetodoPagamento } from '../generated/prisma/enums';
 
 const svc = new TarifaService({ get: () => undefined } as any, {} as any);
 
+// Lidas do proprio servico: quando estavam copiadas aqui, mudar a tarifa em um
+// lugar e esquecer o outro deixava o teste passando com a conta errada.
+const TARIFA_PIX = svc.obterTabela().pix.percentual;
+const TARIFA_CARTAO = svc.obterTabela().cartao.percentual;
+
 describe('auditoria do repasse da tarifa', () => {
   const casos = [20, 50, 80, 150];
 
   it('PIX: o que sobra apos a tarifa e o valor da inscricao', () => {
     for (const base of casos) {
       const cobrado = svc.calcularValorCobrado(base, MetodoPagamento.PIX);
-      const sobra = cobrado - cobrado * 0.0099;
+      const sobra = cobrado - cobrado * TARIFA_PIX;
       console.log(
         'PIX  base ' + base.toFixed(2) + ' -> atleta paga ' + cobrado.toFixed(2) +
         ' | tarifa ' + (cobrado - base).toFixed(2) + ' | sobra ' + sobra.toFixed(2),
@@ -21,7 +26,7 @@ describe('auditoria do repasse da tarifa', () => {
   it('CARTAO: idem', () => {
     for (const base of casos) {
       const cobrado = svc.calcularValorCobrado(base, MetodoPagamento.CARTAO_CREDITO);
-      const sobra = cobrado - cobrado * 0.0398;
+      const sobra = cobrado - cobrado * TARIFA_CARTAO;
       console.log(
         'CART base ' + base.toFixed(2) + ' -> atleta paga ' + cobrado.toFixed(2) +
         ' | tarifa ' + (cobrado - base).toFixed(2) + ' | sobra ' + sobra.toFixed(2),
