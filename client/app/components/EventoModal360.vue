@@ -569,6 +569,7 @@ async function submeterTransferencia() {
               :mapa-percurso-url="inscricao.categoria.modalidade.mapaPercursoUrl"
               :mapa-embed-url="inscricao.categoria.modalidade.mapaEmbedUrl"
               :rota-geo-json="inscricao.categoria.modalidade.rotaGeoJson"
+              :gpx-url="inscricao.categoria.modalidade.gpxUrl"
               :cidade="inscricao.categoria.modalidade.evento.cidade"
               :estado="inscricao.categoria.modalidade.evento.estado"
             />

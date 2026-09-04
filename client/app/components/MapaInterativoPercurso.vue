@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
-import { Map, X, Maximize, Footprints, Download, Circle, Droplet, RefreshCw, Flag } from 'lucide-vue-next'
+import { Map, X, Maximize, Footprints, Download, Circle, Droplet, RefreshCw, Flag, Watch } from 'lucide-vue-next'
 
 const props = defineProps<{
   mapaPercursoUrl?: string | null
   mapaEmbedUrl?: string | null
   rotaGeoJson?: string | null
+  gpxUrl?: string | null
   cidade?: string
   estado?: string
 }>()
@@ -140,6 +141,12 @@ const imagemUrlFormatada = computed(() => {
   if (!props.mapaPercursoUrl) return null
   if (props.mapaPercursoUrl.startsWith('http')) return props.mapaPercursoUrl
   return `${apiBase.replace(/\/$/, '')}/${props.mapaPercursoUrl.replace(/^\//, '')}`
+})
+
+const gpxUrlFormatada = computed(() => {
+  if (!props.gpxUrl) return null
+  if (props.gpxUrl.startsWith('http')) return props.gpxUrl
+  return `${apiBase.replace(/\/$/, '')}/${props.gpxUrl.replace(/^\//, '')}`
 })
 
 function zoomIn() {
@@ -283,15 +290,27 @@ function alternarTelaCheia() {
           </span>
         </div>
 
-        <a
-          v-if="imagemUrlFormatada"
-          :href="imagemUrlFormatada"
-          target="_blank"
-          download
-          class="flex items-center gap-1 rounded-xl bg-white/10 hover:bg-white/20 px-3 py-1 font-bold text-[11px] transition text-slate-200"
-        >
-          <Download :size="12" /> Baixar Imagem HD
-        </a>
+        <div class="flex items-center gap-2">
+          <!-- O GPX vem primeiro: e o que o atleta leva para a prova. -->
+          <a
+            v-if="gpxUrlFormatada"
+            :href="gpxUrlFormatada"
+            download
+            class="flex items-center gap-1 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 px-3 py-1 font-bold text-[11px] transition text-emerald-300"
+          >
+            <Watch :size="12" /> Baixar GPX
+          </a>
+
+          <a
+            v-if="imagemUrlFormatada"
+            :href="imagemUrlFormatada"
+            target="_blank"
+            download
+            class="flex items-center gap-1 rounded-xl bg-white/10 hover:bg-white/20 px-3 py-1 font-bold text-[11px] transition text-slate-200"
+          >
+            <Download :size="12" /> Baixar Imagem HD
+          </a>
+        </div>
       </div>
     </div>
   </div>

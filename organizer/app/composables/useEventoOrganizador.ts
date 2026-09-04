@@ -197,6 +197,16 @@ export function useEventoOrganizador() {
     await fetchEvento(eventoId)
   }
 
+  async function uploadGpxModalidade(eventoId: string, modalidadeId: string, arquivo: File) {
+    const formData = new FormData()
+    formData.append('arquivo', arquivo)
+    await api(`/organizadores/me/eventos/${eventoId}/modalidades/${modalidadeId}/gpx`, {
+      method: 'PATCH',
+      body: formData
+    })
+    await fetchEvento(eventoId)
+  }
+
   async function criarModalidade(eventoId: string, input: ModalidadeInput) {
     await api(`/organizadores/me/eventos/${eventoId}/modalidades`, { method: 'POST', body: input })
     await fetchEvento(eventoId)
@@ -279,6 +289,7 @@ export function useEventoOrganizador() {
     atualizarEvento,
     uploadMidia,
     uploadMapaPercursoModalidade,
+    uploadGpxModalidade,
     criarModalidade,
     atualizarModalidade,
     removerModalidade,

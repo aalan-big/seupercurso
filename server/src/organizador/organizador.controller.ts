@@ -327,6 +327,50 @@ export class OrganizadorController {
       user.userId,
       eventoId,
       modalidadeId,
+      'mapaPercursoUrl',
+      `/uploads/eventos/${file.filename}`,
+    );
+  }
+
+  /**
+   * GPX do percurso, para o atleta carregar no relogio.
+   *
+   * O filtro e por extensao e nao por mimetype: GPX chega como
+   * application/gpx+xml, application/octet-stream, text/xml ou vazio,
+   * dependendo do sistema de quem envia.
+   */
+  @Patch('eventos/:eventoId/modalidades/:modalidadeId/gpx')
+  @UseInterceptors(
+    FileInterceptor('arquivo', {
+      storage: diskStorage({
+        destination: './uploads/eventos',
+        filename: (_req, file, callback) => {
+          const sufixo = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+          callback(null, `${sufixo}${extname(file.originalname)}`);
+        },
+      }),
+      limits: { fileSize: 10 * 1024 * 1024 },
+      fileFilter: (_req, file, callback) => {
+        if (extname(file.originalname).toLowerCase() !== '.gpx') {
+          callback(new BadRequestException('Envie um arquivo .gpx.'), false);
+          return;
+        }
+        callback(null, true);
+      },
+    }),
+  )
+  uploadGpx(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('eventoId') eventoId: string,
+    @Param('modalidadeId') modalidadeId: string,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('Nenhum arquivo enviado.');
+    return this.organizadorService.atualizarMidiaModalidade(
+      user.userId,
+      eventoId,
+      modalidadeId,
+      'gpxUrl',
       `/uploads/eventos/${file.filename}`,
     );
   }

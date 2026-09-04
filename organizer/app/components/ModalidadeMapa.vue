@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CheckCircle, Palette, Globe, ArrowRight } from 'lucide-vue-next'
+import { CheckCircle, Palette, Globe, ArrowRight, Watch, Download } from 'lucide-vue-next'
 import type { ModalidadeOrganizador } from '../composables/useEventoOrganizador'
 
 const props = defineProps<{
@@ -9,12 +9,14 @@ const props = defineProps<{
   modalidade: ModalidadeOrganizador
 }>()
 
-const { uploadMapaPercursoModalidade, atualizarModalidade } = useEventoOrganizador()
+const { uploadMapaPercursoModalidade, uploadGpxModalidade, atualizarModalidade } =
+  useEventoOrganizador()
 const config = useRuntimeConfig()
 
 const erro = ref('')
 const sucesso = ref('')
 const enviandoArquivo = ref(false)
+const enviandoGpx = ref(false)
 const salvandoEmbed = ref(false)
 const mostrandoDesenhador = ref(false)
 const mapaEmbedInput = ref(props.modalidade.mapaEmbedUrl || '')
@@ -27,6 +29,7 @@ watch(
 )
 
 const mapaUrl = computed(() => urlFoto(props.modalidade.mapaPercursoUrl, config.public.apiBase as string))
+const gpxUrl = computed(() => urlFoto(props.modalidade.gpxUrl, config.public.apiBase as string))
 
 async function salvarMapaEmbed() {
   erro.value = ''
@@ -53,6 +56,25 @@ async function salvarRotaDesenhada(rotaJson: string) {
     mostrandoDesenhador.value = false
   } catch (err) {
     erro.value = extrairErro(err)
+  }
+}
+
+async function onArquivoGpx(e: Event) {
+  const input = e.target as HTMLInputElement
+  const arquivo = input.files?.[0]
+  if (!arquivo) return
+
+  erro.value = ''
+  sucesso.value = ''
+  enviandoGpx.value = true
+  try {
+    await uploadGpxModalidade(props.eventoId, props.modalidade.id, arquivo)
+    sucesso.value = 'GPX enviado! Os atletas ja podem baixar para o relogio.'
+  } catch (err) {
+    erro.value = extrairErro(err)
+  } finally {
+    enviandoGpx.value = false
+    input.value = ''
   }
 }
 
@@ -143,6 +165,35 @@ async function onArquivo(e: Event) {
       @fechar="mostrandoDesenhador = false"
       @salvar="salvarRotaDesenhada"
     />
+
+    <!-- GPX para relogio -->
+    <div class="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 space-y-3">
+      <label class="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+        <Watch :size="15" /> Arquivo GPX (Garmin, Polar, Coros, Suunto)
+      </label>
+      <p class="text-xs text-slate-500">
+        O atleta baixa e carrega no relógio para seguir o traçado durante a prova.
+        Exporte do Strava, Garmin Connect ou Wikiloc no formato .gpx.
+      </p>
+
+      <a
+        v-if="gpxUrl"
+        :href="gpxUrl"
+        download
+        class="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-700 hover:underline"
+      >
+        <Download :size="14" /> Baixar o GPX enviado
+      </a>
+
+      <input
+        type="file"
+        accept=".gpx"
+        :disabled="enviandoGpx"
+        class="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-100 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-emerald-800 hover:file:bg-emerald-200"
+        @change="onArquivoGpx"
+      />
+      <p v-if="enviandoGpx" class="text-xs text-slate-400">Enviando...</p>
+    </div>
 
     <!-- Mapa estático (imagem/PDF) -->
     <div>

@@ -1231,10 +1231,17 @@ export class OrganizadorService {
     });
   }
 
+  /**
+   * Troca um arquivo da modalidade (mapa estatico ou GPX), apagando o anterior.
+   *
+   * O campo vem por parametro porque os dois arquivos vivem na mesma pasta e
+   * seguem o mesmo ciclo: sem isso, subir um GPX apagaria o mapa do disco.
+   */
   async atualizarMidiaModalidade(
     usuarioId: string,
     eventoId: string,
     modalidadeId: string,
+    campo: 'mapaPercursoUrl' | 'gpxUrl',
     caminhoRelativo: string,
   ) {
     const organizador = await this.getOrganizadorAprovadoOuFalhar(usuarioId);
@@ -1244,15 +1251,14 @@ export class OrganizadorService {
       modalidadeId,
     );
 
-    if (modalidade.mapaPercursoUrl?.startsWith('/uploads/')) {
-      unlink(join(process.cwd(), modalidade.mapaPercursoUrl)).catch(
-        () => undefined,
-      );
+    const anterior = modalidade[campo];
+    if (anterior?.startsWith('/uploads/')) {
+      unlink(join(process.cwd(), anterior)).catch(() => undefined);
     }
 
     return this.prisma.modalidade.update({
       where: { id: modalidadeId },
-      data: { mapaPercursoUrl: caminhoRelativo },
+      data: { [campo]: caminhoRelativo },
     });
   }
 
