@@ -22,6 +22,8 @@ import {
   Plus,
   Trash2,
   UserCheck,
+  UserPlus,
+  LogIn,
   X
 } from 'lucide-vue-next'
 
@@ -906,6 +908,50 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
 
           <!-- PASSO 1: ESCOLHA DOS ATLETAS -->
           <div v-if="step === 1" class="space-y-6">
+
+            <!--
+              Quem chega por link compartilhado normalmente nao tem conta, e ate
+              agora so descobria isso ao tentar pagar, no fim do checkout. O
+              carrinho sobrevive ao login (fica em sessionStorage por evento),
+              entao o aviso vem cedo sem obrigar a interromper o que estava
+              fazendo.
+            -->
+            <div
+              v-if="!token"
+              class="bg-white border border-orange-200 rounded-2xl p-5 sm:p-6 shadow-sm space-y-4"
+            >
+              <div class="flex items-start gap-3">
+                <div class="w-10 h-10 shrink-0 bg-orange-50 text-orange-500 rounded-full flex items-center justify-center">
+                  <UserPlus class="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 class="text-base font-extrabold text-slate-900">
+                    Entre na sua conta para concluir a inscrição
+                  </h3>
+                  <p class="text-xs sm:text-sm text-slate-500 mt-0.5">
+                    Você pode montar a inscrição agora e entrar depois — os atletas que
+                    adicionar continuam aqui quando voltar.
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex flex-col sm:flex-row gap-3">
+                <NuxtLink
+                  :to="`/login?redirect=/eventos/${eventoId}`"
+                  class="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 bg-orange-500 hover:bg-orange-600 text-white text-xs font-black uppercase tracking-wider rounded-xl transition shadow-sm"
+                >
+                  <LogIn class="w-4 h-4" />
+                  <span>Já tenho conta</span>
+                </NuxtLink>
+                <NuxtLink
+                  :to="`/cadastro?redirect=/eventos/${eventoId}`"
+                  class="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-black uppercase tracking-wider rounded-xl transition"
+                >
+                  <UserPlus class="w-4 h-4" />
+                  <span>Criar conta</span>
+                </NuxtLink>
+              </div>
+            </div>
 
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
