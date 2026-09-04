@@ -243,7 +243,7 @@ function concluirValida() {
       </div>
 
       <!-- Container do Video Stream & Oval Frame -->
-      <div v-else class="relative mx-auto h-72 w-72 overflow-hidden rounded-full border-4 shadow-2xl transition-colors duration-500"
+      <div v-else class="relative mx-auto aspect-square w-full max-w-[18rem] overflow-hidden rounded-full border-4 shadow-2xl transition-colors duration-500"
         :class="{
           'border-warning animate-pulse': stepAtual === 'CENTRALIZAR',
           'border-amber-400': stepAtual === 'ESQUERDA' || stepAtual === 'DIREITA',
@@ -260,7 +260,7 @@ function concluirValida() {
 
         <!-- Overlay Guia Oval Facial -->
         <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <div class="h-56 w-44 rounded-[50%] border-2 border-dashed transition-all duration-300"
+          <div class="h-[78%] w-[61%] rounded-[50%] border-2 border-dashed transition-all duration-300"
             :class="stepAtual === 'CONCLUIDO' ? 'border-emerald-400 bg-emerald-500/20' : 'border-warning/60 bg-slate-900/10'"
           ></div>
         </div>

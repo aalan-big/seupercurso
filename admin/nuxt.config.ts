@@ -8,7 +8,7 @@ export default defineNuxtConfig({
   app: {
     head: {
       title: 'Seu Percurso — Painel Master Admin',
-      viewport: 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover',
+      viewport: 'width=device-width, initial-scale=1.0, viewport-fit=cover',
       link: [
         { rel: 'manifest', href: '/manifest.json' },
         { rel: 'apple-touch-icon', href: '/icone_notificacao.jpg' },

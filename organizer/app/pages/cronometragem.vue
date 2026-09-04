@@ -237,7 +237,7 @@ const resultadosFiltrados = computed(() => {
       </div>
 
       <!-- Seletor de Evento -->
-      <div v-if="!carregandoEventos && eventos.length > 0" class="min-w-[260px]">
+      <div v-if="!carregandoEventos && eventos.length > 0" class="w-full sm:w-auto sm:min-w-[260px]">
         <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Selecione o Evento:</label>
         <select
           v-model="eventoSelecionadoId"
@@ -491,7 +491,7 @@ const resultadosFiltrados = computed(() => {
               </p>
             </div>
 
-            <div class="min-w-[240px]">
+            <div class="w-full sm:w-auto sm:min-w-[240px]">
               <input
                 v-model="busca"
                 type="text"
