@@ -109,42 +109,55 @@ export function useMercadoPagoBrick() {
       return
     }
 
-    await carregarSdk()
-    await desmontar()
+    // Uma falha aqui (SDK bloqueado, chave recusada, valor invalido) rejeitava
+    // a promise sem passar pelo onErro: o `callbacks.onError` do Brick so vale
+    // depois que ele monta. O atleta ficava olhando um retangulo em branco, sem
+    // motivo nem instrucao.
+    try {
+      await carregarSdk()
+      await desmontar()
 
-    const mp = new window.MercadoPago(publicKey, { locale: 'pt-BR' })
-    const bricks = mp.bricks()
+      const mp = new window.MercadoPago(publicKey, { locale: 'pt-BR' })
+      const bricks = mp.bricks()
 
-    controller = await bricks.create('payment', opcoes.container, {
-      initialization: {
-        amount: Number(opcoes.valor.toFixed(2)),
-        ...(opcoes.email ? { payer: { email: opcoes.email } } : {})
-      },
-      customization: {
-        paymentMethods: {
-          // PIX tem fluxo proprio na nossa tela; aqui e so cartao.
-          creditCard: 'all',
-          maxInstallments: opcoes.maxParcelas ?? 12
+      controller = await bricks.create('payment', opcoes.container, {
+        initialization: {
+          amount: Number(opcoes.valor.toFixed(2)),
+          ...(opcoes.email ? { payer: { email: opcoes.email } } : {})
         },
-        visual: { style: { theme: 'default' } }
-      },
-      callbacks: {
-        onReady: () => {},
-        onSubmit: async ({ formData }: any) => {
-          await opcoes.onPagar({
-            tokenCartao: formData.token,
-            metodoBandeira: formData.payment_method_id,
-            emissor: formData.issuer_id ? String(formData.issuer_id) : undefined,
-            parcelas: Number(formData.installments || 1)
-          })
+        customization: {
+          paymentMethods: {
+            // PIX tem fluxo proprio na nossa tela; aqui e so cartao.
+            creditCard: 'all',
+            maxInstallments: opcoes.maxParcelas ?? 12
+          },
+          visual: { style: { theme: 'default' } }
         },
-        onError: (erro: any) => {
-          opcoes.onErro?.(
-            erro?.message || 'Não foi possível processar o cartão. Confira os dados.'
-          )
+        callbacks: {
+          onReady: () => {},
+          onSubmit: async ({ formData }: any) => {
+            await opcoes.onPagar({
+              tokenCartao: formData.token,
+              metodoBandeira: formData.payment_method_id,
+              emissor: formData.issuer_id ? String(formData.issuer_id) : undefined,
+              parcelas: Number(formData.installments || 1)
+            })
+          },
+          onError: (erro: any) => {
+            opcoes.onErro?.(
+              erro?.message || 'Não foi possível processar o cartão. Confira os dados.'
+            )
+          }
         }
-      }
-    })
+      })
+    } catch (erro: any) {
+      console.error('[MercadoPago] falha ao montar o Payment Brick:', erro)
+      opcoes.onErro?.(
+        erro?.message
+          ? `Não foi possível abrir o formulário de cartão: ${erro.message}`
+          : 'Não foi possível abrir o formulário de cartão. Tente novamente ou pague no PIX.'
+      )
+    }
   }
 
   async function desmontar() {
