@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Footprints, Calendar, MapPin, ArrowRight } from 'lucide-vue-next'
+import { Footprints, Calendar, MapPin, ArrowRight, Share2, Check } from 'lucide-vue-next'
 import type { EventoResumo } from '../composables/useEvento'
 
 const props = defineProps<{ evento: EventoResumo }>()
@@ -23,6 +23,42 @@ function formatarPreco(valor: number | null) {
 
 const estaEsgotado = computed(() => props.evento.status === 'INSCRICOES_ENCERRADAS')
 const estaFinalizado = computed(() => props.evento.status === 'FINALIZADO')
+
+const copiado = ref(false)
+
+/**
+ * Compartilha o evento.
+ *
+ * No celular abre a folha nativa do sistema, que e onde a divulgacao de corrida
+ * de fato acontece (WhatsApp, Instagram). No desktop, onde essa API quase nunca
+ * existe, copiar o link e o que sobra de util.
+ */
+async function compartilhar() {
+  const url = `${window.location.origin}/eventos/${props.evento.id}`
+
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: props.evento.nome,
+        text: `${props.evento.nome} — ${props.evento.cidade}/${props.evento.estado}`,
+        url
+      })
+      return
+    } catch (erro: any) {
+      // Fechar a folha de compartilhamento nao e erro: cair no copiar depois
+      // disso deixaria um "Copiado" que a pessoa nao pediu.
+      if (erro?.name === 'AbortError') return
+    }
+  }
+
+  try {
+    await navigator.clipboard.writeText(url)
+    copiado.value = true
+    setTimeout(() => { copiado.value = false }, 2000)
+  } catch {
+    // Sem permissao de area de transferencia nao ha alternativa razoavel aqui.
+  }
+}
 </script>
 
 <template>
@@ -51,19 +87,37 @@ const estaFinalizado = computed(() => props.evento.status === 'FINALIZADO')
         <Calendar :size="14" /> {{ formatarData(props.evento.dataInicio) }}
       </span>
 
-      <!-- Badge de Inscrições Esgotadas no Topo -->
-      <span
-        v-if="estaEsgotado"
-        class="absolute right-4 top-4 flex items-center gap-1 rounded-full bg-red-600 text-white px-3.5 py-1.5 text-xs font-black uppercase tracking-wider shadow-md"
-      >
-        Esgotado
-      </span>
-      <span
-        v-else-if="estaFinalizado"
-        class="absolute right-4 top-4 flex items-center gap-1 rounded-full bg-slate-800 text-white px-3.5 py-1.5 text-xs font-black uppercase tracking-wider shadow-md"
-      >
-        Finalizado
-      </span>
+      <!-- Compartilhar e o status dividem o canto: em linha, para um nunca
+           cobrir o outro quando o evento esgota ou termina. -->
+      <div class="absolute right-4 top-4 flex items-center gap-2">
+        <!-- O card inteiro e um link; sem o .prevent o clique aqui navegaria
+             para o evento em vez de compartilhar. -->
+        <button
+          type="button"
+          @click.stop.prevent="compartilhar"
+          :aria-label="`Compartilhar ${props.evento.nome}`"
+          :title="copiado ? 'Link copiado!' : 'Compartilhar'"
+          class="flex items-center gap-1.5 rounded-full bg-white/95 backdrop-blur-sm px-3 py-1.5 text-xs font-extrabold uppercase tracking-wider shadow-md transition hover:bg-white"
+          :class="copiado ? 'text-emerald-600' : 'text-primary'"
+        >
+          <Check v-if="copiado" :size="14" />
+          <Share2 v-else :size="14" />
+          <span v-if="copiado">Copiado</span>
+        </button>
+
+        <span
+          v-if="estaEsgotado"
+          class="flex items-center gap-1 rounded-full bg-red-600 text-white px-3.5 py-1.5 text-xs font-black uppercase tracking-wider shadow-md"
+        >
+          Esgotado
+        </span>
+        <span
+          v-else-if="estaFinalizado"
+          class="flex items-center gap-1 rounded-full bg-slate-800 text-white px-3.5 py-1.5 text-xs font-black uppercase tracking-wider shadow-md"
+        >
+          Finalizado
+        </span>
+      </div>
     </div>
     <div class="p-6">
       <h3 class="text-lg font-extrabold uppercase tracking-tight text-slate-900 group-hover:text-secondary transition line-clamp-1">
