@@ -616,8 +616,14 @@ const valorFinalComMetodo = computed(() =>
 // O Brick precisa do valor final; remonta quando o carrinho ou o metodo muda.
 watch(
   [metodoPagamentoSelecionado, totalCartao, step],
-  async ([metodo, valor, passoAtual]) => {
+  async ([metodo, valor, passoAtual], anterior) => {
     if (metodo !== 'CREDITO' || passoAtual !== 4 || !valor) {
+      // Sem isso o aviso do cartao continuava na tela depois de trocar para o
+      // PIX, dizendo que o pagamento estava indisponivel bem acima de um PIX
+      // que funciona.
+      if (anterior?.[0] === 'CREDITO' && metodo !== 'CREDITO') {
+        erroInscricao.value = ''
+      }
       await desmontarBrick()
       return
     }
@@ -626,6 +632,7 @@ watch(
     await montarBrick({
       container: '#brick-cartao',
       valor,
+      eventoId,
       email: cliente.value?.usuario?.email,
       maxParcelas: tarifas.value?.maxParcelas ?? 12,
       onPagar: (dados) => onInscrever(dados),

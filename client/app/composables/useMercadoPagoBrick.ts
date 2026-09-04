@@ -33,6 +33,16 @@ function carregarSdk(): Promise<void> {
   return scriptCarregado
 }
 
+/**
+ * Chave ja resolvida de cada evento.
+ *
+ * O Brick e remontado a cada mudanca de valor ou de parcelamento; sem cache
+ * cada remontagem bateria de novo na API para receber a mesma chave. So o
+ * sucesso entra aqui: guardar a ausencia deixaria o cartao desligado pelo resto
+ * da sessao mesmo depois de o organizador conectar a conta.
+ */
+const chavePorEvento = new Map<string, string>()
+
 export interface DadosCartaoTokenizado {
   tokenCartao: string
   metodoBandeira?: string
@@ -48,20 +58,54 @@ export interface DadosCartaoTokenizado {
  */
 export function useMercadoPagoBrick() {
   const config = useRuntimeConfig()
+  const api = useApi()
   let controller: any = null
+
+  /**
+   * Cada evento cobra na conta do seu organizador, e o token do cartao so vale
+   * na conta que o emitiu. Por isso a chave vem da API, por evento, e nao de
+   * uma constante do build: com a chave da plataforma o Mercado Pago recusaria
+   * o pagamento de todo evento de terceiro.
+   */
+  async function resolverChave(eventoId?: string): Promise<string | null> {
+    if (!eventoId) return (config.public.mpPublicKey as string) || null
+
+    const emCache = chavePorEvento.get(eventoId)
+    if (emCache) return emCache
+
+    const { publicKey } = await api<{ publicKey: string | null }>(
+      '/pagamentos/chave-publica',
+      { query: { eventoId } }
+    )
+
+    if (publicKey) chavePorEvento.set(eventoId, publicKey)
+    return publicKey || null
+  }
 
   async function montar(opcoes: {
     container: string
     valor: number
+    /** Evento da cobranca; define de qual conta e a chave de tokenizacao. */
+    eventoId?: string
     email?: string
     maxParcelas?: number
     onPagar: (dados: DadosCartaoTokenizado) => Promise<void>
     onErro?: (mensagem: string) => void
   }) {
-    const publicKey = config.public.mercadoPagoPublicKey as string
+    let publicKey: string | null
+    try {
+      publicKey = await resolverChave(opcoes.eventoId)
+    } catch {
+      opcoes.onErro?.(
+        'Não foi possível preparar o pagamento com cartão. Tente novamente ou pague no PIX.'
+      )
+      return
+    }
 
     if (!publicKey) {
-      opcoes.onErro?.('Pagamento com cartão indisponível no momento.')
+      opcoes.onErro?.(
+        'O organizador deste evento ainda não habilitou o pagamento com cartão. Você pode pagar no PIX.'
+      )
       return
     }
 

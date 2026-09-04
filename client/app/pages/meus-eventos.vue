@@ -245,10 +245,15 @@ async function processarPagamentoCartao(dados: DadosCartaoTokenizado) {
 // O Brick so existe enquanto a aba de cartao esta aberta no modal.
 watch(
   [modalPixAberto, abaPagamento, valorBasePagamento],
-  async ([aberto, aba, base]) => {
+  async ([aberto, aba, base], anterior) => {
     const total = tarifas.value?.parcelamento?.[0]?.total ?? base
 
     if (!aberto || aba !== 'CREDITO' || !total) {
+      // Um aviso do cartao nao pode sobreviver a troca de aba: ele apareceria
+      // sobre o PIX, sugerindo que o PIX tambem falhou.
+      if (anterior?.[1] === 'CREDITO' && aba !== 'CREDITO') {
+        erroPixModal.value = ''
+      }
       await desmontarBrick()
       return
     }
@@ -257,6 +262,8 @@ watch(
     await montarBrick({
       container: '#brick-cartao-modal',
       valor: total,
+      eventoId:
+        inscricaoAtualPagamento.value?.categoria?.modalidade?.evento?.id,
       email: user.value?.email,
       maxParcelas: tarifas.value?.maxParcelas ?? 12,
       onPagar: (dados) => processarPagamentoCartao(dados),

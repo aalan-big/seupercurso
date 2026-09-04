@@ -205,6 +205,10 @@ model Organizador {
   mpRefreshToken         String?
   mpTokenExpiraEm        DateTime?
   mpConectadoEm          DateTime?
+  /// Public key da conta dele, devolvida no mesmo OAuth. O token do cartao e
+  /// preso a conta que o gerou: tokenizar com a chave da plataforma e cobrar
+  /// na conta do organizador faz o Mercado Pago recusar o pagamento.
+  mpPublicKey            String?
 
   /// Legado do Asaas. Mantido apenas para consulta historica de cobrancas
   /// antigas; nada no codigo escreve ou le mais esses campos.

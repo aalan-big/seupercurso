@@ -65,6 +65,18 @@ export class PagamentoController {
     };
   }
 
+  /**
+   * Chave publica do Mercado Pago com que o navegador deve tokenizar o cartao.
+   *
+   * Varia por evento: a cobranca roda na conta do organizador e o token do
+   * cartao so vale na conta que o emitiu. `publicKey` nulo significa que o
+   * cartao nao esta disponivel para esse evento.
+   */
+  @Get('chave-publica')
+  obterChavePublica(@Query('eventoId', ParseUUIDPipe) eventoId: string) {
+    return this.pagamentoService.obterChavePublica(eventoId);
+  }
+
   @HttpCode(HttpStatus.CREATED)
   @Post()
   create(

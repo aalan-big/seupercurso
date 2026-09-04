@@ -30,7 +30,10 @@ module.exports = {
         PORT: 3001,
         NUXT_PUBLIC_API_BASE: 'https://api.seupercurso.esp.br',
         NUXT_PUBLIC_ORGANIZER_BASE: 'https://organizador.seupercurso.esp.br',
-        // Preencher com a Public Key do Mercado Pago (painel de aplicacoes).
+        // Public key da NOSSA aplicacao no Mercado Pago. Vale so como fallback:
+        // a chave de cada evento e a do organizador dele, buscada na API. O
+        // nome tem de ser exatamente este — e o que o Nuxt deriva de
+        // `runtimeConfig.public.mpPublicKey` para sobrescrever em runtime.
         NUXT_PUBLIC_MP_PUBLIC_KEY: process.env.NUXT_PUBLIC_MP_PUBLIC_KEY || '',
       },
     },

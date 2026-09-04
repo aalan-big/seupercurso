@@ -12,6 +12,9 @@ const AUTORIZACAO = 'https://auth.mercadopago.com/authorization';
 /** Renova o token com folga, para nunca cobrar com credencial vencida. */
 const DIAS_ANTES_DE_RENOVAR = 15;
 
+/** Espera entre tentativas de recuperar a public key de uma conexao antiga. */
+const MINUTOS_ENTRE_BACKFILLS = 10;
+
 /**
  * Conexão da conta Mercado Pago do organizador.
  *
@@ -27,6 +30,8 @@ export class MercadoPagoOAuthService {
   private readonly clientSecret: string;
   private readonly redirectUri: string;
   private idContaPlataforma: string | null = null;
+  /** Ultima tentativa de backfill da public key, por organizador. */
+  private readonly ultimoBackfillDeChave = new Map<string, number>();
 
   constructor(
     private readonly configService: ConfigService,
@@ -150,6 +155,62 @@ export class MercadoPagoOAuthService {
   }
 
   /**
+   * Public key da conta do organizador, usada no navegador para tokenizar o
+   * cartao.
+   *
+   * O token do cartao pertence a conta que o emitiu: como a cobranca roda com o
+   * access token do organizador, tokenizar com a chave da plataforma faz o
+   * Mercado Pago recusar o pagamento. Quem conectou antes de guardarmos essa
+   * chave nao tem nada gravado, e a renovacao do token e o unico jeito de
+   * obte-la sem pedir uma reconexao — por isso o backfill abaixo.
+   */
+  async obterPublicKey(organizadorId: string): Promise<string | null> {
+    const organizador = await this.prisma.organizador.findUnique({
+      where: { id: organizadorId },
+      select: { mpPublicKey: true, mpRefreshToken: true },
+    });
+
+    if (organizador?.mpPublicKey) return organizador.mpPublicKey;
+    if (!organizador) return null;
+
+    const refresh = decifrarCredencial(organizador.mpRefreshToken);
+    if (!refresh) return null;
+
+    // Sem essa janela, um organizador cujo backfill nao resolve faria o
+    // checkout rotacionar o token dele a cada tentativa de pagamento. E uma
+    // espera, e nao uma desistencia: uma queda de rede momentanea nao pode
+    // deixar o cartao do evento desligado ate o proximo restart.
+    const ultima = this.ultimoBackfillDeChave.get(organizadorId) ?? 0;
+    if (Date.now() - ultima < MINUTOS_ENTRE_BACKFILLS * 60 * 1000) return null;
+    this.ultimoBackfillDeChave.set(organizadorId, Date.now());
+
+    try {
+      const dados = await this.trocarToken({
+        grant_type: 'refresh_token',
+        refresh_token: refresh,
+      });
+
+      await this.prisma.organizador.update({
+        where: { id: organizadorId },
+        data: this.montarDadosToken(dados),
+      });
+
+      if (!dados.public_key) {
+        this.logger.warn(
+          `Mercado Pago nao devolveu public_key do organizador ${organizadorId}; sera preciso reconectar a conta para habilitar o cartao.`,
+        );
+      }
+
+      return dados.public_key ?? null;
+    } catch (err) {
+      this.logger.error(
+        `Falha ao obter a public key do organizador ${organizadorId}: ${err}`,
+      );
+      return null;
+    }
+  }
+
+  /**
    * True quando a conta conectada pelo organizador e a propria conta dona da
    * aplicacao — o caso da plataforma organizando o proprio evento.
    *
@@ -212,6 +273,7 @@ export class MercadoPagoOAuthService {
         mpRefreshToken: null,
         mpTokenExpiraEm: null,
         mpConectadoEm: null,
+        mpPublicKey: null,
       },
     });
   }
@@ -225,6 +287,9 @@ export class MercadoPagoOAuthService {
         : null,
       mpTokenExpiraEm: new Date(Date.now() + (dados.expires_in ?? 0) * 1000),
       mpConectadoEm: new Date(),
+      // A public key nao e segredo (o navegador a expoe), mas nem sempre volta
+      // na renovacao: gravar incondicionalmente apagaria a que ja funcionava.
+      ...(dados.public_key ? { mpPublicKey: dados.public_key } : {}),
     };
   }
 
@@ -270,4 +335,6 @@ interface RespostaToken {
   refresh_token?: string;
   user_id: number | string;
   expires_in?: number;
+  /** Chave usada no navegador para tokenizar o cartao na conta do organizador. */
+  public_key?: string;
 }

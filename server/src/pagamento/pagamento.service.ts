@@ -7,6 +7,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   StatusInscricao,
@@ -54,7 +55,45 @@ export class PagamentoService {
     private readonly notificacaoAdminService: NotificacaoAdminService,
     private readonly tarifaService: TarifaService,
     private readonly mpOAuthService: MercadoPagoOAuthService,
+    private readonly configService: ConfigService,
   ) {}
+
+  /**
+   * Chave publica com que o navegador tokeniza o cartao deste evento.
+   *
+   * Nao e a da plataforma: o token do cartao pertence a conta que o emitiu e a
+   * cobranca roda com o access token do organizador, entao tokenizar com outra
+   * chave faz o Mercado Pago recusar o pagamento. Devolve null quando o
+   * organizador ainda nao conectou a conta — o checkout entao esconde o cartao
+   * em vez de deixar o atleta digitar os dados para nada.
+   */
+  async obterChavePublica(eventoId: string): Promise<{ publicKey: string | null }> {
+    const evento = await this.prisma.evento.findUnique({
+      where: { id: eventoId },
+      select: { organizadorId: true },
+    });
+
+    if (!evento) throw new NotFoundException('Evento não encontrado.');
+
+    const chave = await this.mpOAuthService.obterPublicKey(evento.organizadorId);
+    if (chave) return { publicKey: chave };
+
+    // Quando quem recebe e a propria plataforma, a chave da nossa aplicacao e a
+    // chave certa: e a mesma conta. Vale como rede para conexoes antigas, em
+    // que o OAuth nao guardou a public key.
+    const ehAPropriaPlataforma =
+      await this.mpOAuthService.recebedorEhAPropriaPlataforma(
+        evento.organizadorId,
+      );
+
+    if (!ehAPropriaPlataforma) return { publicKey: null };
+
+    const daPlataforma = (
+      this.configService.get<string>('MP_PUBLIC_KEY') || ''
+    ).trim();
+
+    return { publicKey: daPlataforma || null };
+  }
 
   async create(usuarioId: string, dto: CreatePagamentoDto, remoteIp?: string) {
     const clienteId = await this.getClienteIdOuFalhar(usuarioId);

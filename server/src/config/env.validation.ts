@@ -17,6 +17,10 @@ export const envValidationSchema = Joi.object({
   MP_CLIENT_SECRET: Joi.string().required(),
   MP_REDIRECT_URI: Joi.string().uri().required(),
   MP_WEBHOOK_SECRET: Joi.string().min(16).required(),
+  // Public key da nossa aplicacao. So e usada quando quem recebe e a propria
+  // plataforma; nos eventos de terceiros vale a public key do organizador,
+  // guardada no OAuth. Por isso e opcional.
+  MP_PUBLIC_KEY: Joi.string().allow('').optional(),
 
   // Cifra as credenciais dos organizadores guardadas no banco.
   CREDENTIALS_SECRET: Joi.string().min(32).optional(),
