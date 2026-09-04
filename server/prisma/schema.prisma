@@ -209,6 +209,11 @@ model Organizador {
   /// preso a conta que o gerou: tokenizar com a chave da plataforma e cobrar
   /// na conta do organizador faz o Mercado Pago recusar o pagamento.
   mpPublicKey            String?
+  /// Tarifa de cartao que o Mercado Pago cobra desta conta, aprendida da ultima
+  /// venda a vista. Varia por conta conforme o prazo de liberacao escolhido, e
+  /// nao existe API que a informe antes da primeira venda — por isso e nula ate
+  /// la, quando vale a TARIFA_CARTAO_PERCENTUAL global.
+  tarifaCartaoPercentual Decimal?          @db.Decimal(6, 4)
 
   /// Legado do Asaas. Mantido apenas para consulta historica de cobrancas
   /// antigas; nada no codigo escreve ou le mais esses campos.

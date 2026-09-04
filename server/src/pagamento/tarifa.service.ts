@@ -65,7 +65,30 @@ export class TarifaService {
     return Number((valorBase * (percentual / 100)).toFixed(2));
   }
 
-  obterTabela(): TabelaTarifas {
+  /**
+   * Tarifa de cartao da conta que vai receber este evento.
+   *
+   * Cada organizador recebe na conta dele, e a tarifa do Mercado Pago varia com
+   * o prazo de liberacao que ele escolheu. Devolve undefined enquanto ele nao
+   * tiver a primeira venda a vista — ate la vale a global.
+   */
+  async obterPercentualCartaoDoEvento(
+    eventoId?: string,
+  ): Promise<number | undefined> {
+    if (!eventoId) return undefined;
+
+    const evento = await this.prisma.evento.findUnique({
+      where: { id: eventoId },
+      select: { organizador: { select: { tarifaCartaoPercentual: true } } },
+    });
+
+    const aprendida = evento?.organizador?.tarifaCartaoPercentual;
+    return aprendida === null || aprendida === undefined
+      ? undefined
+      : Number(aprendida);
+  }
+
+  obterTabela(percentualCartao?: number): TabelaTarifas {
     return {
       pix: {
         percentual: this.numero('TARIFA_PIX_PERCENTUAL', 0.0099),
@@ -80,7 +103,8 @@ export class TarifaService {
         //
         // Errar para cima e menos grave que para baixo: o organizador recebe
         // alguns centavos a mais em vez de receber menos do que foi prometido.
-        percentual: this.numero('TARIFA_CARTAO_PERCENTUAL', 0.0498),
+        percentual:
+          percentualCartao ?? this.numero('TARIFA_CARTAO_PERCENTUAL', 0.0498),
         fixo: this.numero('TARIFA_CARTAO_FIXA', 0),
       },
       cartaoPercentualPorParcela: this.numero(
@@ -105,8 +129,9 @@ export class TarifaService {
     valorBase: number,
     metodo: MetodoPagamento,
     parcelas = 1,
+    percentualCartao?: number,
   ): number {
-    const tarifa = this.tarifaDe(metodo, parcelas);
+    const tarifa = this.tarifaDe(metodo, parcelas, percentualCartao);
 
     if (tarifa.percentual >= 1) {
       this.logger.error(
@@ -120,15 +145,23 @@ export class TarifaService {
   }
 
   /** Quanto do valor cobrado é tarifa — o acréscimo pago pelo atleta. */
-  estimarTarifa(valorBase: number, metodo: MetodoPagamento, parcelas = 1): number {
+  estimarTarifa(
+    valorBase: number,
+    metodo: MetodoPagamento,
+    parcelas = 1,
+    percentualCartao?: number,
+  ): number {
     return Number(
-      (this.calcularValorCobrado(valorBase, metodo, parcelas) - valorBase).toFixed(2),
+      (
+        this.calcularValorCobrado(valorBase, metodo, parcelas, percentualCartao) -
+        valorBase
+      ).toFixed(2),
     );
   }
 
   /** Opções de parcelamento com o valor já acrescido da tarifa. */
-  calcularOpcoesParcelamento(valorBase: number) {
-    const { maxParcelas, valorMinimoParcela } = this.obterTabela();
+  calcularOpcoesParcelamento(valorBase: number, percentualCartao?: number) {
+    const { maxParcelas, valorMinimoParcela } = this.obterTabela(percentualCartao);
     if (!valorBase || valorBase <= 0) return [];
 
     const teto = Math.min(
@@ -142,6 +175,7 @@ export class TarifaService {
         valorBase,
         MetodoPagamento.CARTAO_CREDITO,
         num,
+        percentualCartao,
       );
       return {
         num,
@@ -151,8 +185,12 @@ export class TarifaService {
     });
   }
 
-  private tarifaDe(metodo: MetodoPagamento, parcelas: number): TarifaGateway {
-    const tabela = this.obterTabela();
+  private tarifaDe(
+    metodo: MetodoPagamento,
+    parcelas: number,
+    percentualCartao?: number,
+  ): TarifaGateway {
+    const tabela = this.obterTabela(percentualCartao);
 
     if (metodo !== MetodoPagamento.CARTAO_CREDITO) return tabela.pix;
 

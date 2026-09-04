@@ -31,6 +31,9 @@ const HORAS_VALIDADE_PIX = 24;
 /** Tolerância (em reais) na conferência do valor pago vs. valor cobrado. */
 const TOLERANCIA_VALOR = 0.05;
 
+/** Teto de sanidade para a tarifa aprendida: acima disso não é tarifa de cartão. */
+const LIMITE_TARIFA_CARTAO = 0.15;
+
 const INSCRICAO_COMPLETA_INCLUDE = {
   cliente: { include: { pf: true, pj: true, usuario: true } },
   dependente: true,
@@ -93,6 +96,66 @@ export class PagamentoService {
     ).trim();
 
     return { publicKey: daPlataforma || null };
+  }
+
+  /**
+   * Guarda a tarifa que o Mercado Pago realmente cobrou deste organizador.
+   *
+   * Nao ha API que informe o custo da conta de um vendedor conectado, e ele
+   * depende do prazo de liberacao que cada um escolheu. A venda em si e a unica
+   * fonte confiavel: o gateway devolve quanto reteve, e a proxima cobranca ja
+   * usa esse numero no gross-up.
+   *
+   * So aprende de venda a vista. Se o organizador tiver parcelamento sem juros
+   * configurado, a tarifa das parceladas inclui o custo do parcelamento, e
+   * aplicar isso a uma compra a vista cobraria do atleta o que ninguem gastou.
+   */
+  private async aprenderTarifaDoCartao(
+    organizadorId: string | null | undefined,
+    valorCobrado: number,
+    tarifaCobrada?: number | null,
+  ) {
+    if (!organizadorId || !tarifaCobrada || valorCobrado <= 0) return;
+
+    const percentual = Number((tarifaCobrada / valorCobrado).toFixed(4));
+
+    // Fora dessa faixa nao e tarifa de cartao: e estorno, ajuste ou um campo
+    // que o gateway mudou de forma. Gravar levaria o gross-up a cobrar um
+    // absurdo do proximo atleta.
+    if (percentual <= 0 || percentual > LIMITE_TARIFA_CARTAO) {
+      this.logger.warn(
+        `Tarifa de ${(percentual * 100).toFixed(2)}% no organizador ${organizadorId} fora do esperado; ignorada.`,
+      );
+      return;
+    }
+
+    try {
+      const organizador = await this.prisma.organizador.findUnique({
+        where: { id: organizadorId },
+        select: { tarifaCartaoPercentual: true },
+      });
+
+      const atual = organizador?.tarifaCartaoPercentual;
+      if (atual !== null && atual !== undefined) {
+        // Centavos de arredondamento mudam a quarta casa a cada venda; sem esta
+        // folga seria uma escrita no banco a cada pagamento.
+        if (Math.abs(Number(atual) - percentual) < 0.0005) return;
+      }
+
+      await this.prisma.organizador.update({
+        where: { id: organizadorId },
+        data: { tarifaCartaoPercentual: percentual },
+      });
+
+      this.logger.log(
+        `Tarifa de cartao do organizador ${organizadorId} atualizada para ${(percentual * 100).toFixed(2)}%.`,
+      );
+    } catch (err) {
+      // A venda ja aconteceu; falhar aqui nao pode derrubar a inscricao.
+      this.logger.error(
+        `Nao foi possivel guardar a tarifa do organizador ${organizadorId}: ${err}`,
+      );
+    }
   }
 
   async create(usuarioId: string, dto: CreatePagamentoDto, remoteIp?: string) {
@@ -205,10 +268,17 @@ export class PagamentoService {
 
     // A tarifa do gateway é sempre do atleta, nos dois casos: o gross-up faz
     // sobrar exatamente o valor a dividir entre organizador e plataforma.
+    // A tarifa e da conta que recebe: usar a nossa faria o gross-up errar para
+    // todo organizador com prazo de liberacao diferente do nosso, e a diferenca
+    // sairia do repasse dele.
+    const percentualCartao =
+      await this.tarifaService.obterPercentualCartaoDoEvento(evento.id);
+
     const valorCobrado = this.tarifaService.calcularValorCobrado(
       valorAntesDaTarifa,
       dto.metodo,
       parcelas,
+      percentualCartao,
     );
 
     const comprador = primeiraInscricao.cliente;
@@ -252,6 +322,14 @@ export class PagamentoService {
             comissaoPlataforma: comissaoRetida,
             remoteIp,
           });
+
+    if (dto.metodo === MetodoPagamento.CARTAO_CREDITO && parcelas === 1) {
+      await this.aprenderTarifaDoCartao(
+        evento.organizadorId,
+        valorCobrado,
+        resultado.tarifaCobrada,
+      );
+    }
 
     const isAprovado = resultado.status === 'APROVADO';
 

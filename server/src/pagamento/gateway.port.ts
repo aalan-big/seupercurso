@@ -48,6 +48,14 @@ export interface ResultadoCobranca {
   motivoRecusa?: string | null;
   pixCopiaECola?: string | null;
   pixQrCodeUrl?: string | null;
+  /**
+   * Tarifa que o gateway efetivamente cobrou nesta venda, quando ele informa.
+   *
+   * E a unica forma de saber a tarifa da conta do organizador: ela depende do
+   * prazo de liberacao que ele escolheu e nao ha API que a devolva antes da
+   * primeira venda.
+   */
+  tarifaCobrada?: number | null;
 }
 
 export interface ConsultaCobranca {

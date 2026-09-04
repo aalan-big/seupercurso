@@ -35,6 +35,35 @@ describe('auditoria do repasse da tarifa', () => {
     }
   });
 
+  it('a tarifa do organizador substitui a global no gross-up', () => {
+    const base = 100;
+    const TARIFA_DELE = 0.0398; // liberacao em 30 dias, mais barata que a nossa
+
+    const comAGlobal = svc.calcularValorCobrado(
+      base,
+      MetodoPagamento.CARTAO_CREDITO,
+    );
+    const comADele = svc.calcularValorCobrado(
+      base,
+      MetodoPagamento.CARTAO_CREDITO,
+      1,
+      TARIFA_DELE,
+    );
+
+    // Tarifa menor tem que cobrar menos do atleta.
+    expect(comADele).toBeLessThan(comAGlobal);
+
+    // E o que sobra depois da tarifa DELE tem que ser o valor da inscricao: e
+    // isso que a taxa por organizador existe para garantir.
+    const sobra = comADele - comADele * TARIFA_DELE;
+    expect(Math.abs(sobra - base)).toBeLessThan(0.02);
+
+    // Com a global, esse mesmo organizador receberia a mais — o erro que a
+    // tarifa unica causava, so que na direcao oposta ao caso de hoje.
+    const sobraErrada = comAGlobal - comAGlobal * TARIFA_DELE;
+    expect(sobraErrada).toBeGreaterThan(base + 0.5);
+  });
+
   it('carrinho de varios atletas cobra a tarifa uma vez, como o gateway faz', () => {
     const separado = 3 * svc.calcularValorCobrado(50, MetodoPagamento.PIX);
     const junto = svc.calcularValorCobrado(150, MetodoPagamento.PIX);

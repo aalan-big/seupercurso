@@ -139,7 +139,25 @@ export class MercadoPagoService implements GatewayPagamento {
       gatewayPaymentId: String(data.id),
       status: status === 'APROVADO' ? 'APROVADO' : 'PENDENTE',
       motivoRecusa: data.status_detail ?? null,
+      tarifaCobrada: this.extrairTarifa(data),
     };
+  }
+
+  /**
+   * Tarifa que o Mercado Pago reteve do vendedor nesta venda.
+   *
+   * So conta o que e cobrado de quem recebe (`collector`): juros de
+   * parcelamento pago pelo comprador aparece na mesma lista e nao e custo do
+   * organizador.
+   */
+  private extrairTarifa(data: any): number | null {
+    const detalhes = Array.isArray(data?.fee_details) ? data.fee_details : [];
+
+    const total = detalhes
+      .filter((d: any) => !d?.fee_payer || d.fee_payer === 'collector')
+      .reduce((soma: number, d: any) => soma + Number(d?.amount ?? 0), 0);
+
+    return Number.isFinite(total) && total > 0 ? Number(total.toFixed(2)) : null;
   }
 
   async consultarCobranca(

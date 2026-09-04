@@ -41,7 +41,13 @@ export class PagamentoController {
     @Query('eventoId') eventoId?: string,
   ) {
     const base = Number(valorBase);
-    const tabela = this.tarifaService.obterTabela();
+
+    // A mesma tarifa que o `create` vai usar: sem isso a tela mostraria o
+    // parcelamento com a nossa tarifa e a cobranca sairia com a do organizador.
+    const percentualCartao =
+      await this.tarifaService.obterPercentualCartaoDoEvento(eventoId);
+
+    const tabela = this.tarifaService.obterTabela(percentualCartao);
 
     if (!Number.isFinite(base) || base <= 0) return tabela;
 
@@ -61,7 +67,10 @@ export class PagamentoController {
         MetodoPagamento.PIX,
       ),
       pixTarifa: this.tarifaService.estimarTarifa(comTaxa, MetodoPagamento.PIX),
-      parcelamento: this.tarifaService.calcularOpcoesParcelamento(comTaxa),
+      parcelamento: this.tarifaService.calcularOpcoesParcelamento(
+        comTaxa,
+        percentualCartao,
+      ),
     };
   }
 
