@@ -98,6 +98,26 @@ function converterIsoParaDisplay(iso: string) {
 const dataInicioDisplay = ref(converterIsoParaDisplay(form.dataInicio))
 const dataFimDisplay = ref(converterIsoParaDisplay(form.dataFim))
 
+/**
+ * Quase toda corrida acontece num dia so, e o formulario obrigava a digitar a
+ * mesma data duas vezes — convite a errar uma delas. Num evento existente, o
+ * estado inicial vem do que ja esta gravado; num novo, o padrao e um dia.
+ *
+ * A data de fim nao e enfeite: e ela que libera resultado e certificado, um dia
+ * depois. Por isso ela continua sendo gravada, so que espelhada em vez de
+ * digitada.
+ */
+const eventoDeUmDia = ref(!form.dataFim || form.dataInicio === form.dataFim)
+
+function espelharDataFim() {
+  form.dataFim = form.dataInicio
+  dataFimDisplay.value = dataInicioDisplay.value
+}
+
+watch(eventoDeUmDia, (umDia) => {
+  if (umDia) espelharDataFim()
+})
+
 function formatarDataInicio(e: Event) {
   const input = e.target as HTMLInputElement
   let v = input.value.replace(/\D/g, '').slice(0, 8)
@@ -105,12 +125,14 @@ function formatarDataInicio(e: Event) {
   v = v.replace(/(\d{2})(\d)/, '$1/$2')
   dataInicioDisplay.value = v
   form.dataInicio = v.length === 10 ? `${v.slice(6, 10)}-${v.slice(3, 5)}-${v.slice(0, 2)}` : ''
+  if (eventoDeUmDia.value) espelharDataFim()
 }
 
 function onSelecionarDataInicio(e: Event) {
   const input = e.target as HTMLInputElement
   form.dataInicio = input.value
   dataInicioDisplay.value = converterIsoParaDisplay(input.value)
+  if (eventoDeUmDia.value) espelharDataFim()
 }
 
 function formatarDataFim(e: Event) {
@@ -257,6 +279,7 @@ watch(
       form.dataFim = ev.dataFim?.slice(0, 10) ?? ''
       dataInicioDisplay.value = converterIsoParaDisplay(form.dataInicio)
       dataFimDisplay.value = converterIsoParaDisplay(form.dataFim)
+      eventoDeUmDia.value = !form.dataFim || form.dataInicio === form.dataFim
       form.capacidade = ev.capacidade ?? undefined
       form.regulamentoUrl = ev.regulamentoUrl?.startsWith('/uploads/') ? '' : (ev.regulamentoUrl ?? '')
       form.termoResponsabilidade = ev.termoResponsabilidade ?? ''
@@ -458,9 +481,26 @@ function onSubmit() {
       ></textarea>
     </div>
 
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <input
+        v-model="eventoDeUmDia"
+        type="checkbox"
+        class="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-slate-300 text-warning focus:ring-warning/30"
+      />
+      <span class="text-sm">
+        <span class="font-semibold text-slate-700">O evento acontece em um único dia</span>
+        <span class="mt-0.5 block text-xs text-slate-500">
+          Desmarque só se a programação se estender por mais de um dia. A data de fim
+          é o que libera resultados e certificados para os atletas.
+        </span>
+      </span>
+    </label>
+
+    <div class="grid grid-cols-1 gap-4" :class="eventoDeUmDia ? '' : 'sm:grid-cols-2'">
       <div class="min-w-0">
-        <label class="mb-1 block text-sm font-semibold text-slate-700">Data de início *</label>
+        <label class="mb-1 block text-sm font-semibold text-slate-700">
+          {{ eventoDeUmDia ? 'Data do evento *' : 'Data de início *' }}
+        </label>
         <div class="relative">
           <input
             :value="dataInicioDisplay"
@@ -485,7 +525,7 @@ function onSubmit() {
         </div>
         <p v-if="invalido('dataInicio')" class="mt-1 text-xs text-red-600">Campo obrigatório.</p>
       </div>
-      <div class="min-w-0">
+      <div v-if="!eventoDeUmDia" class="min-w-0">
         <label class="mb-1 block text-sm font-semibold text-slate-700">Data de fim *</label>
         <div class="relative">
           <input
