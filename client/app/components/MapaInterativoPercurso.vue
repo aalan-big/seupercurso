@@ -149,6 +149,22 @@ const gpxUrlFormatada = computed(() => {
   return `${apiBase.replace(/\/$/, '')}/${props.gpxUrl.replace(/^\//, '')}`
 })
 
+/**
+ * Visoes que esta modalidade realmente tem.
+ *
+ * O alternador so aparecia quando existia rota desenhada. Quem publicasse mapa
+ * externo mais imagem ficava sem ele, travado na primeira visao — a imagem
+ * estava salva e o atleta nao tinha como chegar nela. O que decide e haver mais
+ * de uma opcao, nao qual delas existe.
+ */
+const modosDisponiveis = computed(() => {
+  const modos: Array<'desenhado' | 'embed' | 'imagem'> = []
+  if (props.rotaGeoJson) modos.push('desenhado')
+  if (props.mapaEmbedUrl) modos.push('embed')
+  if (imagemUrlFormatada.value) modos.push('imagem')
+  return modos
+})
+
 function zoomIn() {
   if (zoomNivel.value < 2.5) zoomNivel.value += 0.25
 }
@@ -185,8 +201,9 @@ function alternarTelaCheia() {
 
       <div class="flex items-center gap-2">
         <!-- Alternador de Visão -->
-        <div v-if="rotaGeoJson && (mapaEmbedUrl || imagemUrlFormatada)" class="flex bg-slate-800 rounded-xl p-1 text-xs font-bold">
+        <div v-if="modosDisponiveis.length > 1" class="flex bg-slate-800 rounded-xl p-1 text-xs font-bold">
           <button
+            v-if="rotaGeoJson"
             type="button"
             class="px-3 py-1 rounded-lg transition"
             :class="modoVisualizacao === 'desenhado' ? 'bg-secondary text-white' : 'text-slate-400 hover:text-white'"
@@ -201,7 +218,7 @@ function alternarTelaCheia() {
             :class="modoVisualizacao === 'embed' ? 'bg-secondary text-white' : 'text-slate-400 hover:text-white'"
             @click="modoVisualizacao = 'embed'"
           >
-            Iframe
+            Mapa externo
           </button>
           <button
             v-if="imagemUrlFormatada"
