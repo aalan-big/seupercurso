@@ -494,6 +494,13 @@ model Pagamento {
   valorLiquido     Decimal?        @db.Decimal(10, 2)
   /// Tarifa cobrada pelo gateway nesta transacao.
   taxaGateway      Decimal?        @db.Decimal(10, 2)
+  /// Comissao que a plataforma efetivamente reteve nesta transacao — o mesmo
+  /// numero enviado ao gateway como application_fee. Existe porque os painels
+  /// recalculavam a comissao por conta propria, cada um de um jeito, e nenhum
+  /// batia com o extrato: o valor cobrado do atleta ja embute a comissao e a
+  /// tarifa do gateway, entao aplicar o percentual sobre ele inflava a conta.
+  /// Zero quando a propria plataforma organiza (nao ha o que reter).
+  comissaoPlataforma Decimal?      @db.Decimal(10, 2)
   createdAt        DateTime        @default(now())
 
   inscricao Inscricao? @relation(fields: [inscricaoId], references: [id])

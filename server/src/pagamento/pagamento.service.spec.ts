@@ -247,6 +247,27 @@ describe('PagamentoService', () => {
       );
     });
 
+    it('grava na cobranca a comissao que foi realmente retida', async () => {
+      await service.create(usuarioId, dto);
+
+      // Os painels liam este numero recalculando a partir do valor cobrado do
+      // atleta — que ja embute a comissao e a tarifa —, e por isso nunca batiam
+      // com o extrato. Agora a cobranca guarda o application_fee de verdade.
+      const dadosGravados = prisma.pagamento.create.mock.calls[0][0].data;
+      expect(dadosGravados.comissaoPlataforma).toBe(6);
+      // E o valor cobrado segue sendo outro campo: um nao pode virar o outro.
+      expect(dadosGravados.valor).toBeGreaterThan(dadosGravados.comissaoPlataforma);
+    });
+
+    it('grava comissao zero quando quem recebe e a propria plataforma', async () => {
+      mpOAuth.recebedorEhAPropriaPlataforma.mockResolvedValue(true);
+
+      await service.create(usuarioId, dto);
+
+      // Nada foi retido, entao o painel tem de mostrar zero — nao 10% do valor.
+      expect(prisma.pagamento.create.mock.calls[0][0].data.comissaoPlataforma).toBe(0);
+    });
+
     it('não envia comissão quando quem recebe é a própria conta da plataforma', async () => {
       mpOAuth.recebedorEhAPropriaPlataforma.mockResolvedValue(true);
 

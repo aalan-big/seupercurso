@@ -299,6 +299,8 @@ export class AdminService {
       where: { status: StatusPagamento.APROVADO },
       select: {
         valor: true,
+        taxaGateway: true,
+        comissaoPlataforma: true,
         inscricao: { select: eventoSelect },
         pedido: {
           select: {
@@ -336,7 +338,16 @@ export class AdminService {
       const organizador = evento.organizador;
       if (!organizador) continue;
       const percentual = Number(organizador.comissaoPercentual);
-      const comissao = valor * (percentual / 100);
+      // A comissao retida vem gravada na propria cobranca. O calculo abaixo so
+      // atende linha antiga que o backfill nao alcancou: aplicar o percentual
+      // sobre o valor cobrado inflaria a conta, porque ele ja embute a comissao
+      // e a tarifa do gateway.
+      const comissao =
+        pagamento.comissaoPlataforma !== null &&
+        pagamento.comissaoPlataforma !== undefined
+          ? Number(pagamento.comissaoPlataforma)
+          : Math.max(0, valor - Number(pagamento.taxaGateway ?? 0)) *
+            (percentual / 100);
 
       totalArrecadado += valor;
       comissaoPlataforma += comissao;

@@ -335,6 +335,10 @@ export class PagamentoService {
 
     const dadosPagamento = {
       valor: valorCobrado,
+      // O mesmo numero que foi ao gateway como application_fee. Guardado aqui
+      // para os painels lerem a comissao real em vez de recalcular a partir do
+      // valor cobrado — que ja embute a propria comissao e a tarifa.
+      comissaoPlataforma: comissaoRetida,
       metodo: dto.metodo,
       status: isAprovado ? StatusPagamento.APROVADO : StatusPagamento.PENDENTE,
       gateway: this.gateway.nome,

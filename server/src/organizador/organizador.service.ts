@@ -240,6 +240,7 @@ export class OrganizadorService {
       select: {
         valor: true,
         taxaGateway: true,
+        comissaoPlataforma: true,
         inscricao: { select: eventoSelect },
         pedido: {
           select: {
@@ -267,11 +268,17 @@ export class OrganizadorService {
 
     for (const pagamento of pagamentos) {
       const valor = Number(pagamento.valor);
-      // A tarifa do gateway ja esta embutida no valor pago pelo atleta, entao
-      // comissao e repasse incidem sobre o liquido efetivamente recebido.
+      // A tarifa do gateway ja esta embutida no valor pago pelo atleta.
       const taxa = Number(pagamento.taxaGateway ?? 0);
-      const baseDivisivel = Math.max(0, valor - taxa);
-      const comissao = baseDivisivel * (percentual / 100);
+      // Comissao retida de verdade, gravada na cobranca. O calculo so cobre
+      // linha antiga sem o dado: quando o atleta paga a comissao, o liquido ja
+      // a contem, e aplicar o percentual sobre ele cobrava percentual sobre
+      // percentual (R$ 2,20 onde o extrato dizia R$ 2,00).
+      const comissao =
+        pagamento.comissaoPlataforma !== null &&
+        pagamento.comissaoPlataforma !== undefined
+          ? Number(pagamento.comissaoPlataforma)
+          : Math.max(0, valor - taxa) * (percentual / 100);
       totalArrecadado += valor;
       comissaoPlataforma += comissao;
       totalTaxaGateway += taxa;
