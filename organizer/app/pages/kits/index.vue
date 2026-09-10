@@ -27,6 +27,12 @@ function ordenarTamanhos(tamanhos: Record<string, number>) {
 
 const tamanhosOrdenados = computed(() => (kits.value ? ordenarTamanhos(kits.value.totalPorTamanho) : []))
 
+// Evento sem camisa nao tem estoque de tamanho pra fechar com a grafica: a
+// pagina fica so com a numeracao de peito.
+const eventoPossuiCamisa = computed(
+  () => eventos.value.find((e) => e.id === eventoSelecionadoId.value)?.possuiCamisa !== false
+)
+
 onMounted(async () => {
   try {
     await fetchMeusEventos()
@@ -80,19 +86,21 @@ function exportarRelatorioGraficaCSV() {
   const eventoNome = eventos.value.find((e) => e.id === eventoSelecionadoId.value)?.nome || ''
   csvContent += `"${eventoNome}",${kits.value.total}\n\n`
 
-  csvContent += 'TAMANHOS DE CAMISAS (GERAL)\n'
-  csvContent += 'Tamanho,Quantidade\n'
-  tamanhosOrdenados.value.forEach(([tamanho, qty]) => {
-    csvContent += `"${tamanho}",${qty}\n`
-  })
-
-  csvContent += '\nTAMANHOS POR MODALIDADE\n'
-  csvContent += 'Modalidade,Tamanho,Quantidade\n'
-  kits.value.porModalidade.forEach((mod) => {
-    ordenarTamanhos(mod.tamanhos).forEach(([tamanho, qty]) => {
-      csvContent += `"${mod.modalidade}","${tamanho}",${qty}\n`
+  if (eventoPossuiCamisa.value) {
+    csvContent += 'TAMANHOS DE CAMISAS (GERAL)\n'
+    csvContent += 'Tamanho,Quantidade\n'
+    tamanhosOrdenados.value.forEach(([tamanho, qty]) => {
+      csvContent += `"${tamanho}",${qty}\n`
     })
-  })
+
+    csvContent += '\nTAMANHOS POR MODALIDADE\n'
+    csvContent += 'Modalidade,Tamanho,Quantidade\n'
+    kits.value.porModalidade.forEach((mod) => {
+      ordenarTamanhos(mod.tamanhos).forEach(([tamanho, qty]) => {
+        csvContent += `"${mod.modalidade}","${tamanho}",${qty}\n`
+      })
+    })
+  }
 
   const encodedUri = encodeURI(csvContent)
   const link = document.createElement('a')
@@ -111,12 +119,15 @@ function exportarRelatorioGraficaCSV() {
       <div>
         <h1 class="text-2xl font-black uppercase tracking-tight text-primary">Kits, Estoque & Numeração de Peito</h1>
         <p class="mt-1 text-xs text-slate-500">
-          Gerencie o estoque de camisetas para a gráfica e atribua números de peito em lote aos atletas.
+          <template v-if="eventoPossuiCamisa">Gerencie o estoque de camisetas para a gráfica e atribua</template>
+          <template v-else>Atribua</template>
+          números de peito em lote aos atletas.
         </p>
       </div>
 
       <div class="flex items-center gap-3">
         <button
+          v-if="eventoPossuiCamisa"
           type="button"
           :disabled="!kits || kits.total === 0"
           class="inline-flex items-center gap-2 rounded-xl bg-slate-800 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-slate-900 transition disabled:opacity-40"
@@ -202,6 +213,12 @@ function exportarRelatorioGraficaCSV() {
         <p v-if="kits.total === 0" class="rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center text-xs text-slate-500">
           Nenhuma inscrição confirmada ainda para este evento.
         </p>
+
+        <template v-else-if="!eventoPossuiCamisa">
+          <p class="rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center text-xs text-slate-500">
+            Este evento não entrega camisa. Use a numeração de peito acima — não há estoque de tamanhos para fechar com a gráfica.
+          </p>
+        </template>
 
         <template v-else>
           <!-- Resumo Geral de Camisetas por Tamanho -->

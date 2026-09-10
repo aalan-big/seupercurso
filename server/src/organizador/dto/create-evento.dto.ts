@@ -38,6 +38,10 @@ export class CreateEventoDto {
   retiradaKitFim?: string;
 
   @IsOptional()
+  @IsBoolean()
+  possuiCamisa?: boolean;
+
+  @IsOptional()
   @IsDateString()
   limiteTrocaCamisaAté?: string;
 

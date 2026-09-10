@@ -54,6 +54,7 @@ export interface EventoOrganizador {
   retiradaKitLocal: string | null
   retiradaKitInicio: string | null
   retiradaKitFim: string | null
+  possuiCamisa: boolean
   limiteTrocaCamisaAté: string | null
   camisasBloqueadas: boolean
   permiteTransferencia: boolean
@@ -88,6 +89,7 @@ export interface EventoOrganizadorInput {
   retiradaKitLocal?: string
   retiradaKitInicio?: string
   retiradaKitFim?: string
+  possuiCamisa?: boolean
   limiteTrocaCamisaAté?: string
   camisasBloqueadas?: boolean
   permiteTransferencia?: boolean

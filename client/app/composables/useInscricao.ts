@@ -55,6 +55,7 @@ export interface EventoInfo {
   retiradaKitLocal?: string | null
   retiradaKitInicio?: string | null
   retiradaKitFim?: string | null
+  possuiCamisa?: boolean
   limiteTrocaCamisaAté?: string | null
   camisasBloqueadas?: boolean
   permiteTransferencia?: boolean

@@ -51,7 +51,16 @@ const titularJaInscrito = computed(() => {
 const carregando = ref(true)
 const erro = ref('')
 
-const passos = ['Escolha dos Atletas', 'Modalidades & Categorias', 'Camisetas & Resumo', 'Pagamento']
+// Nem todo evento entrega camisa: quando nao entrega, o passo 3 vira so o
+// resumo e o atleta nunca ve escolha de tamanho.
+const eventoPossuiCamisa = computed(() => eventoSelecionado.value?.possuiCamisa !== false)
+
+const passos = computed(() => [
+  'Escolha dos Atletas',
+  'Modalidades & Categorias',
+  eventoPossuiCamisa.value ? 'Camisetas & Resumo' : 'Resumo',
+  'Pagamento'
+])
 const step = ref(1)
 
 interface ItemCarrinho {
@@ -456,7 +465,7 @@ const podeAvancar = computed(() => {
     return carrinho.value.every((i) => !!i.modalidadeId && !!i.categoriaId)
   }
   if (step.value === 3) {
-    return carrinho.value.every((i) => !!i.tamanhoCamisa)
+    return !eventoPossuiCamisa.value || carrinho.value.every((i) => !!i.tamanhoCamisa)
   }
   return true
 })
@@ -511,7 +520,7 @@ function avancar() {
     }
   }
 
-  if (step.value === 3) {
+  if (step.value === 3 && eventoPossuiCamisa.value) {
     // Na Etapa 3, valida o tamanho das camisetas
     const faltamCamisetas = carrinho.value.filter((i) => !i.tamanhoCamisa)
     if (faltamCamisetas.length > 0) {
@@ -521,7 +530,7 @@ function avancar() {
     }
   }
 
-  if (step.value < passos.length) {
+  if (step.value < passos.value.length) {
     step.value += 1
   }
 }
@@ -680,7 +689,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
     const itemsPayload = carrinho.value.map((item) => ({
       categoriaId: item.categoriaId!,
       loteId: loteAtivo.value!.id,
-      tamanhoCamisa: item.tamanhoCamisa,
+      tamanhoCamisa: eventoPossuiCamisa.value ? item.tamanhoCamisa : undefined,
       cupomCodigo: cupomCodigo.value || undefined,
       dependenteId: item.dependenteId,
       atleta: item.tipo === 'MANUAL'
@@ -1139,8 +1148,9 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
           <!-- PASSO 3: CAMISETAS & RESUMO -->
           <div v-if="step === 3" class="space-y-6">
             <h2 class="text-xl font-black text-slate-900 flex items-center gap-2">
-              <Shirt class="w-5 h-5 text-orange-500" />
-              3. Tamanho das Camisetas & Resumo
+              <Shirt v-if="eventoPossuiCamisa" class="w-5 h-5 text-orange-500" />
+              <FileText v-else class="w-5 h-5 text-orange-500" />
+              {{ eventoPossuiCamisa ? '3. Tamanho das Camisetas & Resumo' : '3. Resumo da Inscrição' }}
             </h2>
 
             <div class="space-y-4">
@@ -1157,7 +1167,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                   </p>
                 </div>
 
-                <div class="flex items-center gap-2">
+                <div v-if="eventoPossuiCamisa" class="flex items-center gap-2">
                   <span class="text-xs text-slate-700 font-bold">Camiseta:</span>
                   <div class="flex gap-1">
                     <button

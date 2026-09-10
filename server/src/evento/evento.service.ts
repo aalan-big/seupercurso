@@ -15,6 +15,7 @@ const RESUMO_SELECT = {
   status: true,
   regulamentoUrl: true,
   bannerUrl: true,
+  possuiCamisa: true,
   taxaRepassadaAtleta: true,
   aceitaPix: true,
   aceitaCartao: true,

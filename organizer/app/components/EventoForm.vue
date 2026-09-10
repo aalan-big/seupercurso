@@ -78,6 +78,7 @@ const form = reactive({
   retiradaKitLocal: props.evento?.retiradaKitLocal ?? '',
   retiradaKitInicio: props.evento?.retiradaKitInicio?.slice(0, 16) ?? '',
   retiradaKitFim: props.evento?.retiradaKitFim?.slice(0, 16) ?? '',
+  possuiCamisa: props.evento?.possuiCamisa ?? true,
   limiteTrocaCamisaAté: props.evento?.limiteTrocaCamisaAté?.slice(0, 16) ?? '',
   camisasBloqueadas: props.evento?.camisasBloqueadas ?? false,
   permiteTransferencia: props.evento?.permiteTransferencia ?? true,
@@ -255,6 +256,7 @@ const temAlteracoes = computed(() => {
     form.retiradaKitLocal !== (props.evento.retiradaKitLocal ?? '') ||
     form.retiradaKitInicio !== (props.evento.retiradaKitInicio?.slice(0, 16) ?? '') ||
     form.retiradaKitFim !== (props.evento.retiradaKitFim?.slice(0, 16) ?? '') ||
+    form.possuiCamisa !== (props.evento.possuiCamisa ?? true) ||
     form.limiteTrocaCamisaAté !== (props.evento.limiteTrocaCamisaAté?.slice(0, 16) ?? '') ||
     form.camisasBloqueadas !== (props.evento.camisasBloqueadas ?? false) ||
     form.permiteTransferencia !== (props.evento.permiteTransferencia ?? true) ||
@@ -286,6 +288,7 @@ watch(
       form.retiradaKitLocal = ev.retiradaKitLocal ?? ''
       form.retiradaKitInicio = ev.retiradaKitInicio?.slice(0, 16) ?? ''
       form.retiradaKitFim = ev.retiradaKitFim?.slice(0, 16) ?? ''
+      form.possuiCamisa = ev.possuiCamisa ?? true
       form.limiteTrocaCamisaAté = ev.limiteTrocaCamisaAté?.slice(0, 16) ?? ''
       retiradaKitInicioDisplay.value = converterIsoDatetimeParaDisplay(form.retiradaKitInicio)
       retiradaKitFimDisplay.value = converterIsoDatetimeParaDisplay(form.retiradaKitFim)
@@ -331,6 +334,7 @@ function onSubmit() {
     retiradaKitLocal: form.retiradaKitLocal || undefined,
     retiradaKitInicio: form.retiradaKitInicio || undefined,
     retiradaKitFim: form.retiradaKitFim || undefined,
+    possuiCamisa: form.possuiCamisa,
     limiteTrocaCamisaAté: form.limiteTrocaCamisaAté || undefined,
     camisasBloqueadas: form.camisasBloqueadas,
     permiteTransferencia: form.permiteTransferencia,
@@ -710,10 +714,22 @@ function onSubmit() {
 
     <div class="rounded-2xl border border-orange-200 bg-orange-50/50 p-4 space-y-3">
       <label class="text-sm font-extrabold text-orange-950 flex items-center gap-2">
-        <Shirt :size="18" class="text-orange-700" /> Prazo de Produção dos Kits
+        <Shirt :size="18" class="text-orange-700" /> Kit e Prazo de Produção
       </label>
+
+      <label class="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3 cursor-pointer">
+        <input v-model="form.possuiCamisa" type="checkbox" class="h-4 w-4 text-primary accent-primary" />
+        <div class="text-xs">
+          <p class="font-bold text-slate-700">Este evento entrega camisa</p>
+          <p class="text-[11px] text-slate-500 font-normal">
+            Se desmarcar, o atleta não escolhe tamanho na inscrição e nenhuma informação de camisa aparece pra ele.
+          </p>
+        </div>
+      </label>
+
       <p class="text-xs text-slate-600">
-        Data em que você fecha o pedido com a gráfica. É diferente da retirada do kit — normalmente é bem antes. A partir dela, ninguém troca tamanho de camiseta, modalidade/categoria ou transfere a inscrição.
+        Data em que você fecha o pedido com a gráfica. É diferente da retirada do kit — normalmente é bem antes. A partir dela, ninguém troca
+        <template v-if="form.possuiCamisa">tamanho de camiseta, </template>modalidade/categoria ou transfere a inscrição.
       </p>
 
       <div class="min-w-0">

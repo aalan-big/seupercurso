@@ -43,6 +43,10 @@ export class UpdateEventoDto {
   retiradaKitFim?: string;
 
   @IsOptional()
+  @IsBoolean()
+  possuiCamisa?: boolean;
+
+  @IsOptional()
   @IsDateString()
   limiteTrocaCamisaAté?: string;
 

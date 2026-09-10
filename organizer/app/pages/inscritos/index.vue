@@ -37,6 +37,19 @@ const statusOpcoes = [
 const modalCategoriasAberto = ref(false)
 const abaCategoriaAtiva = ref('')
 
+// Eventos sem camisa nao tem tamanho pra mostrar nem editar. A lista pode
+// misturar varios eventos, entao a coluna so some quando nenhum deles usa camisa.
+function eventoPossuiCamisa(inscrito: { categoria: { modalidade: { evento: { id: string } } } }) {
+  const evento = eventos.value.find((e) => e.id === inscrito.categoria.modalidade.evento.id)
+  return evento?.possuiCamisa !== false
+}
+
+const mostrarColunaCamisa = computed(() => inscritos.value.some((i) => eventoPossuiCamisa(i)))
+
+const atletaSelecionadoPossuiCamisa = computed(
+  () => !atletaSelecionado.value || eventoPossuiCamisa(atletaSelecionado.value)
+)
+
 const inscritosPorCategoria = computed(() => {
   const grupos = new Map<string, { id: string; titulo: string; itens: typeof inscritos.value }>()
 
@@ -161,7 +174,9 @@ async function salvarEdicao360() {
   try {
     await atualizarInscricao(atletaSelecionado.value.id, {
       numeroPeito: formInscrito.value.numeroPeito.trim() || undefined,
-      tamanhoCamisa: formInscrito.value.tamanhoCamisa,
+      tamanhoCamisa: atletaSelecionadoPossuiCamisa.value
+        ? formInscrito.value.tamanhoCamisa
+        : undefined,
       categoriaId: formInscrito.value.categoriaId || undefined,
       status: formInscrito.value.status
     })
@@ -295,7 +310,7 @@ function formatarData(iso: string) {
             <th class="px-4 py-3.5">CPF</th>
             <th class="px-4 py-3.5">Evento</th>
             <th class="px-4 py-3.5">Modalidade / Categoria</th>
-            <th class="px-4 py-3.5 text-center">Camisa</th>
+            <th v-if="mostrarColunaCamisa" class="px-4 py-3.5 text-center">Camisa</th>
             <th class="px-4 py-3.5 text-center">Status</th>
           </tr>
         </thead>
@@ -324,7 +339,9 @@ function formatarData(iso: string) {
             <td class="px-4 py-3.5 text-slate-600 font-mono">{{ documentoCliente(inscrito) }}</td>
             <td class="px-4 py-3.5 font-semibold text-slate-700">{{ inscrito.categoria.modalidade.evento.nome }}</td>
             <td class="px-4 py-3.5 text-slate-600">{{ inscrito.categoria.modalidade.nome }} · {{ inscrito.categoria.nome }}</td>
-            <td class="px-4 py-3.5 text-center font-bold text-slate-700">{{ inscrito.tamanhoCamisa || '—' }}</td>
+            <td v-if="mostrarColunaCamisa" class="px-4 py-3.5 text-center font-bold text-slate-700">
+              {{ eventoPossuiCamisa(inscrito) ? inscrito.tamanhoCamisa || '—' : 'Sem camisa' }}
+            </td>
             <td class="px-4 py-3.5 text-center">
               <span
                 class="whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] uppercase"
@@ -416,7 +433,7 @@ function formatarData(iso: string) {
               </div>
 
               <!-- Editar Tamanho da Camisa -->
-              <div>
+              <div v-if="atletaSelecionadoPossuiCamisa">
                 <label class="font-black text-slate-700 mb-1 flex items-center gap-1"><Shirt :size="14" /> Tamanho da Camisa</label>
                 <select
                   v-model="formInscrito.tamanhoCamisa"
@@ -532,7 +549,7 @@ function formatarData(iso: string) {
                       <th class="px-3 py-2 text-center">Nº Peito</th>
                       <th class="px-3 py-2">Nome do Atleta</th>
                       <th class="px-3 py-2">CPF</th>
-                      <th class="px-3 py-2 text-center">Camisa</th>
+                      <th v-if="mostrarColunaCamisa" class="px-3 py-2 text-center">Camisa</th>
                       <th class="px-3 py-2 text-center">Status</th>
                     </tr>
                   </thead>
@@ -557,7 +574,9 @@ function formatarData(iso: string) {
                         </span>
                       </td>
                       <td class="px-3 py-2.5 text-slate-600 font-mono">{{ documentoCliente(inscrito) }}</td>
-                      <td class="px-3 py-2.5 text-center font-bold text-slate-700">{{ inscrito.tamanhoCamisa || '—' }}</td>
+                      <td v-if="mostrarColunaCamisa" class="px-3 py-2.5 text-center font-bold text-slate-700">
+                        {{ eventoPossuiCamisa(inscrito) ? inscrito.tamanhoCamisa || '—' : 'Sem camisa' }}
+                      </td>
                       <td class="px-3 py-2.5 text-center">
                         <span
                           class="whitespace-nowrap rounded-full px-2 py-1 text-[10px] uppercase"

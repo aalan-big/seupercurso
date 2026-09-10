@@ -118,7 +118,9 @@ export class InscricaoService {
           categoriaId: dto.categoriaId,
           loteId: lote.id,
           cupomId,
-          tamanhoCamisa: dto.tamanhoCamisa,
+          tamanhoCamisa: categoria.modalidade.evento.possuiCamisa
+            ? dto.tamanhoCamisa
+            : null,
           status: StatusInscricao.PENDENTE_PAGAMENTO,
         },
       });
@@ -268,7 +270,10 @@ export class InscricaoService {
         categoriaId: item.categoriaId,
         loteId: lote.id,
         cupomId,
-        tamanhoCamisa: item.tamanhoCamisa || null,
+        // Evento sem camisa nunca guarda tamanho, mesmo que o cliente mande um.
+        tamanhoCamisa: categoria.modalidade.evento.possuiCamisa
+          ? item.tamanhoCamisa || null
+          : null,
         dependenteId,
         atletaNome,
         atletaCpf,
@@ -404,6 +409,13 @@ export class InscricaoService {
     }
 
     const evento = inscricao.categoria.modalidade.evento;
+
+    if (!evento.possuiCamisa) {
+      throw new BadRequestException(
+        'Este evento não entrega camisa, então não há tamanho para alterar.',
+      );
+    }
+
     const agora = new Date();
     if (
       evento.camisasBloqueadas ||

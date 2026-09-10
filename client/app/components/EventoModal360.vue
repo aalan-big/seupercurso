@@ -158,6 +158,11 @@ const regulamentoUrlEmbed = computed(() => {
 
 const pdfEmTelaCheia = ref(false)
 
+// Evento sem camisa nao mostra nada de tamanho pro atleta.
+const eventoPossuiCamisa = computed(
+  () => props.inscricao?.categoria.modalidade.evento.possuiCamisa !== false
+)
+
 // Verifica se o organizador bloqueou a alteração de camisa (envio para a gráfica)
 const camisasBloqueadasPelaGrafica = computed(() => {
   const evento = props.inscricao?.categoria.modalidade.evento
@@ -334,7 +339,7 @@ async function submeterTransferencia() {
           <div v-if="abaAtiva === 'geral'" class="space-y-6">
             
             <!-- Alertas de erro/sucesso globais na aba -->
-            <div v-if="sucessoCamisa" class="flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-800">
+            <div v-if="eventoPossuiCamisa && sucessoCamisa" class="flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-800">
               <CheckCircle :size="14" /> {{ sucessoCamisa }}
             </div>
             <div v-if="sucessoCategoria" class="flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-800">
@@ -344,7 +349,7 @@ async function submeterTransferencia() {
               <PartyPopper :size="14" /> {{ sucessoTransferencia }}
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 gap-4" :class="eventoPossuiCamisa ? 'sm:grid-cols-3' : 'sm:grid-cols-2'">
               <!-- Card Número de Peito -->
               <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center">
                 <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Número de Peito</p>
@@ -388,7 +393,7 @@ async function submeterTransferencia() {
               </div>
 
               <!-- Card Camisa com Formulário de Edição -->
-              <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center flex flex-col justify-between">
+              <div v-if="eventoPossuiCamisa" class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center flex flex-col justify-between">
                 <div>
                   <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Tamanho da Camisa</p>
                   <p class="mt-1 flex items-center justify-center gap-1.5 text-xl font-black text-slate-800">
@@ -419,7 +424,7 @@ async function submeterTransferencia() {
             </div>
 
             <!-- Painel Inline de Alteração de Camisa -->
-            <div v-if="editandoCamisa" class="rounded-2xl border border-secondary/30 bg-secondary/5 p-4 space-y-3">
+            <div v-if="eventoPossuiCamisa && editandoCamisa" class="rounded-2xl border border-secondary/30 bg-secondary/5 p-4 space-y-3">
               <div class="flex items-center justify-between">
                 <p class="text-xs font-bold text-slate-800 uppercase tracking-wider">Escolha o novo tamanho da camisa:</p>
                 <button type="button" class="text-xs font-bold text-slate-400 hover:text-slate-600" @click="editandoCamisa = false">Cancelar</button>

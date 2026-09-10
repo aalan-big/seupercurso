@@ -856,6 +856,15 @@ export class OrganizadorService {
       );
     }
 
+    if (
+      dto.tamanhoCamisa !== undefined &&
+      !inscricao.categoria.modalidade.evento.possuiCamisa
+    ) {
+      throw new BadRequestException(
+        'Este evento não entrega camisa, então não há tamanho para definir.',
+      );
+    }
+
     const res = await this.prisma.inscricao.update({
       where: { id: inscricaoId },
       data: {

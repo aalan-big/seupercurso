@@ -14,6 +14,7 @@ export interface EventoResumo {
   aceitaPix?: boolean
   aceitaCartao?: boolean
   bannerUrl?: string | null
+  possuiCamisa?: boolean
   valorApartirDe: number | null
 }
 

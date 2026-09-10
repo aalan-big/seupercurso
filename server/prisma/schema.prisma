@@ -254,6 +254,10 @@ model Evento {
   retiradaKitLocal        String?
   retiradaKitInicio       DateTime?
   retiradaKitFim          DateTime?
+  /// Nem toda prova entrega camisa. Quando falso, o atleta nao escolhe tamanho
+  /// na inscricao e nada de camisa aparece pra ele nem pro organizador. Padrao
+  /// verdadeiro para nao mexer nos eventos que ja existem.
+  possuiCamisa            Boolean      @default(true)
   limiteTrocaCamisaAté   DateTime?
   camisasBloqueadas       Boolean      @default(false)
   permiteTransferencia    Boolean      @default(true)
