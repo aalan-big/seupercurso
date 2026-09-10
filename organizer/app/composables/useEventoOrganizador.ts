@@ -60,7 +60,6 @@ export interface EventoOrganizador {
   permiteTransferencia: boolean
   aplicaDescontoIdoso: boolean
   percentualDescontoIdoso: string | null
-  taxaRepassadaAtleta: boolean
   aceitaPix: boolean
   aceitaCartao: boolean
   comissaoPagaPeloAtleta: boolean

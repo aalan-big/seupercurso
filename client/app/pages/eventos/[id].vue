@@ -435,10 +435,9 @@ function calcularPrecoItem(item: ItemCarrinho) {
     valor -= valor * (cupomAplicadoInfo.value.percentualDesconto / 100)
   }
 
-  if (eventoSelecionado.value?.taxaRepassadaAtleta) {
-    valor += valorBase * 0.10
-  }
-
+  // A comissao nao entra aqui: quando o organizador a repassa, ela vem do
+  // servidor como "Taxa de servico" e aparece discriminada no checkout. O 0.10
+  // fixo que existia aqui ainda errava para organizador com comissao diferente.
   return Math.max(0, valor)
 }
 

@@ -82,7 +82,6 @@ const form = reactive({
   limiteTrocaCamisaAté: props.evento?.limiteTrocaCamisaAté?.slice(0, 16) ?? '',
   camisasBloqueadas: props.evento?.camisasBloqueadas ?? false,
   permiteTransferencia: props.evento?.permiteTransferencia ?? true,
-  taxaRepassadaAtleta: props.evento?.taxaRepassadaAtleta ?? true,
   aceitaPix: props.evento?.aceitaPix ?? true,
   aceitaCartao: props.evento?.aceitaCartao ?? true,
   comissaoPagaPeloAtleta: props.evento?.comissaoPagaPeloAtleta ?? false,
@@ -260,7 +259,6 @@ const temAlteracoes = computed(() => {
     form.limiteTrocaCamisaAté !== (props.evento.limiteTrocaCamisaAté?.slice(0, 16) ?? '') ||
     form.camisasBloqueadas !== (props.evento.camisasBloqueadas ?? false) ||
     form.permiteTransferencia !== (props.evento.permiteTransferencia ?? true) ||
-    form.taxaRepassadaAtleta !== (props.evento.taxaRepassadaAtleta ?? true) ||
     form.aceitaPix !== (props.evento.aceitaPix ?? true) ||
     form.aceitaCartao !== (props.evento.aceitaCartao ?? true) ||
     form.comissaoPagaPeloAtleta !== (props.evento.comissaoPagaPeloAtleta ?? false) ||
@@ -295,7 +293,6 @@ watch(
       limiteTrocaCamisaDisplay.value = converterIsoDatetimeParaDisplay(form.limiteTrocaCamisaAté)
       form.camisasBloqueadas = ev.camisasBloqueadas ?? false
       form.permiteTransferencia = ev.permiteTransferencia ?? true
-      form.taxaRepassadaAtleta = ev.taxaRepassadaAtleta ?? true
       form.aceitaPix = ev.aceitaPix ?? true
       form.aceitaCartao = ev.aceitaCartao ?? true
       form.comissaoPagaPeloAtleta = ev.comissaoPagaPeloAtleta ?? false
@@ -338,7 +335,6 @@ function onSubmit() {
     limiteTrocaCamisaAté: form.limiteTrocaCamisaAté || undefined,
     camisasBloqueadas: form.camisasBloqueadas,
     permiteTransferencia: form.permiteTransferencia,
-    taxaRepassadaAtleta: form.taxaRepassadaAtleta,
     aceitaPix: form.aceitaPix,
     aceitaCartao: form.aceitaCartao,
     comissaoPagaPeloAtleta: form.comissaoPagaPeloAtleta
@@ -773,49 +769,6 @@ function onSubmit() {
           <p class="text-[11px] text-slate-500 font-normal">Se desligar, nenhum atleta pode repassar a inscrição pra outra pessoa neste evento.</p>
         </div>
       </label>
-    </div>
-
-    <div class="rounded-2xl border border-blue-200 bg-blue-50/50 p-4 space-y-3">
-      <label class="text-sm font-extrabold text-blue-950 flex items-center gap-2">
-        <CreditCard :size="18" class="text-blue-700" /> Taxa de Conveniência da Plataforma
-      </label>
-      <p class="text-xs text-slate-600">
-        A taxa fixa da plataforma é calculada sempre em cima do valor cheio do lote/evento (ex: 10% de R$ 70,00 = R$ 7,00). Escolha como a taxa será tratada:
-      </p>
-
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-        <label
-          class="flex items-center gap-2.5 rounded-xl border p-3 cursor-pointer transition"
-          :class="!form.taxaRepassadaAtleta ? 'border-primary bg-white shadow-xs font-bold text-primary' : 'border-slate-200 bg-white text-slate-600'"
-        >
-          <input
-            v-model="form.taxaRepassadaAtleta"
-            type="radio"
-            :value="false"
-            class="h-4 w-4 text-primary accent-primary"
-          />
-          <div class="text-xs">
-            <p class="font-bold">Absorver taxa (Padrão)</p>
-            <p class="text-[11px] text-slate-500 font-normal">O valor da corrida para o atleta é o preço do lote.</p>
-          </div>
-        </label>
-
-        <label
-          class="flex items-center gap-2.5 rounded-xl border p-3 cursor-pointer transition"
-          :class="form.taxaRepassadaAtleta ? 'border-primary bg-white shadow-xs font-bold text-primary' : 'border-slate-200 bg-white text-slate-600'"
-        >
-          <input
-            v-model="form.taxaRepassadaAtleta"
-            type="radio"
-            :value="true"
-            class="h-4 w-4 text-primary accent-primary"
-          />
-          <div class="text-xs">
-            <p class="font-bold">Repassar taxa ao atleta</p>
-            <p class="text-[11px] text-slate-500 font-normal">Adiciona a taxa fixa da plataforma no total pago pelo atleta.</p>
-          </div>
-        </label>
-      </div>
     </div>
 
     <button

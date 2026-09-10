@@ -16,8 +16,7 @@ export async function calcularValorInscricao(
   ctx: ContextoValor,
 ): Promise<number> {
   const preco = await resolverPreco(prisma, ctx.loteId, ctx.modalidadeId);
-  const valorBaseCheio = Number(preco.valor);
-  let valor = valorBaseCheio;
+  let valor = Number(preco.valor);
 
   const evento = await prisma.evento.findUnique({
     where: { id: ctx.eventoId },
@@ -25,8 +24,6 @@ export async function calcularValorInscricao(
       aplicaDescontoIdoso: true,
       percentualDescontoIdoso: true,
       dataInicio: true,
-      taxaRepassadaAtleta: true,
-      organizador: { select: { comissaoPercentual: true } },
     },
   });
 
@@ -55,14 +52,9 @@ export async function calcularValorInscricao(
     }
   }
 
-  // Taxa fixa da plataforma sobre o valor cheio do evento (ex: 10% de R$ 70,00 = R$ 7,00)
-  const percentualComissao = Number(evento?.organizador?.comissaoPercentual ?? 10);
-  const taxaPlataformaFixa = valorBaseCheio * (percentualComissao / 100);
-
-  // Se o organizador optou por repassar a taxa ao atleta, soma no total final
-  if (evento?.taxaRepassadaAtleta) {
-    valor += taxaPlataformaFixa;
-  }
-
+  // A comissao da plataforma NAO entra aqui. Esta funcao devolve so o preco da
+  // inscricao; quem paga a comissao e decidido no pagamento, por
+  // `Evento.comissaoPagaPeloAtleta`, e somada la como taxa de servico. Somar
+  // aqui inflava a base sobre a qual a propria comissao era calculada.
   return Math.max(0, Number(valor.toFixed(2)));
 }

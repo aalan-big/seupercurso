@@ -10,7 +10,6 @@ export interface EventoResumo {
   capacidade: number | null
   vagasRestantes?: number | null
   status: string
-  taxaRepassadaAtleta?: boolean
   aceitaPix?: boolean
   aceitaCartao?: boolean
   bannerUrl?: string | null

@@ -264,6 +264,11 @@ model Evento {
   apiKeyCronometragem     String?      @unique
   aplicaDescontoIdoso     Boolean      @default(false)
   percentualDescontoIdoso Decimal?     @db.Decimal(5, 2)
+  /// APOSENTADO — nada no codigo le mais este campo. Ele somava a comissao no
+  /// preco da inscricao, enquanto `comissaoPagaPeloAtleta` a soma como taxa de
+  /// servico no pagamento: os dois ligados cobravam duas vezes, e so este
+  /// ligado fazia a comissao ser calculada sobre a base ja inflada. A coluna
+  /// segue aqui, zerada, ate a migracao que a remove.
   taxaRepassadaAtleta     Boolean      @default(false)
   aceitaPix               Boolean      @default(true)
   aceitaCartao            Boolean      @default(true)

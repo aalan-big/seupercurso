@@ -16,7 +16,6 @@ const RESUMO_SELECT = {
   regulamentoUrl: true,
   bannerUrl: true,
   possuiCamisa: true,
-  taxaRepassadaAtleta: true,
   aceitaPix: true,
   aceitaCartao: true,
   comissaoPagaPeloAtleta: true,

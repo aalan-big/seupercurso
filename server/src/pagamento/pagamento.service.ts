@@ -676,7 +676,7 @@ export class PagamentoService {
           cpfAtleta: insc.dependente?.cpf || insc.atletaCpf || comprador.pf?.cpf || null,
           modalidade: insc.categoria.modalidade.nome,
           categoria: insc.categoria.nome,
-          tamanhoCamisa: insc.tamanhoCamisa || 'N/A',
+          tamanhoCamisa: insc.tamanhoCamisa,
           numeroPeito: insc.numeroPeito,
           valor: valorTotal.toFixed(2),
         })),

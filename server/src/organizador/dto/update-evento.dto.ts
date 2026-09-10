@@ -64,10 +64,6 @@ export class UpdateEventoDto {
 
   @IsOptional()
   @IsBoolean()
-  taxaRepassadaAtleta?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
   aceitaPix?: boolean;
 
   @IsOptional()

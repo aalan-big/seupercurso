@@ -75,10 +75,6 @@ export class CreateEventoDto {
 
   @IsOptional()
   @IsBoolean()
-  taxaRepassadaAtleta?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
   aceitaPix?: boolean;
 
   @IsOptional()

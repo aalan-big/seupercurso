@@ -114,8 +114,6 @@ describe('InscricaoService', () => {
       aplicaDescontoIdoso: false,
       percentualDescontoIdoso: null,
       dataInicio: dataEvento,
-      taxaRepassadaAtleta: false,
-      organizador: { comissaoPercentual: 10 },
     });
   });
 
