@@ -85,7 +85,7 @@ onMounted(async () => {
       </p>
       <p v-else-if="!carregando && eventosFiltrados.length === 0" class="text-slate-500">Nenhum evento encontrado.</p>
 
-      <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div class="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
         <EventoCard v-for="evento in eventosFiltrados" :key="evento.id" :evento="evento" />
       </div>
     </section>

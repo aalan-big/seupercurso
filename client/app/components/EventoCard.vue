@@ -156,7 +156,7 @@ async function compartilhar() {
           </span>
 
           <p
-            class="mt-0.5 truncate text-sm font-black"
+            class="mt-0.5 text-sm font-black leading-tight"
             :class="estaEsgotado ? 'text-red-400' : estaFinalizado ? 'text-slate-300' : 'text-warning'"
           >
             <template v-if="estaEsgotado">
@@ -170,7 +170,8 @@ async function compartilhar() {
                 Gratuito
               </template>
               <template v-else>
-                A partir de {{ formatarPreco(props.evento.valorApartirDe) }}
+                <span class="block text-[10px] font-bold uppercase tracking-wider text-white/70">A partir de</span>
+                <span class="text-base">{{ formatarPreco(props.evento.valorApartirDe) }}</span>
               </template>
             </template>
             <template v-else>
@@ -181,7 +182,7 @@ async function compartilhar() {
 
         <span
           v-if="!estaEsgotado && !estaFinalizado"
-          class="flex shrink-0 items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-[11px] font-extrabold uppercase tracking-wide text-primary transition group-hover:bg-warning group-hover:text-white"
+          class="flex shrink-0 items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-[11px] font-extrabold uppercase tracking-wide text-primary transition group-hover:bg-warning group-hover:text-white"
         >
           Garantir Vaga <ArrowRight :size="14" />
         </span>
