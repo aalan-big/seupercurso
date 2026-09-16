@@ -41,3 +41,20 @@ input[type="date"] {
   min-height: 3rem;
   padding: 0.75rem 1rem;
 }
+
+/* Texto comum nao e campo de digitacao: o ponteiro fica como seta em vez da
+   "barrinha" (I-beam) e nenhum cursor de texto pisca ao clicar (mesmo com a
+   navegacao por cursor do Chrome, F7, ligada sem querer). Links e botoes
+   continuam com a mao e os campos de formulario continuam com a barrinha. */
+body {
+  cursor: default;
+  caret-color: transparent;
+}
+
+input,
+textarea,
+select,
+[contenteditable="true"] {
+  cursor: auto;
+  caret-color: auto;
+}

@@ -67,13 +67,27 @@ async function compartilhar() {
     class="group block overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:border-slate-300"
   >
     <div class="relative overflow-hidden h-52 bg-slate-900">
-      <img
+      <!-- A arte de corrida quase sempre vem no formato de post (quadrada ou
+           vertical) e o card e largo. Em vez de cortar titulo e rodape, a
+           propria imagem desfocada preenche o fundo e a arte inteira fica
+           por cima, em qualquer proporcao que o organizador enviar. -->
+      <div
         v-if="bannerUrlFormatada"
-        :src="bannerUrlFormatada"
-        :alt="props.evento.nome"
-        class="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+        class="absolute inset-0"
         :class="{ 'grayscale-30 brightness-90': estaEsgotado || estaFinalizado }"
-      />
+      >
+        <img
+          :src="bannerUrlFormatada"
+          alt=""
+          aria-hidden="true"
+          class="absolute inset-0 h-full w-full scale-110 object-cover blur-lg brightness-75"
+        />
+        <img
+          :src="bannerUrlFormatada"
+          :alt="props.evento.nome"
+          class="relative h-full w-full object-contain transition duration-500 group-hover:scale-105"
+        />
+      </div>
       <div
         v-else
         :class="['flex h-52 items-center justify-center bg-gradient-to-br text-white', gradientePorId(props.evento.id)]"
