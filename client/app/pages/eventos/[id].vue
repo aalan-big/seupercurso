@@ -873,7 +873,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
         <div v-else class="space-y-8">
           
           <!-- Banner Header Evento -->
-          <div class="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row gap-6 items-start md:items-center justify-between shadow-sm">
+          <div class="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 flex flex-col gap-6 shadow-sm">
             <div class="space-y-2">
               <span class="px-3 py-1 bg-orange-100 text-orange-800 border border-orange-200 rounded-full text-xs font-black uppercase tracking-wider">
                 Inscrição de Atletas
@@ -885,17 +885,20 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
               </div>
             </div>
 
-            <!-- Stepper -->
-            <div class="flex items-center gap-2 self-stretch md:self-auto justify-center bg-slate-50 p-3 rounded-2xl border border-slate-200">
-              <div v-for="(p, index) in passos" :key="index" class="flex items-center gap-2">
-                <div
-                  class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition"
-                  :class="step === index + 1 ? 'bg-orange-500 text-white shadow-sm' : step > index + 1 ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'"
-                >
-                  {{ index + 1 }}
+            <!-- Stepper: linha propria, abaixo do titulo, para o nome do evento
+                 nao espremer os rotulos. Em telas estreitas rola na horizontal. -->
+            <div class="flex items-center gap-3 sm:gap-4 overflow-x-auto bg-slate-50 px-4 py-3 rounded-2xl border border-slate-200">
+              <div v-for="(p, index) in passos" :key="index" class="flex items-center gap-3 sm:gap-4 shrink-0">
+                <div class="flex items-center gap-2">
+                  <div
+                    class="w-7 h-7 shrink-0 rounded-full flex items-center justify-center text-xs font-bold transition"
+                    :class="step === index + 1 ? 'bg-orange-500 text-white shadow-sm' : step > index + 1 ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'"
+                  >
+                    {{ index + 1 }}
+                  </div>
+                  <span class="text-xs font-bold whitespace-nowrap hidden sm:inline" :class="step === index + 1 ? 'text-slate-900' : 'text-slate-400'">{{ p }}</span>
                 </div>
-                <span class="text-xs font-bold hidden sm:inline" :class="step === index + 1 ? 'text-slate-900' : 'text-slate-400'">{{ p }}</span>
-                <span v-if="index < passos.length - 1" class="w-4 h-0.5 bg-slate-300"></span>
+                <span v-if="index < passos.length - 1" class="w-6 sm:w-8 h-0.5 bg-slate-300 shrink-0"></span>
               </div>
             </div>
           </div>
