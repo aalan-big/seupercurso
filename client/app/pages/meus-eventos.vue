@@ -327,6 +327,13 @@ function formatarData(iso?: string | null) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+// dataInicio do evento e so o dia (gravado a meia-noite UTC). Formatar em UTC
+// e sem hora: no fuso de Brasilia o dia voltaria para a vespera as 21:00.
+function formatarDia(iso?: string | null) {
+  if (!iso) return ''
+  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })
+}
+
 function formatarDataExtensa(iso?: string | null) {
   if (!iso) return ''
   return new Date(iso).toLocaleDateString('pt-BR', {
@@ -334,8 +341,7 @@ function formatarDataExtensa(iso?: string | null) {
     day: '2-digit',
     month: 'long',
     year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
+    timeZone: 'UTC'
   })
 }
 
@@ -717,7 +723,7 @@ async function confirmarCancelamento(id: string) {
             <div class="p-5 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
               <div class="md:col-span-2 space-y-2">
                 <p class="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
-                  <Calendar :size="14" /> Prova realizada em {{ formatarData(inscricao.categoria.modalidade.evento.dataInicio) }}
+                  <Calendar :size="14" /> Prova realizada em {{ formatarDia(inscricao.categoria.modalidade.evento.dataInicio) }}
                 </p>
                 <p class="flex items-center gap-1.5 text-sm text-slate-500">
                   <MapPin :size="14" /> {{ inscricao.categoria.modalidade.evento.cidade }}/{{ inscricao.categoria.modalidade.evento.estado }}

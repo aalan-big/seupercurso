@@ -123,15 +123,16 @@ function formatarData(iso?: string | null) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-function formatarDataHora(iso?: string | null) {
+// dataInicio do evento e so o dia (meia-noite UTC): formatar em UTC e sem hora,
+// senao em Brasilia aparece a vespera as 21:00.
+function formatarDiaEvento(iso?: string | null) {
   if (!iso) return 'A definir'
   return new Date(iso).toLocaleDateString('pt-BR', {
     weekday: 'short',
     day: '2-digit',
     month: 'long',
     year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
+    timeZone: 'UTC'
   })
 }
 
@@ -289,7 +290,7 @@ async function submeterTransferencia() {
               {{ inscricao.categoria.modalidade.evento.nome }}
             </h2>
             <p class="text-xs sm:text-sm text-slate-200 flex items-center gap-2">
-              <span class="flex items-center gap-1"><Calendar :size="14" /> {{ formatarDataHora(inscricao.categoria.modalidade.evento.dataInicio) }}</span>
+              <span class="flex items-center gap-1"><Calendar :size="14" /> {{ formatarDiaEvento(inscricao.categoria.modalidade.evento.dataInicio) }}</span>
               <span>•</span>
               <span class="flex items-center gap-1"><MapPin :size="14" /> {{ inscricao.categoria.modalidade.evento.cidade }}/{{ inscricao.categoria.modalidade.evento.estado }}</span>
             </p>
