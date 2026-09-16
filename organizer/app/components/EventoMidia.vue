@@ -53,12 +53,66 @@ const regulamentoUrl = computed(() =>
     : props.evento.regulamentoUrl
 )
 
+const FORMATOS_CAPA = ['image/jpeg', 'image/png', 'image/webp']
+
+function lerDimensoes(arquivo: File): Promise<{ largura: number; altura: number }> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(arquivo)
+    const img = new Image()
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      resolve({ largura: img.naturalWidth, altura: img.naturalHeight })
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('Não foi possível ler a imagem.'))
+    }
+    img.src = url
+  })
+}
+
+/**
+ * O card do site e um cartaz 3:4 que corta o que vier fora da proporcao.
+ * Recusar aqui evita a arte aparecer cortada sem o organizador perceber.
+ * Tolerancia de ~2% cobre arredondamento de exportacao (ex.: 1080x1440).
+ */
+async function validarCapa(arquivo: File): Promise<string | null> {
+  if (!FORMATOS_CAPA.includes(arquivo.type)) {
+    return 'A capa precisa ser JPG, PNG ou WEBP.'
+  }
+  const { largura, altura } = await lerDimensoes(arquivo)
+  const proporcao = largura / altura
+  if (Math.abs(proporcao - 3 / 4) > 0.02) {
+    return `A capa precisa estar na proporção 3:4 (vertical), por exemplo 1200×1600px. A imagem enviada tem ${largura}×${altura}px.`
+  }
+  if (largura < 600 || altura < 800) {
+    return `A capa precisa ter pelo menos 600×800px para não ficar embaçada. A imagem enviada tem ${largura}×${altura}px.`
+  }
+  return null
+}
+
 async function onArquivo(campo: 'banner' | 'regulamento', e: Event) {
   const input = e.target as HTMLInputElement
   const arquivo = input.files?.[0]
   if (!arquivo) return
 
   erro.value = ''
+
+  if (campo === 'banner') {
+    try {
+      const problema = await validarCapa(arquivo)
+      if (problema) {
+        erro.value = problema
+        input.value = ''
+        return
+      }
+    } catch (err) {
+      erro.value = extrairErro(err)
+      input.value = ''
+      return
+    }
+  }
+
   enviando.value = campo
   try {
     await uploadMidia(props.evento.id, campo, arquivo)
@@ -88,7 +142,7 @@ async function onArquivo(campo: 'banner' | 'regulamento', e: Event) {
       <ul class="mb-3 space-y-0.5 text-xs text-slate-500">
         <li>• Formatos aceitos: JPG, PNG ou WEBP</li>
         <li>• <strong class="text-slate-700">Proporção 3:4 (vertical)</strong> — tamanho recomendado 1200×1600px</li>
-        <li>• Artes quadradas ou horizontais são cortadas nas laterais/embaixo para caber no card</li>
+        <li>• Mínimo 600×800px. Artes quadradas ou horizontais não são aceitas</li>
       </ul>
       <div v-if="bannerUrl" class="mb-3">
         <p class="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Pré-visualização do card</p>
@@ -98,7 +152,7 @@ async function onArquivo(campo: 'banner' | 'regulamento', e: Event) {
       </div>
       <input
         type="file"
-        accept="image/*"
+        accept="image/jpeg,image/png,image/webp"
         :disabled="enviando === 'banner'"
         class="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200"
         @change="(e) => onArquivo('banner', e)"
