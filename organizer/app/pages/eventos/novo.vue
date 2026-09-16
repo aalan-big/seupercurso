@@ -16,7 +16,7 @@ async function onSubmit(payload: Record<string, unknown>, arquivoRegulamento: Fi
         // evento já foi criado; organizador pode reenviar o PDF na tela de edição
       }
     }
-    await navigateTo(`/eventos/${evento.id}/editar`)
+    await navigateTo(`/eventos/${evento.id}/editar?criado=1`)
   } catch (e) {
     erro.value = extrairErro(e)
   } finally {

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { CheckCircle } from 'lucide-vue-next'
+
 const route = useRoute()
 const id = route.params.id as string
 
@@ -8,10 +10,18 @@ const carregandoPagina = ref(true)
 const carregando = ref(false)
 const erro = ref('')
 const sucesso = ref(false)
+// Ao salvar, a pessoa esta no fim do formulario; um aviso no topo passa
+// despercebido. O popup cobre a tela e so some quando ela fechar.
+const popupSucesso = ref<'salvo' | 'criado' | null>(null)
 
 const abaAtiva = ref<'dados' | 'modalidades' | 'lotes' | 'descontos' | 'cronometragem'>('dados')
 
 onMounted(async () => {
+  if (route.query.criado === '1') {
+    popupSucesso.value = 'criado'
+    // Tira o parametro da URL para o popup nao voltar num F5.
+    await navigateTo({ path: route.path, query: {} }, { replace: true })
+  }
   try {
     await fetchEvento(id)
   } catch (e) {
@@ -28,6 +38,7 @@ async function onSubmit(payload: Record<string, unknown>, _arquivoRegulamento: F
   try {
     await atualizarEvento(id, payload as Parameters<typeof atualizarEvento>[1])
     sucesso.value = true
+    popupSucesso.value = 'salvo'
   } catch (e) {
     erro.value = extrairErro(e)
   } finally {
@@ -38,6 +49,37 @@ async function onSubmit(payload: Record<string, unknown>, _arquivoRegulamento: F
 
 <template>
   <div class="mx-auto max-w-3xl">
+    <Teleport to="body">
+      <div
+        v-if="popupSucesso"
+        class="fixed inset-0 z-[120] flex items-center justify-center p-4"
+        role="dialog"
+        aria-modal="true"
+      >
+        <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" @click="popupSucesso = null"></div>
+        <div class="relative w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl">
+          <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+            <CheckCircle :size="32" />
+          </div>
+          <h2 class="mt-4 text-lg font-extrabold text-slate-900">
+            {{ popupSucesso === 'criado' ? 'Evento criado!' : 'Alterações salvas!' }}
+          </h2>
+          <p class="mt-1 text-sm text-slate-500">
+            {{ popupSucesso === 'criado'
+              ? 'Agora cadastre percursos, categorias, lotes e a capa do evento nas abas acima.'
+              : 'Os dados do evento foram atualizados com sucesso.' }}
+          </p>
+          <button
+            type="button"
+            class="mt-5 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-bold uppercase tracking-wide text-white transition hover:bg-primary-hover"
+            @click="popupSucesso = null"
+          >
+            Ok, entendi
+          </button>
+        </div>
+      </div>
+    </Teleport>
+
     <NuxtLink to="/eventos" class="text-sm font-semibold text-secondary hover:underline">← Meus eventos</NuxtLink>
 
     <h1 class="mt-2 text-2xl font-extrabold uppercase tracking-tight text-primary">Editar evento</h1>

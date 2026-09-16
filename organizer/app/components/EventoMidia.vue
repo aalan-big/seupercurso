@@ -82,9 +82,19 @@ async function onArquivo(campo: 'banner' | 'regulamento', e: Event) {
     </p>
 
     <div>
-      <label class="mb-2 block text-sm font-semibold text-slate-700">Banner do evento</label>
-      <div v-if="bannerUrl" class="mb-2 overflow-hidden rounded-xl border border-slate-200">
-        <img :src="bannerUrl" alt="Banner do evento" class="h-32 w-full object-cover" />
+      <label class="mb-1 block text-sm font-semibold text-slate-700">Capa do evento</label>
+      <!-- O card do site e um cartaz vertical: a arte preenche o card inteiro
+           e e cortada se vier em outra proporcao. O preview reproduz o corte. -->
+      <ul class="mb-3 space-y-0.5 text-xs text-slate-500">
+        <li>• Formatos aceitos: JPG, PNG ou WEBP</li>
+        <li>• <strong class="text-slate-700">Proporção 3:4 (vertical)</strong> — tamanho recomendado 1200×1600px</li>
+        <li>• Artes quadradas ou horizontais são cortadas nas laterais/embaixo para caber no card</li>
+      </ul>
+      <div v-if="bannerUrl" class="mb-3">
+        <p class="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Pré-visualização do card</p>
+        <div class="w-40 aspect-[3/4] overflow-hidden rounded-xl border border-slate-200 bg-slate-900 shadow-sm">
+          <img :src="bannerUrl" alt="Capa do evento" class="h-full w-full object-cover object-top" />
+        </div>
       </div>
       <input
         type="file"
