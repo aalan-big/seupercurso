@@ -63,7 +63,7 @@ async function onSubmit() {
             rel="noopener noreferrer"
             class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-warning px-6 py-3 text-sm font-bold uppercase tracking-wide text-primary shadow-lg transition hover:brightness-95 sm:w-auto"
           >
-            <img src="/icone_whats.webp" alt="" class="h-6 w-6" /> Chamar no WhatsApp
+            Chamar no WhatsApp
           </a>
           <a
             href="#formulario"
