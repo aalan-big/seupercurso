@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Mail, MapPin, Clock, CheckCircle2, MessageCircle, ArrowRight, Send, ArrowUpRight } from 'lucide-vue-next'
+import { Mail, MapPin, Clock, CheckCircle2, ArrowRight, Send, ArrowUpRight } from 'lucide-vue-next'
 
 const { enviarContato } = useContato()
 const config = useRuntimeConfig()
@@ -63,7 +63,7 @@ async function onSubmit() {
             rel="noopener noreferrer"
             class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-warning px-6 py-3 text-sm font-bold uppercase tracking-wide text-primary shadow-lg transition hover:brightness-95 sm:w-auto"
           >
-            <MessageCircle :size="18" /> Chamar no WhatsApp
+            <img src="/icone_whats.webp" alt="" class="h-6 w-6" /> Chamar no WhatsApp
           </a>
           <a
             href="#formulario"
@@ -182,9 +182,7 @@ async function onSubmit() {
                 <span class="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-accent">
                   <span class="h-1.5 w-1.5 rounded-full bg-accent"></span> Canal mais rápido
                 </span>
-                <span class="mt-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent text-white shadow-lg shadow-accent/30">
-                  <MessageCircle :size="28" />
-                </span>
+                <img src="/icone_whats.webp" alt="WhatsApp" class="mt-5 h-16 w-16 rounded-2xl bg-white shadow-lg shadow-accent/30" />
                 <h3 class="mt-5 text-lg font-extrabold uppercase tracking-tight">WhatsApp do suporte</h3>
                 <p class="mt-1 text-2xl font-extrabold tracking-tight text-white">{{ WHATSAPP_EXIBICAO }}</p>
                 <p class="mt-2 text-sm text-slate-300">Atendimento em horário comercial. Toque pra abrir a conversa.</p>
