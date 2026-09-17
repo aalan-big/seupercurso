@@ -1,7 +1,13 @@
 <script setup lang="ts">
-import { Mail, MapPin, Clock, CheckCircle2 } from 'lucide-vue-next'
+import { Mail, MapPin, Clock, CheckCircle2, MessageCircle } from 'lucide-vue-next'
 
 const { enviarContato } = useContato()
+
+// Suporte via WhatsApp. Guardamos só os dígitos (DDI+DDD+número) e
+// montamos o link wa.me com uma mensagem inicial pra facilitar o primeiro contato.
+const WHATSAPP_NUMERO = '5588992369086'
+const WHATSAPP_EXIBICAO = '(88) 99236-9086'
+const whatsappUrl = `https://wa.me/${WHATSAPP_NUMERO}?text=${encodeURIComponent('Olá! Vim pelo site SeuPercurso e preciso de ajuda.')}`
 
 const form = reactive({ nome: '', email: '', assunto: '', mensagem: '' })
 const erro = ref('')
@@ -36,7 +42,7 @@ async function onSubmit() {
         </span>
         <h1 class="mt-5 text-3xl font-extrabold uppercase leading-tight tracking-tight sm:text-5xl">Estamos por aqui</h1>
         <p class="mx-auto mt-4 max-w-2xl text-lg text-slate-200">
-          Dúvidas sobre inscrições, eventos ou parcerias? Manda sua mensagem que a gente responde.
+          Dúvidas sobre inscrições, eventos ou parcerias? Chama no WhatsApp ou manda sua mensagem que a gente responde.
         </p>
       </div>
     </section>
@@ -120,6 +126,20 @@ async function onSubmit() {
 
         <div class="flex flex-col gap-4 lg:col-span-2">
           <a
+            :href="whatsappUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+          >
+            <span class="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500 text-white">
+              <MessageCircle :size="22" />
+            </span>
+            <h3 class="mt-4 font-bold text-slate-800">WhatsApp do suporte</h3>
+            <p class="mt-1 text-sm font-semibold text-emerald-700">{{ WHATSAPP_EXIBICAO }}</p>
+            <p class="mt-1 text-xs text-slate-500">Toque para abrir a conversa. É o jeito mais rápido de falar com a gente.</p>
+          </a>
+
+          <a
             href="mailto:contato@seupercurso.com.br"
             class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
           >
@@ -146,7 +166,7 @@ async function onSubmit() {
             </span>
             <h3 class="mt-4 font-bold text-slate-800">Tempo de resposta</h3>
             <p class="mt-1 text-sm text-slate-500">
-              Respondemos por e-mail assim que possível.
+              Pelo WhatsApp costumamos responder na hora, em horário comercial. Por e-mail, assim que possível.
             </p>
           </div>
         </div>
