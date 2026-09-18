@@ -456,7 +456,8 @@ function onSubmit() {
         v-model="tipoEsporteSelecionado"
         class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
       >
-        <option value="CORRIDA">🏃 Corrida de Rua / Trail Run</option>
+        <option value="CORRIDA">🏃 Corrida de Rua</option>
+        <option value="TRAIL_RUN">⛰️ Trail Run</option>
         <option value="CICLISMO">🚴 Ciclismo / Mountain Bike (MTB)</option>
         <option value="MOTOCROSS">🏍️ Motocross / Enduro / Motor</option>
         <option value="CAMINHADA">🚶 Caminhada / Passeio</option>
