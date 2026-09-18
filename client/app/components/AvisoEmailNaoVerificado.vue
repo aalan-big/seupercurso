@@ -30,6 +30,9 @@ async function onReenviar() {
         <MailWarning :size="16" class="shrink-0" />
         {{ reenviado ? 'E-mail reenviado! Confira sua caixa de entrada.' : 'Confirme seu e-mail pra poder se inscrever em eventos.' }}
         <span v-if="erro" class="text-red-600">{{ erro }}</span>
+        <NuxtLink to="/perfil#email" class="underline underline-offset-2 hover:text-amber-900">
+          E-mail errado? Altere no perfil
+        </NuxtLink>
       </span>
       <button
         v-if="!reenviado"

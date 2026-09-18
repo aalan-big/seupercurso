@@ -14,6 +14,7 @@ import { RegisterCompletoDto } from './dto/register-completo.dto';
 import { CheckEmailDto } from './dto/check-email.dto';
 import { LoginDto } from './dto/login.dto';
 import { ChangeSenhaDto } from './dto/change-senha.dto';
+import { ChangeEmailDto } from './dto/change-email.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import {
   CurrentUser,
@@ -85,5 +86,14 @@ export class AuthController {
     @Body() dto: ChangeSenhaDto,
   ) {
     return this.authService.alterarSenha(user.userId, dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('email')
+  alterarEmail(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ChangeEmailDto,
+  ) {
+    return this.authService.alterarEmail(user.userId, dto);
   }
 }

@@ -15,6 +15,7 @@ import { RegisterDto } from './dto/register.dto';
 import { RegisterCompletoDto } from './dto/register-completo.dto';
 import { LoginDto } from './dto/login.dto';
 import { ChangeSenhaDto } from './dto/change-senha.dto';
+import { ChangeEmailDto } from './dto/change-email.dto';
 
 const SALT_ROUNDS = 12;
 
@@ -307,6 +308,95 @@ export class AuthService {
     });
 
     return { sucesso: true };
+  }
+
+  async alterarEmail(usuarioId: string, dto: ChangeEmailDto) {
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id: usuarioId },
+      include: { cliente: { include: { pf: true } } },
+    });
+    if (!usuario) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    // Exige a senha atual: trocar o e-mail de acesso é tão sensível quanto
+    // trocar a senha, e uma sessão aberta não pode bastar para isso.
+    const senhaValida = await bcrypt.compare(
+      dto.senhaAtual,
+      usuario.passwordHash,
+    );
+    if (!senhaValida) {
+      throw new UnauthorizedException('Senha atual incorreta.');
+    }
+
+    if (dto.novoEmail === usuario.email) {
+      throw new BadRequestException('O novo e-mail é igual ao atual.');
+    }
+
+    const emJogo = await this.prisma.usuario.findUnique({
+      where: { email: dto.novoEmail },
+      select: { id: true },
+    });
+    if (emJogo) {
+      throw new ConflictException('Já existe uma conta com esse e-mail.');
+    }
+
+    const emailToken = crypto.randomBytes(32).toString('hex');
+    const emailTokenExpiraEm = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+
+    let usuarioAtualizado;
+    try {
+      usuarioAtualizado = await this.prisma.usuario.update({
+        where: { id: usuario.id },
+        data: {
+          email: dto.novoEmail,
+          emailVerificado: false,
+          emailToken,
+          emailTokenExpiraEm,
+        },
+        select: PUBLIC_USUARIO_SELECT,
+      });
+    } catch (error) {
+      // Corrida entre a checagem acima e o update: outro cadastro pegou o e-mail.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('Já existe uma conta com esse e-mail.');
+      }
+      throw error;
+    }
+
+    const nome =
+      usuario.cliente?.pf?.nomeCompleto || dto.novoEmail.split('@')[0];
+
+    // O e-mail já foi trocado no banco; se o envio falhar o usuário ainda
+    // consegue pedir o reenvio pelo aviso da plataforma.
+    let emailEnviado = true;
+    try {
+      await this.emailService.enviarEmailVerificacao({
+        email: dto.novoEmail,
+        nome,
+        token: emailToken,
+      });
+    } catch {
+      emailEnviado = false;
+    }
+
+    // O JWT carrega o e-mail no payload; emite um novo para a sessão ficar coerente.
+    const accessToken = await this.signToken(
+      usuarioAtualizado.id,
+      usuarioAtualizado.email,
+    );
+
+    return {
+      sucesso: true,
+      mensagem: emailEnviado
+        ? 'E-mail alterado! Enviamos um link de confirmação para o novo endereço.'
+        : 'E-mail alterado, mas não conseguimos enviar a confirmação agora. Use o botão "Reenviar e-mail" para tentar de novo.',
+      accessToken,
+      usuario: usuarioAtualizado,
+    };
   }
 
   async getPerfil(usuarioId: string) {

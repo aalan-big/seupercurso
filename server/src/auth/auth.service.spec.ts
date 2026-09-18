@@ -1,4 +1,8 @@
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -161,6 +165,105 @@ describe('AuthService', () => {
         accessToken: 'token-fake',
         usuario: usuarioPublico,
       });
+    });
+  });
+
+  describe('alterarEmail', () => {
+    const usuarioComSenha = {
+      ...usuarioPublico,
+      passwordHash: 'hash-fake',
+      cliente: { pf: { nomeCompleto: 'Atleta Teste' } },
+    };
+    const dto = { senhaAtual: 'senha1234', novoEmail: 'novo@example.com' };
+
+    it('lança UnauthorizedException se a senha atual estiver errada', async () => {
+      prisma.usuario.findUnique.mockResolvedValueOnce(usuarioComSenha);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+
+      await expect(service.alterarEmail(usuarioPublico.id, dto)).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(prisma.usuario.update).not.toHaveBeenCalled();
+      expect(emailService.enviarEmailVerificacao).not.toHaveBeenCalled();
+    });
+
+    it('lança BadRequestException se o novo e-mail for igual ao atual', async () => {
+      prisma.usuario.findUnique.mockResolvedValueOnce(usuarioComSenha);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+
+      await expect(
+        service.alterarEmail(usuarioPublico.id, {
+          ...dto,
+          novoEmail: usuarioPublico.email,
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.usuario.update).not.toHaveBeenCalled();
+    });
+
+    it('lança ConflictException se o novo e-mail já pertencer a outra conta', async () => {
+      prisma.usuario.findUnique
+        .mockResolvedValueOnce(usuarioComSenha)
+        .mockResolvedValueOnce({ id: 'outro-usuario' });
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+
+      await expect(service.alterarEmail(usuarioPublico.id, dto)).rejects.toThrow(
+        ConflictException,
+      );
+      expect(prisma.usuario.update).not.toHaveBeenCalled();
+    });
+
+    it('troca o e-mail, zera a verificação e envia o link para o novo endereço', async () => {
+      prisma.usuario.findUnique
+        .mockResolvedValueOnce(usuarioComSenha)
+        .mockResolvedValueOnce(null);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      const atualizado = { ...usuarioPublico, email: dto.novoEmail };
+      prisma.usuario.update.mockResolvedValue(atualizado);
+
+      const resultado = await service.alterarEmail(usuarioPublico.id, dto);
+
+      expect(prisma.usuario.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: usuarioPublico.id },
+          data: expect.objectContaining({
+            email: dto.novoEmail,
+            emailVerificado: false,
+            emailToken: expect.any(String),
+            emailTokenExpiraEm: expect.any(Date),
+          }),
+        }),
+      );
+      const tokenGerado = prisma.usuario.update.mock.calls[0][0].data.emailToken;
+      expect(emailService.enviarEmailVerificacao).toHaveBeenCalledWith({
+        email: dto.novoEmail,
+        nome: 'Atleta Teste',
+        token: tokenGerado,
+      });
+      expect(jwtService.signAsync).toHaveBeenCalledWith({
+        sub: usuarioPublico.id,
+        email: dto.novoEmail,
+      });
+      expect(resultado).toEqual({
+        sucesso: true,
+        mensagem: expect.stringContaining('Enviamos um link'),
+        accessToken: 'token-fake',
+        usuario: atualizado,
+      });
+    });
+
+    it('mantém a troca e avisa quando o envio do e-mail falha', async () => {
+      prisma.usuario.findUnique
+        .mockResolvedValueOnce(usuarioComSenha)
+        .mockResolvedValueOnce(null);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      prisma.usuario.update.mockResolvedValue({ ...usuarioPublico, email: dto.novoEmail });
+      emailService.enviarEmailVerificacao.mockRejectedValue(new Error('smtp fora'));
+
+      const resultado = await service.alterarEmail(usuarioPublico.id, dto);
+
+      expect(resultado.sucesso).toBe(true);
+      expect(resultado.mensagem).toContain('Reenviar e-mail');
+      expect(resultado.accessToken).toBe('token-fake');
     });
   });
 });

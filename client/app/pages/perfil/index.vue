@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Camera, Trophy, Users } from 'lucide-vue-next'
 
-const { token, user } = useAuth()
+const { token, user, alterarEmail } = useAuth()
 const { cliente, fetchMe, updatePessoaFisica, updateEndereco, uploadFoto, uploadDocumentoPcd } = useCliente()
 const { organizador, fetchMe: fetchOrganizadorMe } = useOrganizador()
 const config = useRuntimeConfig()
@@ -267,6 +267,41 @@ async function salvarEndereco() {
     erroEndereco.value = extrairErro(e)
   } finally {
     salvandoEndereco.value = false
+  }
+}
+
+// E-mail de acesso: quem errou o e-mail no cadastro não consegue confirmar a
+// conta, então precisa trocar por aqui e receber a confirmação no endereço novo.
+const editandoEmail = ref(false)
+const salvandoEmail = ref(false)
+const erroEmail = ref('')
+const sucessoEmail = ref('')
+const emailForm = reactive({ novoEmail: '', senhaAtual: '' })
+
+function abrirEdicaoEmail() {
+  emailForm.novoEmail = ''
+  emailForm.senhaAtual = ''
+  erroEmail.value = ''
+  sucessoEmail.value = ''
+  editandoEmail.value = true
+}
+
+async function salvarEmail() {
+  erroEmail.value = ''
+  const novoEmail = emailForm.novoEmail.trim()
+  if (novoEmail === user.value?.email) {
+    erroEmail.value = 'O novo e-mail é igual ao atual.'
+    return
+  }
+  salvandoEmail.value = true
+  try {
+    const res = await alterarEmail(emailForm.senhaAtual, novoEmail)
+    sucessoEmail.value = res.mensagem
+    editandoEmail.value = false
+  } catch (e) {
+    erroEmail.value = extrairErro(e)
+  } finally {
+    salvandoEmail.value = false
   }
 }
 </script>
@@ -562,6 +597,75 @@ async function salvarEndereco() {
               class="flex-1 rounded-xl bg-warning px-4 py-3 text-sm font-bold uppercase tracking-wide text-primary transition hover:brightness-95 disabled:opacity-50"
             >
               {{ salvandoAtleta ? 'Salvando...' : 'Salvar' }}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- E-mail de acesso -->
+      <div id="email" class="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex items-center justify-between gap-3">
+          <h2 class="text-xs font-bold uppercase tracking-wide text-slate-400">E-mail de acesso</h2>
+          <button
+            v-if="!editandoEmail"
+            class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-slate-600 hover:bg-slate-100"
+            @click="abrirEdicaoEmail"
+          >
+            Alterar
+          </button>
+        </div>
+
+        <template v-if="!editandoEmail">
+          <p class="mt-2 text-sm text-slate-700">{{ user?.email }}</p>
+          <p v-if="user && !user.emailVerificado" class="mt-1 text-xs font-semibold text-warning">
+            E-mail ainda não confirmado. Se você não tem mais acesso a essa caixa de entrada, altere o e-mail para receber a confirmação no endereço novo.
+          </p>
+          <p v-if="sucessoEmail" class="mt-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+            {{ sucessoEmail }}
+          </p>
+        </template>
+
+        <form v-else class="mt-4 flex flex-col gap-4" @submit.prevent="salvarEmail">
+          <p v-if="erroEmail" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {{ erroEmail }}
+          </p>
+          <p class="text-xs text-slate-500">
+            Você vai precisar confirmar o e-mail novo antes de se inscrever em eventos. Seu login passa a ser o e-mail novo.
+          </p>
+          <div>
+            <label class="mb-1 block text-sm font-semibold text-slate-700">Novo e-mail</label>
+            <input
+              v-model="emailForm.novoEmail"
+              type="email"
+              required
+              autocomplete="email"
+              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+            />
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-semibold text-slate-700">Senha atual</label>
+            <input
+              v-model="emailForm.senhaAtual"
+              type="password"
+              required
+              autocomplete="current-password"
+              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+            />
+          </div>
+          <div class="flex gap-3">
+            <button
+              type="button"
+              class="rounded-xl border border-slate-300 px-4 py-3 text-sm font-bold uppercase tracking-wide text-slate-600 hover:bg-slate-100"
+              @click="editandoEmail = false"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              :disabled="salvandoEmail"
+              class="flex-1 rounded-xl bg-warning px-4 py-3 text-sm font-bold uppercase tracking-wide text-primary transition hover:brightness-95 disabled:opacity-50"
+            >
+              {{ salvandoEmail ? 'Salvando...' : 'Salvar e enviar confirmação' }}
             </button>
           </div>
         </form>

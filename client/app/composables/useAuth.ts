@@ -113,6 +113,17 @@ export function useAuth() {
     })
   }
 
+  async function alterarEmail(senhaAtual: string, novoEmail: string) {
+    const res = await api<{ sucesso: boolean; mensagem: string } & AuthResponse>('/auth/email', {
+      method: 'PATCH',
+      body: { senhaAtual, novoEmail }
+    })
+    // O servidor emite um token novo (o payload carrega o e-mail).
+    token.value = res.accessToken
+    user.value = res.usuario
+    return res
+  }
+
   function logout() {
     token.value = null
     user.value = null
@@ -130,6 +141,7 @@ export function useAuth() {
     redefinirSenha,
     verificarEmail,
     reenviarVerificacao,
+    alterarEmail,
     logout
   }
 }
