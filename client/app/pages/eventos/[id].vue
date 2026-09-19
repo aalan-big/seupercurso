@@ -261,9 +261,44 @@ onMounted(async () => {
     } catch {
       // perfil ou inscrições não carregadas
     }
+    sincronizarCarrinhoComCadastro()
     inicializarCarrinhoComTitular()
   }
 })
+
+// O carrinho restaurado do sessionStorage guarda uma copia dos dados de
+// quando foi montado. Se a pessoa editou o perfil ou o dependente nesse
+// meio tempo (data de nascimento, nome, PCD), a tela mostrava o valor
+// antigo — e o preco e o pedido de documento seguiam junto. O servidor
+// sempre usa o cadastro atual; aqui a tela passa a fazer o mesmo.
+function sincronizarCarrinhoComCadastro() {
+  const pf = cliente.value?.pf
+  carrinho.value = carrinho.value.map((item) => {
+    if (item.tipo === 'EU' && pf) {
+      return {
+        ...item,
+        nome: pf.nomeCompleto,
+        cpf: pf.cpf,
+        dataNascimento: pf.dataNascimento ? pf.dataNascimento.split('T')[0] : '',
+        genero: pf.genero as any,
+        pcd: pf.pcd || false
+      }
+    }
+    if (item.tipo === 'DEPENDENTE' && item.dependenteId) {
+      const dep = dependentes.value.find((d) => d.id === item.dependenteId)
+      if (!dep) return item
+      return {
+        ...item,
+        nome: dep.nomeCompleto,
+        cpf: dep.cpf,
+        dataNascimento: dep.dataNascimento ? dep.dataNascimento.split('T')[0] : '',
+        genero: dep.genero as any,
+        pcd: dep.pcd || false
+      }
+    }
+    return item
+  })
+}
 
 function inicializarCarrinhoComTitular() {
   if (carrinho.value.length === 0 && cliente.value?.pf) {
