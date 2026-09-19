@@ -266,6 +266,34 @@ onMounted(async () => {
   }
 })
 
+// Perfil editado em outra aba (ou nesta, voltando pelo historico) nao chega
+// aqui sozinho: ao voltar o foco pra pagina, rele cadastro e dependentes.
+// O watcher abaixo cuida de refletir isso no carrinho.
+async function recarregarCadastroAoVoltar() {
+  if (!token.value || document.visibilityState !== 'visible') return
+  try {
+    await fetchClienteMe()
+    await fetchDependentes()
+  } catch {
+    // sem rede ou sessao expirada: mantem o que ja esta na tela
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('focus', recarregarCadastroAoVoltar)
+  document.addEventListener('visibilitychange', recarregarCadastroAoVoltar)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('focus', recarregarCadastroAoVoltar)
+  document.removeEventListener('visibilitychange', recarregarCadastroAoVoltar)
+})
+
+watch(
+  () => [cliente.value?.pf, dependentes.value] as const,
+  () => sincronizarCarrinhoComCadastro(),
+  { deep: true }
+)
+
 // O carrinho restaurado do sessionStorage guarda uma copia dos dados de
 // quando foi montado. Se a pessoa editou o perfil ou o dependente nesse
 // meio tempo (data de nascimento, nome, PCD), a tela mostrava o valor
