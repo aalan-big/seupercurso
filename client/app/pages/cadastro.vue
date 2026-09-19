@@ -13,6 +13,7 @@ const destino = computed(() => {
 const step = ref(1)
 
 const contaForm = reactive({ email: '', password: '', confirmarSenha: '' })
+const aceitouTermos = ref(false)
 const atletaForm = reactive({
   nomeCompleto: '',
   cpf: '',
@@ -169,6 +170,10 @@ async function onSubmitConta() {
 
   if (contaForm.password.length < 8) {
     erro.value = 'A senha precisa ter no mínimo 8 caracteres.'
+    return
+  }
+  if (!aceitouTermos.value) {
+    erro.value = 'Para criar a conta, leia e aceite os Termos de Uso e a Política de Privacidade.'
     return
   }
   if (contaForm.password !== contaForm.confirmarSenha) {
@@ -371,6 +376,15 @@ async function onSubmitEndereco() {
               class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
           </div>
+          <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+            <input v-model="aceitouTermos" type="checkbox" class="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 accent-warning" />
+            <span>
+              Li e aceito os
+              <NuxtLink to="/termos" target="_blank" class="font-bold text-warning hover:underline">Termos de Uso</NuxtLink>
+              e a
+              <NuxtLink to="/privacidade" target="_blank" class="font-bold text-warning hover:underline">Política de Privacidade</NuxtLink>.
+            </span>
+          </label>
           <button
             type="submit"
             :disabled="carregando"

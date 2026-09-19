@@ -6,6 +6,9 @@
       <slot />
     </main>
     <AppFooter />
+    <ClientOnly>
+      <AvisoCookies />
+    </ClientOnly>
   </div>
 </template>
 

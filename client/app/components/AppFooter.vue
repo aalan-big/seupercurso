@@ -23,9 +23,13 @@ const ano = new Date().getFullYear()
           </ul>
         </div>
       </div>
-      <p class="mt-6 border-t border-slate-100 pt-4 text-xs text-slate-400">
-        © {{ ano }} SeuPercurso. Todos os direitos reservados.
-      </p>
+      <div class="mt-6 flex flex-col gap-2 border-t border-slate-100 pt-4 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+        <p>© {{ ano }} SeuPercurso. Todos os direitos reservados.</p>
+        <p class="flex flex-wrap gap-x-4 gap-y-1">
+          <NuxtLink to="/termos" class="hover:text-secondary">Termos de Uso</NuxtLink>
+          <NuxtLink to="/privacidade" class="hover:text-secondary">Política de Privacidade</NuxtLink>
+        </p>
+      </div>
     </div>
   </footer>
 </template>
