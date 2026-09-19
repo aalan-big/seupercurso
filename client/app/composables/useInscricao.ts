@@ -141,6 +141,8 @@ export interface InscricaoItemInput {
     genero: 'MASCULINO' | 'FEMININO' | 'OUTRO'
     pcd?: boolean
   }
+  /** Caminho devolvido por uploadDocumentoIdoso; obrigatorio pra quem leva o desconto do idoso. */
+  documentoIdosoUrl?: string
 }
 
 export interface InscricaoBatchCriada {
@@ -157,6 +159,18 @@ export function useInscricao() {
     const res = await api<InscricaoCriada>('/inscricoes', { method: 'POST', body: input })
     await fetchMinhas()
     return res
+  }
+
+  // Sobe o documento com foto de um atleta 60+ antes do batch: o carrinho so
+  // vira inscricao no envio, entao o arquivo vai antes e o caminho vai no item.
+  async function uploadDocumentoIdoso(arquivo: File) {
+    const formData = new FormData()
+    formData.append('documento', arquivo)
+    const res = await api<{ url: string }>('/inscricoes/documento-idoso', {
+      method: 'POST',
+      body: formData
+    })
+    return res.url
   }
 
   async function criarBatch(items: InscricaoItemInput[]) {
@@ -229,6 +243,7 @@ export function useInscricao() {
     minhasInscricoes,
     criar,
     criarBatch,
+    uploadDocumentoIdoso,
     fetchMinhas,
     cancelar,
     atualizarTamanhoCamisa,

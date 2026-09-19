@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { BarChart2, AlertTriangle, Footprints, X, CheckCircle, Hash, Shirt, CreditCard, Save, ListTree, FileText } from 'lucide-vue-next'
+import { urlFoto } from '../../utils/foto'
 
 const { inscritos, fetchInscritos, exportarCsv, atualizarInscricao } = useInscritosOrganizador()
 const { eventos, fetchMeusEventos, fetchEvento } = useEventoOrganizador()
+const config = useRuntimeConfig()
 
 const carregando = ref(true)
 const exportando = ref(false)
@@ -204,6 +206,12 @@ function documentoCliente(inscrito: any) {
   return inscrito.cliente?.pf?.cpf || inscrito.cliente?.pj?.cnpj || ''
 }
 
+// Quem levou o desconto do idoso mandou documento com foto na inscricao; o
+// organizador confere na entrega do kit.
+function documentoIdosoUrl(inscrito: any): string | null {
+  return urlFoto(inscrito.documentoIdosoUrl, config.public.apiBase as string)
+}
+
 function compradorTitular(inscrito: any) {
   const nomeTitular = inscrito.cliente?.pf?.nomeCompleto || inscrito.cliente?.usuario?.email
   const nomeAtletaAtual = nomeCliente(inscrito)
@@ -335,6 +343,13 @@ function formatarData(iso: string) {
               <span v-if="compradorTitular(inscrito)" class="text-[10px] font-semibold text-slate-400 block">
                 {{ compradorTitular(inscrito) }}
               </span>
+              <span
+                v-if="inscrito.documentoIdosoUrl"
+                class="mt-1 inline-block rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-black uppercase text-amber-800"
+                title="Levou desconto do idoso — conferir documento na retirada do kit"
+              >
+                Desconto idoso
+              </span>
             </td>
             <td class="px-4 py-3.5 text-slate-600 font-mono">{{ documentoCliente(inscrito) }}</td>
             <td class="px-4 py-3.5 font-semibold text-slate-700">{{ inscrito.categoria.modalidade.evento.nome }}</td>
@@ -402,6 +417,27 @@ function formatarData(iso: string) {
                 <span class="font-bold text-slate-500">Data da Inscrição:</span>
                 <span class="text-slate-700">{{ formatarData(atletaSelecionado.dataInscricao) }}</span>
               </div>
+            </div>
+
+            <!-- Desconto do idoso: documento enviado na inscricao -->
+            <div
+              v-if="atletaSelecionado.documentoIdosoUrl"
+              class="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-2"
+            >
+              <p class="font-black text-amber-900 flex items-center gap-1.5">
+                <AlertTriangle :size="14" /> Desconto do idoso aplicado
+              </p>
+              <p class="text-amber-800">
+                O atleta enviou um documento com foto pra comprovar 60+ anos. Confira na retirada do kit se a data de nascimento bate.
+              </p>
+              <a
+                :href="documentoIdosoUrl(atletaSelecionado) || '#'"
+                target="_blank"
+                rel="noopener"
+                class="inline-flex items-center gap-1.5 rounded-lg bg-white border border-amber-300 px-3 py-1.5 font-bold text-amber-900 hover:bg-amber-100"
+              >
+                <FileText :size="14" /> Ver documento
+              </a>
             </div>
 
             <!-- Formulário de Edição Completo -->

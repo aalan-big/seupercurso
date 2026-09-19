@@ -4,6 +4,8 @@ export interface InscritoOrganizador {
   tamanhoCamisa: string | null
   dataInscricao: string
   status: 'PENDENTE_PAGAMENTO' | 'CONFIRMADA' | 'CANCELADA' | 'EXPIRADA'
+  /** Documento com foto de quem levou o desconto do idoso; nulo quando nao levou. */
+  documentoIdosoUrl?: string | null
   cliente: {
     usuario: { email: string }
     pf: { nomeCompleto: string; cpf: string; celular: string } | null

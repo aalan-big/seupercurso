@@ -32,7 +32,7 @@ const eventoId = route.params.id as string
 
 const { token } = useAuth()
 const { eventoSelecionado, fetchEvento } = useEvento()
-const { minhasInscricoes, fetchMinhas, criarBatch, pagarInscricao } = useInscricao()
+const { minhasInscricoes, fetchMinhas, criarBatch, uploadDocumentoIdoso, pagarInscricao } = useInscricao()
 const { cliente, fetchMe: fetchClienteMe } = useCliente()
 const { dependentes, fetchDependentes } = useDependente()
 
@@ -75,6 +75,10 @@ interface ItemCarrinho {
   modalidadeId: string | null
   categoriaId: string | null
   tamanhoCamisa: string
+  // Documento com foto de quem leva o desconto do idoso. Fica o caminho no
+  // servidor (sobrevive ao sessionStorage) e o nome so pra mostrar na tela.
+  documentoIdosoUrl?: string
+  documentoIdosoNome?: string
 }
 
 const carrinho = ref<ItemCarrinho[]>([])
@@ -357,6 +361,38 @@ function removerAtleta(uid: string) {
   carrinho.value = carrinho.value.filter((item) => item.uid !== uid)
 }
 
+// O desconto do idoso e aplicado pela data que a propria pessoa digitou, entao
+// quem se qualifica precisa comprovar com documento — o servidor recusa sem ele.
+function temDescontoIdoso(item: ItemCarrinho) {
+  const ev = eventoSelecionado.value
+  if (!ev?.aplicaDescontoIdoso || !ev.percentualDescontoIdoso) return false
+  return calcularIdade(item.dataNascimento, ev.dataInicio) >= 60
+}
+
+const enviandoDocumentoIdoso = ref<string | null>(null)
+
+async function onDocumentoIdosoSelecionado(item: ItemCarrinho, e: Event) {
+  const input = e.target as HTMLInputElement
+  const arquivo = input.files?.[0]
+  if (!arquivo) return
+  erroInscricao.value = ''
+  enviandoDocumentoIdoso.value = item.uid
+  try {
+    const url = await uploadDocumentoIdoso(arquivo)
+    item.documentoIdosoUrl = url
+    item.documentoIdosoNome = arquivo.name
+  } catch (err: any) {
+    erroInscricao.value = extrairErro(err)
+  } finally {
+    enviandoDocumentoIdoso.value = null
+    input.value = ''
+  }
+}
+
+function atletasSemDocumentoIdoso() {
+  return carrinho.value.filter((i) => temDescontoIdoso(i) && !i.documentoIdosoUrl)
+}
+
 function calcularIdade(nascimentoIso: string, referenciaIso: string) {
   if (!nascimentoIso || !referenciaIso) return 0
   const nascimento = new Date(nascimentoIso)
@@ -505,6 +541,12 @@ function avancar() {
     // Na Etapa 1, apenas confirma se há atletas no carrinho
     if (carrinho.value.length === 0) {
       erroInscricao.value = 'Adicione ao menos um participante no carrinho para avançar.'
+      return
+    }
+    const semDocumento = atletasSemDocumentoIdoso()
+    if (semDocumento.length > 0) {
+      const nomes = semDocumento.map((i) => i.nome).join(', ')
+      erroInscricao.value = `Envie um documento com foto (RG ou CNH) para comprovar a idade de: ${nomes}.`
       return
     }
   }
@@ -683,6 +725,13 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
     return
   }
 
+  const semDocumento = atletasSemDocumentoIdoso()
+  if (semDocumento.length > 0) {
+    erroInscricao.value = `Envie um documento com foto para comprovar a idade de: ${semDocumento.map((i) => i.nome).join(', ')}.`
+    step.value = 1
+    return
+  }
+
   inscrevendo.value = true
   try {
     const itemsPayload = carrinho.value.map((item) => ({
@@ -691,6 +740,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
       tamanhoCamisa: eventoPossuiCamisa.value ? item.tamanhoCamisa : undefined,
       cupomCodigo: cupomCodigo.value || undefined,
       dependenteId: item.dependenteId,
+      documentoIdosoUrl: temDescontoIdoso(item) ? item.documentoIdosoUrl : undefined,
       atleta: item.tipo === 'MANUAL'
         ? {
             nomeCompleto: item.nome,
@@ -1040,6 +1090,35 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                       <span class="text-[10px] font-bold uppercase text-slate-400 block">Nascimento</span>
                       <span class="font-bold text-slate-800">{{ formatarData(item.dataNascimento) }}</span>
                     </div>
+                  </div>
+
+                  <!-- Desconto do idoso: exige documento com foto -->
+                  <div
+                    v-if="temDescontoIdoso(item)"
+                    class="rounded-xl border p-3 space-y-2"
+                    :class="item.documentoIdosoUrl ? 'border-emerald-200 bg-emerald-50' : 'border-amber-300 bg-amber-50'"
+                  >
+                    <p class="text-[11px] font-bold" :class="item.documentoIdosoUrl ? 'text-emerald-900' : 'text-amber-900'">
+                      Desconto do idoso ({{ eventoSelecionado?.percentualDescontoIdoso }}%) — envie um documento com foto (RG ou CNH) pra comprovar a idade.
+                      Ele será conferido na retirada do kit.
+                    </p>
+                    <div v-if="item.documentoIdosoUrl" class="flex items-center gap-2 text-xs font-bold text-emerald-800">
+                      <CheckCircle class="w-4 h-4 shrink-0" />
+                      <span class="truncate">{{ item.documentoIdosoNome || 'Documento enviado' }}</span>
+                    </div>
+                    <label
+                      class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-slate-300 text-xs font-bold text-slate-700 cursor-pointer hover:bg-slate-50"
+                      :class="{ 'opacity-60 pointer-events-none': enviandoDocumentoIdoso === item.uid }"
+                    >
+                      <FileText class="w-4 h-4" />
+                      <span>{{ enviandoDocumentoIdoso === item.uid ? 'Enviando...' : item.documentoIdosoUrl ? 'Trocar documento' : 'Enviar documento' }}</span>
+                      <input
+                        type="file"
+                        accept="image/*,application/pdf"
+                        class="hidden"
+                        @change="onDocumentoIdosoSelecionado(item, $event)"
+                      />
+                    </label>
                   </div>
                 </div>
               </div>

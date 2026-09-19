@@ -14,4 +14,10 @@ export class CreateInscricaoDto {
   @IsOptional()
   @IsString()
   cupomCodigo?: string;
+
+  /// Caminho devolvido por POST /inscricoes/documento-idoso. Exigido quando o
+  /// evento aplica o desconto do idoso e o titular tem 60+ na data da prova.
+  @IsOptional()
+  @IsString()
+  documentoIdosoUrl?: string;
 }

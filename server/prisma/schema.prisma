@@ -453,6 +453,12 @@ model Inscricao {
   atletaDataNascimento DateTime? @db.Date
   atletaGenero         Genero?
   atletaPcd            Boolean   @default(false)
+  /// Documento com foto (RG/CNH) de quem levou o desconto do idoso. A idade
+  /// vinha so da data que a propria pessoa digitava — no cadastro, no perfil,
+  /// no dependente ou direto no carrinho — entao qualquer um se declarava
+  /// 60+ e pagava metade. Obrigatorio quando o evento aplica o desconto e o
+  /// atleta tem 60+ na data da prova; o organizador confere na entrega do kit.
+  documentoIdosoUrl    String?
 
   numeroPeito   String?
   tamanhoCamisa String?

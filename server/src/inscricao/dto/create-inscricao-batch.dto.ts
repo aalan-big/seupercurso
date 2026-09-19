@@ -58,6 +58,12 @@ export class CreateInscricaoItemDto {
   @ValidateNested()
   @Type(() => AtletaManualDto)
   atleta?: AtletaManualDto;
+
+  /// Caminho devolvido por POST /inscricoes/documento-idoso. Exigido quando o
+  /// evento aplica o desconto do idoso e este atleta tem 60+ na data da prova.
+  @IsOptional()
+  @IsString()
+  documentoIdosoUrl?: string;
 }
 
 export class CreateInscricaoBatchDto {

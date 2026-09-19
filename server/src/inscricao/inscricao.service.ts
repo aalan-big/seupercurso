@@ -5,6 +5,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { access } from 'fs/promises';
+import { join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { StatusInscricao } from '../generated/prisma/enums';
 import { calcularValorInscricao } from '../common/calcular-valor-inscricao';
@@ -96,6 +98,15 @@ export class InscricaoService {
       ? await this.resolverCupomOuFalhar(lote.eventoId, dto.cupomCodigo)
       : null;
 
+    // validarElegibilidadeCategoria ja barrou perfil sem PF; o `!` so repete
+    // isso para o compilador.
+    const documentoIdosoUrl = await this.resolverDocumentoIdoso(
+      categoria.modalidade.evento,
+      cliente.pf!.dataNascimento,
+      cliente.pf!.nomeCompleto,
+      dto.documentoIdosoUrl,
+    );
+
     const valor = await calcularValorInscricao(this.prisma, {
       loteId: lote.id,
       modalidadeId: categoria.modalidadeId,
@@ -121,6 +132,7 @@ export class InscricaoService {
           tamanhoCamisa: categoria.modalidade.evento.possuiCamisa
             ? dto.tamanhoCamisa
             : null,
+          documentoIdosoUrl,
           status: StatusInscricao.PENDENTE_PAGAMENTO,
         },
       });
@@ -149,6 +161,7 @@ export class InscricaoService {
       atletaDataNascimento: Date;
       atletaGenero: any;
       atletaPcd: boolean;
+      documentoIdosoUrl: string | null;
       valor: number;
     }> = [];
 
@@ -257,6 +270,13 @@ export class InscricaoService {
         ? await this.resolverCupomOuFalhar(lote.eventoId, item.cupomCodigo)
         : null;
 
+      const documentoIdosoUrl = await this.resolverDocumentoIdoso(
+        categoria.modalidade.evento,
+        atletaDataNascimento,
+        atletaNome,
+        item.documentoIdosoUrl,
+      );
+
       const valor = await calcularValorInscricao(this.prisma, {
         loteId: lote.id,
         modalidadeId: categoria.modalidadeId,
@@ -280,6 +300,7 @@ export class InscricaoService {
         atletaDataNascimento,
         atletaGenero,
         atletaPcd,
+        documentoIdosoUrl,
         valor,
       });
     }
@@ -314,6 +335,7 @@ export class InscricaoService {
             atletaGenero: itemData.atletaGenero,
             atletaPcd: itemData.atletaPcd,
             tamanhoCamisa: itemData.tamanhoCamisa,
+            documentoIdosoUrl: itemData.documentoIdosoUrl,
             status: StatusInscricao.PENDENTE_PAGAMENTO,
           },
         });
@@ -571,6 +593,56 @@ export class InscricaoService {
 
   // Garante que o atleta realmente se encaixa nas regras da categoria
   // (idade na data do evento, gênero e PCD) antes de deixar a inscrição seguir.
+  /**
+   * Decide se esta inscricao leva o desconto do idoso e, se leva, exige o
+   * documento. A idade vem da data que a propria pessoa digitou, entao sem o
+   * documento qualquer um se declarava 60+ e pagava metade. Quem nao se
+   * qualifica nao guarda documento nenhum, mesmo que o cliente mande um.
+   */
+  private async resolverDocumentoIdoso(
+    evento: {
+      aplicaDescontoIdoso: boolean;
+      percentualDescontoIdoso: unknown;
+      dataInicio: Date;
+    },
+    dataNascimento: Date,
+    nomeAtleta: string,
+    documentoIdosoUrl?: string,
+  ): Promise<string | null> {
+    const temDesconto =
+      evento.aplicaDescontoIdoso && Number(evento.percentualDescontoIdoso) > 0;
+    if (!temDesconto) return null;
+    if (calcularIdade(dataNascimento, evento.dataInicio) < 60) return null;
+
+    const caminho = (documentoIdosoUrl || '').trim();
+    // Aceita so o que o proprio upload devolveu: um caminho qualquer viraria
+    // link para fora da pasta, e "../" leria arquivo do servidor.
+    const prefixo = '/uploads/documentos/';
+    const nomeArquivo = caminho.startsWith(prefixo)
+      ? caminho.slice(prefixo.length)
+      : '';
+    const valido =
+      nomeArquivo.length > 0 &&
+      !nomeArquivo.includes('/') &&
+      !nomeArquivo.includes('\\') &&
+      !nomeArquivo.includes('..');
+    if (!valido) {
+      throw new BadRequestException(
+        `${nomeAtleta} tem direito ao desconto do idoso neste evento. Envie um documento com foto (RG ou CNH) para comprovar a idade.`,
+      );
+    }
+
+    try {
+      await access(join(process.cwd(), caminho));
+    } catch {
+      throw new BadRequestException(
+        `O documento enviado para ${nomeAtleta} não foi encontrado. Envie o arquivo novamente.`,
+      );
+    }
+
+    return caminho;
+  }
+
   private validarElegibilidadeCategoria(
     categoria: {
       idadeMinima: number | null;

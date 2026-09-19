@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -7,8 +8,13 @@ import {
   Param,
   Patch,
   Post,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
   CurrentUser,
@@ -47,6 +53,39 @@ export class InscricaoController {
   @Get('me')
   findMinhas(@CurrentUser() user: AuthenticatedUser) {
     return this.inscricaoService.findMinhas(user.userId);
+  }
+
+  /**
+   * Recebe o documento com foto de um atleta 60+ antes da inscricao existir:
+   * o carrinho e montado no navegador e so vira inscricao no batch, entao o
+   * arquivo sobe antes e o caminho devolvido vai no item. Mesmo destino e
+   * filtros do laudo PCD.
+   */
+  @Post('documento-idoso')
+  @UseInterceptors(
+    FileInterceptor('documento', {
+      storage: diskStorage({
+        destination: './uploads/documentos',
+        filename: (_req, file, callback) => {
+          const sufixo = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+          callback(null, `${sufixo}${extname(file.originalname)}`);
+        },
+      }),
+      limits: { fileSize: 10 * 1024 * 1024 },
+      fileFilter: (_req, file, callback) => {
+        if (!file.mimetype.startsWith('image/') && file.mimetype !== 'application/pdf') {
+          callback(new BadRequestException('Envie uma imagem ou um PDF.'), false);
+          return;
+        }
+        callback(null, true);
+      },
+    }),
+  )
+  uploadDocumentoIdoso(@UploadedFile() file?: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('Nenhum arquivo enviado.');
+    }
+    return { url: `/uploads/documentos/${file.filename}` };
   }
 
   @Patch(':id/cancelar')
