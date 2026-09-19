@@ -24,7 +24,8 @@ import {
   UserCheck,
   UserPlus,
   LogIn,
-  X
+  X,
+  Camera
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -1106,19 +1107,36 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                       <CheckCircle class="w-4 h-4 shrink-0" />
                       <span class="truncate">{{ item.documentoIdosoNome || 'Documento enviado' }}</span>
                     </div>
-                    <label
-                      class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-slate-300 text-xs font-bold text-slate-700 cursor-pointer hover:bg-slate-50"
-                      :class="{ 'opacity-60 pointer-events-none': enviandoDocumentoIdoso === item.uid }"
-                    >
-                      <FileText class="w-4 h-4" />
-                      <span>{{ enviandoDocumentoIdoso === item.uid ? 'Enviando...' : item.documentoIdosoUrl ? 'Trocar documento' : 'Enviar documento' }}</span>
-                      <input
-                        type="file"
-                        accept="image/*,application/pdf"
-                        class="hidden"
-                        @change="onDocumentoIdosoSelecionado(item, $event)"
-                      />
-                    </label>
+                    <div class="flex flex-wrap gap-2">
+                      <!-- capture abre a camera direto no celular; no computador vira o seletor comum -->
+                      <label
+                        class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-orange-500 text-white text-xs font-bold cursor-pointer hover:bg-orange-600"
+                        :class="{ 'opacity-60 pointer-events-none': enviandoDocumentoIdoso === item.uid }"
+                      >
+                        <Camera class="w-4 h-4" />
+                        <span>{{ enviandoDocumentoIdoso === item.uid ? 'Enviando...' : 'Tirar foto agora' }}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          class="hidden"
+                          @change="onDocumentoIdosoSelecionado(item, $event)"
+                        />
+                      </label>
+                      <label
+                        class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-slate-300 text-xs font-bold text-slate-700 cursor-pointer hover:bg-slate-50"
+                        :class="{ 'opacity-60 pointer-events-none': enviandoDocumentoIdoso === item.uid }"
+                      >
+                        <FileText class="w-4 h-4" />
+                        <span>{{ item.documentoIdosoUrl ? 'Trocar arquivo' : 'Escolher arquivo' }}</span>
+                        <input
+                          type="file"
+                          accept="image/*,application/pdf"
+                          class="hidden"
+                          @change="onDocumentoIdosoSelecionado(item, $event)"
+                        />
+                      </label>
+                    </div>
                   </div>
                 </div>
               </div>
