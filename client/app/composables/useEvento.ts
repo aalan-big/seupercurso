@@ -14,6 +14,8 @@ export interface EventoResumo {
   aceitaCartao?: boolean
   bannerUrl?: string | null
   possuiCamisa?: boolean
+  aplicaDescontoIdoso?: boolean
+  percentualDescontoIdoso?: string | number | null
   valorApartirDe: number | null
 }
 

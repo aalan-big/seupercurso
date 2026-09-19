@@ -19,6 +19,11 @@ const RESUMO_SELECT = {
   aceitaPix: true,
   aceitaCartao: true,
   comissaoPagaPeloAtleta: true,
+  // O site precisa saber do desconto do idoso para mostrar o preco certo e
+  // pedir o documento de quem tem 60+; sem isso o servidor recusava a
+  // inscricao e o atleta nao conseguia pagar.
+  aplicaDescontoIdoso: true,
+  percentualDescontoIdoso: true,
 } as const;
 
 @Injectable()
