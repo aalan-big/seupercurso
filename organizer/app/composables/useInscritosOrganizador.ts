@@ -6,6 +6,10 @@ export interface InscritoOrganizador {
   status: 'PENDENTE_PAGAMENTO' | 'CONFIRMADA' | 'CANCELADA' | 'EXPIRADA'
   /** Documento com foto de quem levou o desconto do idoso; nulo quando nao levou. */
   documentoIdosoUrl?: string | null
+  /** Conferencia do documento pelo organizador; nulo quando nao ha documento. */
+  documentoIdosoStatus?: 'PENDENTE' | 'APROVADO' | 'REJEITADO' | null
+  documentoIdosoMotivo?: string | null
+  documentoIdosoRevisadoEm?: string | null
   cliente: {
     usuario: { email: string }
     pf: { nomeCompleto: string; cpf: string; celular: string } | null
@@ -24,6 +28,7 @@ export interface FiltrosInscritos {
   eventoId?: string
   status?: string
   busca?: string
+  documentoIdoso?: string
 }
 
 function paraQueryString(filtros: FiltrosInscritos, extras: Record<string, string> = {}) {
@@ -31,6 +36,7 @@ function paraQueryString(filtros: FiltrosInscritos, extras: Record<string, strin
   if (filtros.eventoId) params.set('eventoId', filtros.eventoId)
   if (filtros.status) params.set('status', filtros.status)
   if (filtros.busca) params.set('busca', filtros.busca)
+  if (filtros.documentoIdoso) params.set('documentoIdoso', filtros.documentoIdoso)
   for (const [chave, valor] of Object.entries(extras)) {
     if (valor) params.set(chave, valor)
   }
@@ -74,5 +80,18 @@ export function useInscritosOrganizador() {
     return res
   }
 
-  return { inscritos, fetchInscritos, exportarCsv, atualizarInscricao }
+  // Organizador confere o documento do desconto do idoso. Recusar exige
+  // motivo, que vai por e-mail ao comprador.
+  async function conferirDocumentoIdoso(
+    id: string,
+    decisao: 'APROVADO' | 'REJEITADO',
+    motivo?: string
+  ) {
+    return api<InscritoOrganizador>(`/organizadores/me/inscritos/${id}/documento-idoso`, {
+      method: 'PATCH',
+      body: { decisao, motivo }
+    })
+  }
+
+  return { inscritos, fetchInscritos, exportarCsv, atualizarInscricao, conferirDocumentoIdoso }
 }

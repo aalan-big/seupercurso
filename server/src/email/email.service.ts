@@ -330,6 +330,79 @@ export class EmailService {
     return this.enviarMail(destinatario, `[Fale Conosco] ${assunto}`, html, params.email);
   }
 
+  /**
+   * Organizador recusou o documento de quem levou o desconto do idoso. A
+   * inscricao segue valendo; o e-mail so orienta o comprador a procurar o
+   * organizador para regularizar (diferenca ou esclarecimento).
+   */
+  async enviarDocumentoIdosoRecusado(params: {
+    emailComprador: string;
+    nomeComprador: string;
+    nomeAtleta: string;
+    nomeEvento: string;
+    motivo: string;
+    nomeOrganizador: string;
+    emailOrganizador: string | null;
+    telefoneOrganizador: string | null;
+  }) {
+    const nomeComprador = this.escapeHtml(params.nomeComprador);
+    const nomeAtleta = this.escapeHtml(params.nomeAtleta);
+    const nomeEvento = this.escapeHtml(params.nomeEvento);
+    const motivo = this.escapeHtml(params.motivo);
+    const nomeOrganizador = this.escapeHtml(params.nomeOrganizador);
+    const emailOrganizador = params.emailOrganizador
+      ? this.escapeHtml(params.emailOrganizador)
+      : null;
+    const telefoneOrganizador = params.telefoneOrganizador
+      ? this.escapeHtml(params.telefoneOrganizador)
+      : null;
+
+    const contatoHtml = [
+      emailOrganizador
+        ? `<p style="margin: 0 0 6px;"><strong>E-mail:</strong> <a href="mailto:${emailOrganizador}" style="color:#f97316;font-weight:700;text-decoration:none;">${emailOrganizador}</a></p>`
+        : '',
+      telefoneOrganizador
+        ? `<p style="margin: 0;"><strong>Telefone:</strong> ${telefoneOrganizador}</p>`
+        : '',
+    ].join('');
+
+    const conteudoHtml = `
+      <p style="font-size: 16px; font-weight: 700; color: #0f172a; margin-top: 0;">Olá, ${nomeComprador}!</p>
+      <p style="color: #475569;">
+        O organizador do evento <strong>${nomeEvento}</strong> analisou o documento enviado para comprovar a idade de
+        <strong>${nomeAtleta}</strong> (desconto do idoso) e <strong>não conseguiu confirmá-la</strong>.
+      </p>
+      <div class="card">
+        <p style="margin: 0 0 6px; font-size: 12px; font-weight: 800; text-transform: uppercase; color: #64748b;">Motivo informado</p>
+        <p style="margin: 0; white-space: pre-wrap;">${motivo}</p>
+      </div>
+      <p style="color: #475569;">
+        A inscrição continua registrada. Para regularizar a situação — enviar um documento legível ou acertar a diferença
+        do valor da inscrição — entre em contato com o organizador:
+      </p>
+      <div class="card">
+        <p style="margin: 0 0 6px;"><strong>${nomeOrganizador}</strong></p>
+        ${contatoHtml || '<p style="margin: 0; color: #64748b;">Contato disponível na página do evento.</p>'}
+      </div>
+      <p style="font-size: 12px; color: #94a3b8; margin-top: 24px;">
+        Se a idade não for comprovada, a participação no evento fica a critério do organizador.
+      </p>
+    `;
+
+    const html = this.renderBaseTemplate({
+      tituloHeader: 'Documento não confirmado',
+      subtituloHeader: `Desconto do idoso · ${nomeEvento}`,
+      conteudoHtml,
+    });
+
+    return this.enviarMail(
+      params.emailComprador,
+      `[${params.nomeEvento}] Documento do desconto do idoso não confirmado`,
+      html,
+      params.emailOrganizador || undefined,
+    );
+  }
+
   private escapeHtml(valor: string): string {
     return valor
       .replace(/&/g, '&amp;')

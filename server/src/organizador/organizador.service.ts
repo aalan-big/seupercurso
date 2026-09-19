@@ -42,6 +42,8 @@ interface FiltrosInscritos {
   eventoId?: string;
   status?: string;
   busca?: string;
+  /// Conferencia do documento do idoso (PENDENTE/APROVADO/REJEITADO).
+  documentoIdoso?: string;
 }
 
 function paraSegundos(tempo?: string): number | undefined {
@@ -54,7 +56,12 @@ function paraSegundos(tempo?: string): number | undefined {
 }
 
 import { AuditLogService } from '../audit-log/audit-log.service';
-import { CategoriaAuditLog, NivelAuditLog } from '../generated/prisma/enums';
+import {
+  CategoriaAuditLog,
+  NivelAuditLog,
+  StatusDocumentoIdoso,
+} from '../generated/prisma/enums';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class OrganizadorService {
@@ -62,6 +69,7 @@ export class OrganizadorService {
     private readonly prisma: PrismaService,
     private readonly auditLogService: AuditLogService,
     private readonly mpOAuthService: MercadoPagoOAuthService,
+    private readonly emailService: EmailService,
   ) {}
 
   async solicitarCadastro(usuarioId: string) {
@@ -900,6 +908,127 @@ export class OrganizadorService {
     return res;
   }
 
+  /**
+   * Organizador confere o documento de quem levou o desconto do idoso. A
+   * inscricao nao muda de status em nenhum dos casos: recusar so registra o
+   * motivo e avisa o comprador por e-mail para procurar o organizador —
+   * cobrar a diferenca ou tirar da prova e decisao dele, feita a mao.
+   */
+  async conferirDocumentoIdoso(
+    usuarioId: string,
+    inscricaoId: string,
+    decisao: 'APROVADO' | 'REJEITADO',
+    motivo?: string,
+  ) {
+    const organizador = await this.getOrganizadorAprovadoOuFalhar(usuarioId);
+
+    const inscricao = await this.prisma.inscricao.findUnique({
+      where: { id: inscricaoId },
+      include: {
+        cliente: {
+          include: { pf: true, usuario: { select: { email: true } } },
+        },
+        dependente: true,
+        categoria: {
+          include: {
+            modalidade: {
+              include: {
+                evento: {
+                  include: {
+                    organizador: {
+                      include: {
+                        cliente: {
+                          include: {
+                            pf: true,
+                            pj: true,
+                            usuario: { select: { email: true } },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (
+      !inscricao ||
+      inscricao.categoria.modalidade.evento.organizadorId !== organizador.id
+    ) {
+      throw new NotFoundException(
+        'Inscrição não encontrada ou sem permissão.',
+      );
+    }
+
+    if (!inscricao.documentoIdosoUrl) {
+      throw new BadRequestException(
+        'Esta inscrição não tem documento do idoso para conferir.',
+      );
+    }
+
+    const motivoLimpo = (motivo || '').trim();
+    if (decisao === 'REJEITADO' && !motivoLimpo) {
+      throw new BadRequestException(
+        'Informe o motivo da recusa: ele vai no e-mail para o atleta.',
+      );
+    }
+
+    const atualizada = await this.prisma.inscricao.update({
+      where: { id: inscricaoId },
+      data: {
+        documentoIdosoStatus:
+          decisao === 'APROVADO'
+            ? StatusDocumentoIdoso.APROVADO
+            : StatusDocumentoIdoso.REJEITADO,
+        documentoIdosoMotivo: decisao === 'REJEITADO' ? motivoLimpo : null,
+        documentoIdosoRevisadoEm: new Date(),
+      },
+    });
+
+    if (decisao === 'REJEITADO') {
+      const evento = inscricao.categoria.modalidade.evento;
+      const contaOrg = evento.organizador?.cliente;
+      const nomeAtleta =
+        inscricao.dependente?.nomeCompleto ||
+        inscricao.atletaNome ||
+        inscricao.cliente.pf?.nomeCompleto ||
+        'Atleta';
+      // O e-mail nunca derruba a conferencia: se falhar, fica registrado e o
+      // organizador ainda pode ligar para o atleta.
+      try {
+        await this.emailService.enviarDocumentoIdosoRecusado({
+          emailComprador: inscricao.cliente.usuario.email,
+          nomeComprador: inscricao.cliente.pf?.nomeCompleto || 'Atleta',
+          nomeAtleta,
+          nomeEvento: evento.nome,
+          motivo: motivoLimpo,
+          nomeOrganizador:
+            contaOrg?.pj?.nomeFantasia ||
+            contaOrg?.pj?.razaoSocial ||
+            contaOrg?.pf?.nomeCompleto ||
+            'Organizador do evento',
+          emailOrganizador: contaOrg?.usuario?.email || null,
+          telefoneOrganizador:
+            contaOrg?.pj?.celularComercial || contaOrg?.pf?.celular || null,
+        });
+      } catch (err) {
+        this.auditLogService.log({
+          categoria: CategoriaAuditLog.OPERACIONAL,
+          nivel: NivelAuditLog.ERROR,
+          mensagem: 'Falha ao enviar e-mail de documento do idoso recusado',
+          detalhes: { inscricaoId, erro: String(err) },
+          usuarioId,
+        });
+      }
+    }
+
+    return atualizada;
+  }
+
   async exportarInscritosXlsx(
     usuarioId: string,
     filtros: FiltrosInscritos,
@@ -928,8 +1057,15 @@ export class OrganizadorService {
       { header: 'Numero do peito', key: 'numeroPeito', width: 15 },
       { header: 'Tamanho da camisa', key: 'tamanhoCamisa', width: 15 },
       { header: 'Status', key: 'status', width: 18 },
+      { header: 'Desconto idoso', key: 'descontoIdoso', width: 24 },
       { header: 'Data da inscricao', key: 'dataInscricao', width: 20 },
     ];
+
+    const documentoIdosoLabel: Record<string, string> = {
+      PENDENTE: 'Documento a conferir',
+      APROVADO: 'Idade confirmada',
+      REJEITADO: 'Idade nao confirmada',
+    };
 
     planilha.getRow(1).font = { bold: true };
     planilha.getRow(1).alignment = { vertical: 'middle' };
@@ -961,6 +1097,9 @@ export class OrganizadorService {
         numeroPeito: inscricao.numeroPeito ?? '',
         tamanhoCamisa: inscricao.tamanhoCamisa ?? '',
         status: statusLabel[inscricao.status] ?? inscricao.status,
+        descontoIdoso: inscricao.documentoIdosoUrl
+          ? documentoIdosoLabel[inscricao.documentoIdosoStatus ?? 'PENDENTE']
+          : '',
         dataInscricao: inscricao.dataInscricao.toLocaleString('pt-BR', {
           timeZone: 'America/Sao_Paulo',
           day: '2-digit',
@@ -1117,6 +1256,14 @@ export class OrganizadorService {
 
     const busca = filtros.busca?.trim();
 
+    const documentoIdoso =
+      filtros.documentoIdoso &&
+      Object.values(StatusDocumentoIdoso).includes(
+        filtros.documentoIdoso as StatusDocumentoIdoso,
+      )
+        ? (filtros.documentoIdoso as StatusDocumentoIdoso)
+        : undefined;
+
     return {
       categoria: {
         modalidade: {
@@ -1126,6 +1273,7 @@ export class OrganizadorService {
           },
         },
       },
+      ...(documentoIdoso ? { documentoIdosoStatus: documentoIdoso } : {}),
       status: statusValido
         ? statusValido
         : { notIn: [StatusInscricao.CANCELADA, StatusInscricao.EXPIRADA] },

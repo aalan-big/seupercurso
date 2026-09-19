@@ -2,7 +2,7 @@
 import { BarChart2, AlertTriangle, Footprints, X, CheckCircle, Hash, Shirt, CreditCard, Save, ListTree, FileText } from 'lucide-vue-next'
 import { urlFoto } from '../../utils/foto'
 
-const { inscritos, fetchInscritos, exportarCsv, atualizarInscricao } = useInscritosOrganizador()
+const { inscritos, fetchInscritos, exportarCsv, atualizarInscricao, conferirDocumentoIdoso } = useInscritosOrganizador()
 const { eventos, fetchMeusEventos, fetchEvento } = useEventoOrganizador()
 const config = useRuntimeConfig()
 
@@ -15,6 +15,7 @@ const sucessoModal = ref('')
 
 const filtroEvento = ref('')
 const filtroStatus = ref('')
+const filtroDocumentoIdoso = ref('')
 const filtroBusca = ref('')
 
 // Modal 360° State
@@ -101,7 +102,8 @@ async function carregar() {
     await fetchInscritos({
       eventoId: filtroEvento.value || undefined,
       status: filtroStatus.value || undefined,
-      busca: filtroBusca.value || undefined
+      busca: filtroBusca.value || undefined,
+      documentoIdoso: filtroDocumentoIdoso.value || undefined
     })
   } catch (e) {
     erro.value = extrairErro(e)
@@ -127,7 +129,8 @@ async function onExportar(formato: 'xlsx' | 'pdf' = 'xlsx') {
       {
         eventoId: filtroEvento.value || undefined,
         status: filtroStatus.value || undefined,
-        busca: filtroBusca.value || undefined
+        busca: filtroBusca.value || undefined,
+        documentoIdoso: filtroDocumentoIdoso.value || undefined
       },
       formato
     )
@@ -147,6 +150,8 @@ async function abrirModal360(inscrito: (typeof inscritos.value)[number]) {
     status: inscrito.status
   }
   sucessoModal.value = ''
+  mostrarRecusaIdoso.value = false
+  motivoRecusaIdoso.value = ''
   modalAberto.value = true
   carregandoCategorias.value = true
 
@@ -207,9 +212,49 @@ function documentoCliente(inscrito: any) {
 }
 
 // Quem levou o desconto do idoso mandou documento com foto na inscricao; o
-// organizador confere na entrega do kit.
+// organizador confere e registra aqui. Recusar nao cancela nada — so avisa o
+// comprador por e-mail; a decisao final e do organizador.
 function documentoIdosoUrl(inscrito: any): string | null {
   return urlFoto(inscrito.documentoIdosoUrl, config.public.apiBase as string)
+}
+
+const documentoIdosoInfo: Record<string, { texto: string; classe: string }> = {
+  PENDENTE: { texto: 'Idoso · conferir documento', classe: 'bg-amber-100 text-amber-800' },
+  APROVADO: { texto: 'Idade confirmada', classe: 'bg-emerald-100 text-emerald-800' },
+  REJEITADO: { texto: 'Idade não confirmada', classe: 'bg-red-100 text-red-800' }
+}
+
+const conferindoDocumento = ref(false)
+const motivoRecusaIdoso = ref('')
+const mostrarRecusaIdoso = ref(false)
+
+async function onConferirDocumentoIdoso(decisao: 'APROVADO' | 'REJEITADO') {
+  if (!atletaSelecionado.value) return
+  if (decisao === 'REJEITADO' && !motivoRecusaIdoso.value.trim()) {
+    erro.value = 'Informe o motivo da recusa: ele vai no e-mail para o atleta.'
+    return
+  }
+  erro.value = ''
+  conferindoDocumento.value = true
+  try {
+    const atualizado = await conferirDocumentoIdoso(
+      atletaSelecionado.value.id,
+      decisao,
+      decisao === 'REJEITADO' ? motivoRecusaIdoso.value.trim() : undefined
+    )
+    atletaSelecionado.value = { ...atletaSelecionado.value, ...atualizado }
+    mostrarRecusaIdoso.value = false
+    motivoRecusaIdoso.value = ''
+    sucessoModal.value =
+      decisao === 'APROVADO'
+        ? 'Idade confirmada.'
+        : 'Documento recusado. O comprador recebeu um e-mail com o motivo e seu contato.'
+    await carregar()
+  } catch (e) {
+    erro.value = extrairErro(e)
+  } finally {
+    conferindoDocumento.value = false
+  }
 }
 
 function compradorTitular(inscrito: any) {
@@ -266,7 +311,7 @@ function formatarData(iso: string) {
     </div>
 
     <!-- Filtros Rápido -->
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-4">
       <select
         v-model="filtroEvento"
         class="rounded-xl border border-slate-300 px-4 py-2.5 text-xs font-bold text-slate-800 focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
@@ -286,6 +331,17 @@ function formatarData(iso: string) {
         <option v-for="st in statusOpcoes" :key="st.valor" :value="st.valor">
           {{ st.label }}
         </option>
+      </select>
+
+      <select
+        v-model="filtroDocumentoIdoso"
+        class="rounded-xl border border-slate-300 px-4 py-2.5 text-xs font-bold text-slate-800 focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+        @change="carregar"
+      >
+        <option value="">Desconto idoso: todos</option>
+        <option value="PENDENTE">Documentos a conferir</option>
+        <option value="APROVADO">Idade confirmada</option>
+        <option value="REJEITADO">Idade não confirmada</option>
       </select>
 
       <input
@@ -345,10 +401,11 @@ function formatarData(iso: string) {
               </span>
               <span
                 v-if="inscrito.documentoIdosoUrl"
-                class="mt-1 inline-block rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-black uppercase text-amber-800"
-                title="Levou desconto do idoso — conferir documento na retirada do kit"
+                class="mt-1 inline-block rounded-md px-1.5 py-0.5 text-[10px] font-black uppercase"
+                :class="documentoIdosoInfo[inscrito.documentoIdosoStatus || 'PENDENTE']?.classe"
+                title="Levou desconto do idoso — abra a inscrição para conferir o documento"
               >
-                Desconto idoso
+                {{ documentoIdosoInfo[inscrito.documentoIdosoStatus || 'PENDENTE']?.texto }}
               </span>
             </td>
             <td class="px-4 py-3.5 text-slate-600 font-mono">{{ documentoCliente(inscrito) }}</td>
@@ -419,25 +476,84 @@ function formatarData(iso: string) {
               </div>
             </div>
 
-            <!-- Desconto do idoso: documento enviado na inscricao -->
+            <!-- Desconto do idoso: conferencia do documento -->
             <div
               v-if="atletaSelecionado.documentoIdosoUrl"
-              class="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-2"
+              class="rounded-2xl border p-4 space-y-3"
+              :class="{
+                'border-amber-200 bg-amber-50': (atletaSelecionado.documentoIdosoStatus || 'PENDENTE') === 'PENDENTE',
+                'border-emerald-200 bg-emerald-50': atletaSelecionado.documentoIdosoStatus === 'APROVADO',
+                'border-red-200 bg-red-50': atletaSelecionado.documentoIdosoStatus === 'REJEITADO'
+              }"
             >
-              <p class="font-black text-amber-900 flex items-center gap-1.5">
-                <AlertTriangle :size="14" /> Desconto do idoso aplicado
+              <div class="flex items-center justify-between gap-2">
+                <p class="font-black text-slate-900 flex items-center gap-1.5">
+                  <AlertTriangle :size="14" /> Desconto do idoso
+                </p>
+                <span
+                  class="rounded-md px-2 py-0.5 text-[10px] font-black uppercase"
+                  :class="documentoIdosoInfo[atletaSelecionado.documentoIdosoStatus || 'PENDENTE']?.classe"
+                >
+                  {{ documentoIdosoInfo[atletaSelecionado.documentoIdosoStatus || 'PENDENTE']?.texto }}
+                </span>
+              </div>
+
+              <p v-if="(atletaSelecionado.documentoIdosoStatus || 'PENDENTE') === 'PENDENTE'" class="text-slate-700">
+                O atleta enviou um documento com foto pra comprovar 60+ anos. Abra o documento e confira se a data de nascimento bate.
               </p>
-              <p class="text-amber-800">
-                O atleta enviou um documento com foto pra comprovar 60+ anos. Confira na retirada do kit se a data de nascimento bate.
+              <p v-else-if="atletaSelecionado.documentoIdosoStatus === 'REJEITADO'" class="text-red-800">
+                <strong>Motivo da recusa:</strong> {{ atletaSelecionado.documentoIdosoMotivo }}<br />
+                O comprador recebeu um e-mail com esse motivo e seu contato. Cobrar a diferença ou cancelar a inscrição fica a seu critério.
               </p>
-              <a
-                :href="documentoIdosoUrl(atletaSelecionado) || '#'"
-                target="_blank"
-                rel="noopener"
-                class="inline-flex items-center gap-1.5 rounded-lg bg-white border border-amber-300 px-3 py-1.5 font-bold text-amber-900 hover:bg-amber-100"
-              >
-                <FileText :size="14" /> Ver documento
-              </a>
+              <p v-else class="text-emerald-800">Idade conferida e confirmada.</p>
+
+              <div class="flex flex-wrap items-center gap-2">
+                <a
+                  :href="documentoIdosoUrl(atletaSelecionado) || '#'"
+                  target="_blank"
+                  rel="noopener"
+                  class="inline-flex items-center gap-1.5 rounded-lg bg-white border border-slate-300 px-3 py-1.5 font-bold text-slate-800 hover:bg-slate-100"
+                >
+                  <FileText :size="14" /> Ver documento
+                </a>
+                <template v-if="atletaSelecionado.documentoIdosoStatus !== 'APROVADO'">
+                  <button
+                    type="button"
+                    :disabled="conferindoDocumento"
+                    class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+                    @click="onConferirDocumentoIdoso('APROVADO')"
+                  >
+                    <CheckCircle :size="14" /> Confirmar idade
+                  </button>
+                  <button
+                    v-if="atletaSelecionado.documentoIdosoStatus !== 'REJEITADO'"
+                    type="button"
+                    :disabled="conferindoDocumento"
+                    class="inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-white px-3 py-1.5 font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                    @click="mostrarRecusaIdoso = !mostrarRecusaIdoso"
+                  >
+                    <X :size="14" /> Recusar
+                  </button>
+                </template>
+              </div>
+
+              <div v-if="mostrarRecusaIdoso && atletaSelecionado.documentoIdosoStatus !== 'APROVADO'" class="space-y-2">
+                <label class="font-black text-slate-700">Motivo da recusa (vai no e-mail pro atleta)</label>
+                <textarea
+                  v-model="motivoRecusaIdoso"
+                  rows="3"
+                  placeholder="Ex.: A data de nascimento do documento não confere com a informada na inscrição."
+                  class="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-200"
+                ></textarea>
+                <button
+                  type="button"
+                  :disabled="conferindoDocumento || !motivoRecusaIdoso.trim()"
+                  class="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 font-bold text-white hover:bg-red-700 disabled:opacity-50"
+                  @click="onConferirDocumentoIdoso('REJEITADO')"
+                >
+                  {{ conferindoDocumento ? 'Enviando...' : 'Recusar e avisar o atleta por e-mail' }}
+                </button>
+              </div>
             </div>
 
             <!-- Formulário de Edição Completo -->

@@ -487,12 +487,31 @@ export class OrganizadorController {
     @Query('eventoId') eventoId?: string,
     @Query('status') status?: string,
     @Query('busca') busca?: string,
+    @Query('documentoIdoso') documentoIdoso?: string,
   ) {
     return this.organizadorService.listarInscritos(user.userId, {
       eventoId,
       status,
       busca,
+      documentoIdoso,
     });
+  }
+
+  @Patch('inscritos/:id/documento-idoso')
+  conferirDocumentoIdoso(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: { decisao: 'APROVADO' | 'REJEITADO'; motivo?: string },
+  ) {
+    if (dto?.decisao !== 'APROVADO' && dto?.decisao !== 'REJEITADO') {
+      throw new BadRequestException('Decisão inválida.');
+    }
+    return this.organizadorService.conferirDocumentoIdoso(
+      user.userId,
+      id,
+      dto.decisao,
+      dto.motivo,
+    );
   }
 
   @Patch('inscritos/:id')

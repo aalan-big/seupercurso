@@ -459,6 +459,14 @@ model Inscricao {
   /// 60+ e pagava metade. Obrigatorio quando o evento aplica o desconto e o
   /// atleta tem 60+ na data da prova; o organizador confere na entrega do kit.
   documentoIdosoUrl    String?
+  /// Conferencia do documento pelo organizador. PENDENTE assim que a
+  /// inscricao nasce com documento; a venda nao espera por isso. Nulo quando
+  /// a inscricao nao levou o desconto. Recusar nao cancela nada: avisa o
+  /// comprador por e-mail e deixa a decisao (diferenca ou fora da prova)
+  /// para o organizador.
+  documentoIdosoStatus StatusDocumentoIdoso?
+  documentoIdosoMotivo String?
+  documentoIdosoRevisadoEm DateTime?
 
   numeroPeito   String?
   tamanhoCamisa String?
@@ -639,6 +647,12 @@ enum StatusSolicitacaoDocumento {
   PENDENTE
   APROVADA
   REJEITADA
+}
+
+enum StatusDocumentoIdoso {
+  PENDENTE
+  APROVADO
+  REJEITADO
 }
 
 enum TipoDocumentoTitular {

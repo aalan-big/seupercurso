@@ -8,7 +8,10 @@ import {
 import { access } from 'fs/promises';
 import { join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
-import { StatusInscricao } from '../generated/prisma/enums';
+import {
+  StatusDocumentoIdoso,
+  StatusInscricao,
+} from '../generated/prisma/enums';
 import { calcularValorInscricao } from '../common/calcular-valor-inscricao';
 import { calcularIdade } from '../common/calcular-idade';
 import { CreateInscricaoDto } from './dto/create-inscricao.dto';
@@ -133,6 +136,9 @@ export class InscricaoService {
             ? dto.tamanhoCamisa
             : null,
           documentoIdosoUrl,
+          documentoIdosoStatus: documentoIdosoUrl
+            ? StatusDocumentoIdoso.PENDENTE
+            : null,
           status: StatusInscricao.PENDENTE_PAGAMENTO,
         },
       });
@@ -336,6 +342,9 @@ export class InscricaoService {
             atletaPcd: itemData.atletaPcd,
             tamanhoCamisa: itemData.tamanhoCamisa,
             documentoIdosoUrl: itemData.documentoIdosoUrl,
+            documentoIdosoStatus: itemData.documentoIdosoUrl
+              ? StatusDocumentoIdoso.PENDENTE
+              : null,
             status: StatusInscricao.PENDENTE_PAGAMENTO,
           },
         });
