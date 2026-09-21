@@ -182,6 +182,9 @@ async function onSair() {
           </div>
 
           <div class="space-y-3 text-xs">
+            <NuxtLink to="/configuracoes" class="flex items-center gap-3 p-2.5 rounded-xl bg-blue-50/80 hover:bg-blue-100 transition text-blue-900 font-bold border border-blue-200" @click="configuracoesAbertas = false">
+              <AppIcon name="users" size="16" class="text-blue-600" /> Gerenciar Administradores
+            </NuxtLink>
             <NuxtLink to="/financeiro" class="flex items-center gap-3 p-2 rounded-xl hover:bg-slate-100 transition text-slate-800 font-bold" @click="configuracoesAbertas = false">
               <AppIcon name="card" size="16" class="text-slate-500" /> Taxa de Comissão Asaas (10%)
             </NuxtLink>
@@ -228,6 +231,13 @@ async function onSair() {
               <AppIcon name="crown" size="11" /> Administrador Master
             </span>
           </div>
+          <NuxtLink
+            to="/configuracoes"
+            class="w-full mt-1 text-left px-3 py-2 text-xs font-bold text-slate-700 rounded-xl hover:bg-slate-100 transition flex items-center gap-2"
+            @click="perfilAberto = false"
+          >
+            <AppIcon name="settings" size="16" class="text-slate-500" /> Configurações & Admins
+          </NuxtLink>
           <button
             type="button"
             class="w-full mt-1 text-left px-3 py-2 text-xs font-bold text-red-600 rounded-xl hover:bg-red-50 transition flex items-center gap-2"

@@ -64,6 +64,9 @@ const linkClasse = 'flex items-center gap-2 rounded-lg px-3 py-2 text-slate-600 
       <NuxtLink to="/precificacao" :class="linkClasse" active-class="bg-warning/10 text-primary font-bold" @click="emit('fechar')">
         <AppIcon name="tag" size="18" class="text-slate-500" /> Precificação
       </NuxtLink>
+      <NuxtLink to="/configuracoes" :class="linkClasse" active-class="bg-warning/10 text-primary font-bold" @click="emit('fechar')">
+        <AppIcon name="settings" size="18" class="text-slate-500" /> Configurações & Admins
+      </NuxtLink>
     </nav>
   </aside>
 </template>

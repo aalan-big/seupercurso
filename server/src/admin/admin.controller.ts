@@ -21,6 +21,7 @@ import { ComissaoDto } from './dto/comissao.dto';
 import { ServidorPublicoConfigDto } from './dto/servidor-publico-config.dto';
 import { AlterarEmailDto } from './dto/alterar-email.dto';
 import { CriarUsuarioAdminDto } from './dto/criar-usuario.dto';
+import { CriarAdminDto } from './dto/criar-admin.dto';
 import { AlteracaoDocumentoService } from '../cliente/alteracao-documento.service';
 import {
   CurrentAdmin,
@@ -207,5 +208,16 @@ export class AdminController {
   @Post('usuarios')
   criarUsuario(@Body() dto: CriarUsuarioAdminDto) {
     return this.adminService.criarUsuario(dto);
+  }
+
+  @Get('administradores')
+  listarAdministradores() {
+    return this.adminService.listarAdministradores();
+  }
+
+  @HttpCode(HttpStatus.CREATED)
+  @Post('administradores')
+  criarAdministrador(@Body() dto: CriarAdminDto) {
+    return this.adminService.criarAdministrador(dto);
   }
 }

@@ -11,6 +11,7 @@ import {
   StatusPagamento,
 } from '../generated/prisma/enums';
 import { CriarUsuarioAdminDto } from './dto/criar-usuario.dto';
+import { CriarAdminDto } from './dto/criar-admin.dto';
 
 import { montarSerieDiaria } from '../common/montar-serie-diaria';
 
@@ -683,5 +684,46 @@ export class AdminService {
       usuario,
       senhaDefinida: senha,
     };
+  }
+
+  async listarAdministradores() {
+    return this.prisma.admin.findMany({
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        nome: true,
+        email: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  }
+
+  async criarAdministrador(dto: CriarAdminDto) {
+    const emailNormalizado = dto.email.trim().toLowerCase();
+
+    const existe = await this.prisma.admin.findUnique({
+      where: { email: emailNormalizado },
+    });
+    if (existe) {
+      throw new ConflictException('Já existe um administrador cadastrado com esse e-mail.');
+    }
+
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+
+    return this.prisma.admin.create({
+      data: {
+        nome: dto.nome.trim(),
+        email: emailNormalizado,
+        passwordHash,
+      },
+      select: {
+        id: true,
+        nome: true,
+        email: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
   }
 }
