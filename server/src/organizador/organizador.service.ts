@@ -1503,6 +1503,42 @@ export class OrganizadorService {
     }
   }
 
+  async migrarInscricoesCategoria(
+    usuarioId: string,
+    eventoId: string,
+    origemCategoriaId: string,
+    destinoCategoriaId: string,
+  ) {
+    const organizador = await this.getOrganizadorAprovadoOuFalhar(usuarioId);
+    await this.getEventoDoOrganizadorOuFalhar(organizador.id, eventoId);
+
+    const origem = await this.prisma.categoria.findUnique({
+      where: { id: origemCategoriaId },
+      include: { modalidade: true },
+    });
+    if (!origem || origem.modalidade.eventoId !== eventoId) {
+      throw new NotFoundException('Categoria de origem não encontrada neste evento.');
+    }
+
+    const destino = await this.prisma.categoria.findUnique({
+      where: { id: destinoCategoriaId },
+      include: { modalidade: true },
+    });
+    if (!destino || destino.modalidade.eventoId !== eventoId) {
+      throw new NotFoundException('Categoria de destino não encontrada neste evento.');
+    }
+
+    const { count } = await this.prisma.inscricao.updateMany({
+      where: { categoriaId: origemCategoriaId },
+      data: { categoriaId: destinoCategoriaId },
+    });
+
+    return {
+      migrados: count,
+      mensagem: `${count} participante(s) migrado(s) com sucesso de "${origem.nome}" para "${destino.nome}".`,
+    };
+  }
+
   async criarLote(usuarioId: string, eventoId: string, dto: CreateLoteDto) {
     const organizador = await this.getOrganizadorAprovadoOuFalhar(usuarioId);
     await this.getEventoDoOrganizadorOuFalhar(organizador.id, eventoId);

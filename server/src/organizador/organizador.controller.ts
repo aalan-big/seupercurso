@@ -653,6 +653,20 @@ export class OrganizadorController {
     );
   }
 
+  @Post('eventos/:eventoId/categorias/migrar')
+  migrarInscricoesCategoria(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('eventoId') eventoId: string,
+    @Body() dto: { origemCategoriaId: string; destinoCategoriaId: string },
+  ) {
+    return this.organizadorService.migrarInscricoesCategoria(
+      user.userId,
+      eventoId,
+      dto.origemCategoriaId,
+      dto.destinoCategoriaId,
+    );
+  }
+
   @HttpCode(HttpStatus.CREATED)
   @Post('eventos/:eventoId/lotes')
   criarLote(

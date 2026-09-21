@@ -258,6 +258,15 @@ export function useEventoOrganizador() {
     await fetchEvento(eventoId)
   }
 
+  async function migrarInscricoesCategoria(eventoId: string, origemCategoriaId: string, destinoCategoriaId: string) {
+    const res = await api<{ migrados: number; mensagem: string }>(`/organizadores/me/eventos/${eventoId}/categorias/migrar`, {
+      method: 'POST',
+      body: { origemCategoriaId, destinoCategoriaId }
+    })
+    await fetchEvento(eventoId)
+    return res
+  }
+
   async function criarLote(eventoId: string, input: LoteInput) {
     await api(`/organizadores/me/eventos/${eventoId}/lotes`, { method: 'POST', body: input })
     await fetchEvento(eventoId)
@@ -345,6 +354,7 @@ export function useEventoOrganizador() {
     criarCategoria,
     atualizarCategoria,
     removerCategoria,
+    migrarInscricoesCategoria,
     criarLote,
     atualizarLote,
     removerLote,

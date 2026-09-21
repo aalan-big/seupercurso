@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Footprints, Plus, Accessibility, Pencil } from 'lucide-vue-next'
+import { Footprints, Plus, Accessibility, Pencil, ArrowRightLeft } from 'lucide-vue-next'
 import type { ModalidadeOrganizador } from '../composables/useEventoOrganizador'
 
 const props = defineProps<{
@@ -18,6 +18,7 @@ const {
   criarCategoria,
   atualizarCategoria,
   removerCategoria,
+  migrarInscricoesCategoria,
   uploadListaServidores,
   obterServidoresPublicos,
   limparServidoresPublicos
@@ -302,16 +303,92 @@ async function onToggleServidorPublico(modalidadeId: string, categoria: any) {
   }
 }
 
-async function onRemoverCategoria(modalidadeId: string, categoriaId: string) {
-  if (!confirm('Deseja realmente remover esta categoria?')) return
+// Modal de Migração de Inscritos entre Categorias
+const modalMigracaoAberto = ref(false)
+const categoriaOrigemMigracao = ref<any>(null)
+const modalidadeOrigemMigracaoId = ref<string>('')
+const categoriaDestinoMigracaoId = ref<string>('')
+const migrandoInscritos = ref(false)
+const erroMigracao = ref('')
+const excluirOrigemAposMigrar = ref(true)
+
+function abrirModalMigracao(modalidadeId: string, categoria: any) {
+  categoriaOrigemMigracao.value = categoria
+  modalidadeOrigemMigracaoId.value = modalidadeId
+  categoriaDestinoMigracaoId.value = ''
+  erroMigracao.value = ''
+  modalMigracaoAberto.value = true
+}
+
+function fecharModalMigracao() {
+  modalMigracaoAberto.value = false
+  categoriaOrigemMigracao.value = null
+}
+
+const todasOutrasCategorias = computed(() => {
+  const lista: Array<{ id: string; nome: string; modalidadeNome: string; servidorPublico: boolean }> = []
+  for (const mod of props.modalidades) {
+    for (const cat of mod.categorias || []) {
+      if (!categoriaOrigemMigracao.value || cat.id !== categoriaOrigemMigracao.value.id) {
+        lista.push({
+          id: cat.id,
+          nome: cat.nome,
+          modalidadeNome: mod.nome,
+          servidorPublico: cat.servidorPublico || false
+        })
+      }
+    }
+  }
+  return lista
+})
+
+async function onConfirmarMigracao() {
+  if (!categoriaDestinoMigracaoId.value) {
+    erroMigracao.value = 'Selecione a categoria de destino para onde os atletas irão.'
+    return
+  }
+  erroMigracao.value = ''
+  migrandoInscritos.value = true
+  try {
+    const res = await migrarInscricoesCategoria(
+      props.eventoId,
+      categoriaOrigemMigracao.value.id,
+      categoriaDestinoMigracaoId.value
+    )
+    if (excluirOrigemAposMigrar.value) {
+      await removerCategoria(
+        props.eventoId,
+        modalidadeOrigemMigracaoId.value,
+        categoriaOrigemMigracao.value.id
+      )
+      alert(`${res.mensagem}\nA categoria antiga foi excluída com sucesso!`)
+    } else {
+      alert(res.mensagem)
+    }
+    fecharModalMigracao()
+  } catch (err: any) {
+    erroMigracao.value = extrairErro(err)
+  } finally {
+    migrandoInscritos.value = false
+  }
+}
+
+async function onRemoverCategoria(modalidadeId: string, categoria: any) {
+  if (!confirm(`Deseja realmente remover a categoria "${categoria.nome}"?`)) return
   erro.value = ''
   salvando.value = true
   try {
-    await removerCategoria(props.eventoId, modalidadeId, categoriaId)
+    await removerCategoria(props.eventoId, modalidadeId, categoria.id)
   } catch (e) {
     const msg = extrairErro(e)
     erro.value = msg
-    alert(msg)
+    if (msg.includes('já existe inscrição')) {
+      if (confirm(`Não é possível excluir diretamente porque já existem atletas inscritos na categoria "${categoria.nome}".\n\nDeseja migrar esses atletas para outra categoria (ex: Servidor Público Afiliado) agora mesmo?`)) {
+        abrirModalMigracao(modalidadeId, categoria)
+      }
+    } else {
+      alert(msg)
+    }
   } finally {
     salvando.value = false
   }
@@ -628,14 +705,24 @@ function faixaEtaria(min: number | null, max: number | null) {
                       </button>
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    class="text-red-500 hover:text-red-700 font-bold p-1"
-                    title="Remover Categoria"
-                    @click="onRemoverCategoria(modalidade.id, categoria.id)"
-                  >
-                    <AppIcon name="close" size="14" />
-                  </button>
+                  <div class="flex items-center gap-1">
+                    <button
+                      type="button"
+                      class="text-blue-500 hover:text-blue-700 font-bold p-1 rounded-lg hover:bg-blue-50 transition"
+                      title="Migrar atletas desta categoria para outra"
+                      @click="abrirModalMigracao(modalidade.id, categoria)"
+                    >
+                      <ArrowRightLeft class="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      class="text-red-500 hover:text-red-700 font-bold p-1 rounded-lg hover:bg-red-50 transition"
+                      title="Remover Categoria"
+                      @click="onRemoverCategoria(modalidade.id, categoria)"
+                    >
+                      <AppIcon name="close" size="14" />
+                    </button>
+                  </div>
                 </div>
 
                 <div class="flex items-center justify-between border-t border-slate-100 pt-2">
@@ -1101,6 +1188,100 @@ function faixaEtaria(min: number | null, max: number | null) {
               @click="fecharModalServidores"
             >
               Fechar
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Modal de Migração de Categoria -->
+    <Teleport to="body">
+      <div
+        v-if="modalMigracaoAberto"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4"
+      >
+        <div class="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl space-y-5">
+          <!-- Cabeçalho -->
+          <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div class="flex items-center gap-2">
+              <span class="text-2xl">🔄</span>
+              <div>
+                <h3 class="text-base font-extrabold text-slate-900">
+                  Migrar Atletas de Categoria
+                </h3>
+                <p class="text-xs text-slate-500">
+                  Transfira todos os inscritos da categoria atual para outra categoria.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              class="text-slate-400 hover:text-slate-600 p-1"
+              @click="fecharModalMigracao"
+            >
+              <AppIcon name="close" size="18" />
+            </button>
+          </div>
+
+          <!-- Conteúdo -->
+          <div class="space-y-4">
+            <div class="rounded-xl bg-amber-50 border border-amber-200 p-3.5 text-xs text-amber-900">
+              <p><strong>Categoria Atual (Origem):</strong> {{ categoriaOrigemMigracao?.nome }}</p>
+              <p class="text-[11px] text-amber-700 mt-1">
+                Todos os atletas atualmente vinculados nesta categoria serão transferidos para a nova categoria escolhida.
+              </p>
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                Selecione a Categoria de Destino:
+              </label>
+              <select
+                v-model="categoriaDestinoMigracaoId"
+                class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:border-warning focus:outline-none"
+              >
+                <option value="" disabled>Escolha a categoria...</option>
+                <option
+                  v-for="cat in todasOutrasCategorias"
+                  :key="cat.id"
+                  :value="cat.id"
+                >
+                  {{ cat.modalidadeNome }} — {{ cat.nome }} {{ cat.servidorPublico ? '🏛️ (Servidor Público)' : '' }}
+                </option>
+              </select>
+            </div>
+
+            <label class="flex items-center gap-2 text-xs text-slate-700 cursor-pointer select-none">
+              <input
+                v-model="excluirOrigemAposMigrar"
+                type="checkbox"
+                class="rounded border-slate-300 text-warning focus:ring-warning"
+              />
+              <span>Excluir a categoria antiga automaticamente após transferir todos os atletas</span>
+            </label>
+
+            <p v-if="erroMigracao" class="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-700">
+              {{ erroMigracao }}
+            </p>
+          </div>
+
+          <!-- Footer -->
+          <div class="border-t border-slate-100 pt-4 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              class="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold uppercase text-slate-600 hover:bg-slate-50 transition"
+              @click="fecharModalMigracao"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              :disabled="migrandoInscritos || !categoriaDestinoMigracaoId"
+              class="rounded-xl bg-orange-600 px-5 py-2 text-xs font-bold uppercase text-white hover:bg-orange-700 transition disabled:opacity-50 flex items-center gap-2"
+              @click="onConfirmarMigracao"
+            >
+              <span v-if="migrandoInscritos">Migrando...</span>
+              <span v-else>Confirmar Migração</span>
             </button>
           </div>
         </div>
