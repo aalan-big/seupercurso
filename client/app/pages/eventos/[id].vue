@@ -563,7 +563,7 @@ function selecionarCategoriaItem(item: ItemCarrinho, categoriaId: string) {
 
 function calcularPrecoItem(item: ItemCarrinho) {
   if (!item.modalidadeId) return 0
-  if (itemIsServidorPublico(item) && item.servidorValidado) {
+  if (item.servidorValidado || (itemIsServidorPublico(item) && item.servidorValidado)) {
     return 0
   }
   const valorBase = precoBasePara(item.modalidadeId)
@@ -862,7 +862,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
       tamanhoCamisa: eventoPossuiCamisa.value ? item.tamanhoCamisa : undefined,
       cupomCodigo: cupomCodigo.value || undefined,
       dependenteId: item.dependenteId,
-      matriculaServidor: itemIsServidorPublico(item) ? item.matriculaServidor?.trim() : undefined,
+      matriculaServidor: (itemIsServidorPublico(item) || item.servidorValidado) ? item.matriculaServidor?.trim() : undefined,
       documentoIdosoUrl: temDescontoIdoso(item) ? item.documentoIdosoUrl : undefined,
       atleta: item.tipo === 'MANUAL'
         ? {
@@ -1552,6 +1552,64 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
 
             <!-- Caso Pagamento Normal (PIX / Cartão) -->
             <template v-else>
+              <!-- Card Isenção Servidor Público no Checkout se o evento permite -->
+              <div
+                v-if="eventoSelecionado?.permiteServidorPublico"
+                class="bg-white border border-blue-200 rounded-2xl p-5 space-y-3 shadow-sm"
+              >
+                <div class="flex items-start gap-3">
+                  <span class="text-2xl">🏛️</span>
+                  <div class="flex-1">
+                    <h4 class="text-xs font-black uppercase tracking-wider text-blue-900">
+                      É Servidor Público? Solicite Isenção de Taxa (100% Gratuito)
+                    </h4>
+                    <p class="text-xs text-slate-500 mt-0.5">
+                      Se você é servidor público cadastrado na lista oficial deste evento, informe a sua matrícula para validar seu CPF e zerar o valor total a pagar.
+                    </p>
+                  </div>
+                </div>
+
+                <div class="space-y-3 pt-1">
+                  <div
+                    v-for="item in carrinho"
+                    :key="item.uid"
+                    class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2"
+                  >
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-bold text-slate-800">
+                        {{ item.nome }} · CPF: {{ formatarCpf(item.cpf) }}
+                      </span>
+                      <span v-if="item.servidorValidado" class="text-xs font-bold text-emerald-600 flex items-center gap-1">
+                        <CheckCircle class="w-4 h-4" /> Isenção Confirmada (R$ 0,00)
+                      </span>
+                    </div>
+
+                    <div v-if="!item.servidorValidado" class="flex flex-col sm:flex-row gap-2">
+                      <input
+                        v-model="item.matriculaServidor"
+                        type="text"
+                        placeholder="Digite sua matrícula funcional..."
+                        class="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-800 focus:border-blue-500 focus:outline-none"
+                        @keydown.enter.prevent="validarMatriculaServidor(item)"
+                      />
+                      <button
+                        type="button"
+                        @click="validarMatriculaServidor(item)"
+                        :disabled="item.servidorValidando"
+                        class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-black uppercase tracking-wider rounded-xl transition flex items-center justify-center gap-1.5 shadow-sm shrink-0"
+                      >
+                        <span v-if="item.servidorValidando" class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                        <span>{{ item.servidorValidando ? 'Validando...' : 'Validar Matrícula' }}</span>
+                      </button>
+                    </div>
+
+                    <p v-if="item.servidorErro" class="text-xs font-semibold text-rose-600">
+                      {{ item.servidorErro }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <!-- Cupom de Desconto -->
               <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-3 shadow-sm">
                 <label class="block text-xs font-black uppercase tracking-wider text-slate-700">Cupom de Desconto</label>

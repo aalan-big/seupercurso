@@ -285,6 +285,20 @@ async function onSalvarVagas(modalidadeId: string, categoriaId: string) {
   }
 }
 
+async function onToggleServidorPublico(modalidadeId: string, categoria: any) {
+  erro.value = ''
+  salvando.value = true
+  try {
+    await atualizarCategoria(props.eventoId, modalidadeId, categoria.id, {
+      servidorPublico: !categoria.servidorPublico
+    })
+  } catch (e) {
+    erro.value = extrairErro(e)
+  } finally {
+    salvando.value = false
+  }
+}
+
 async function onRemoverCategoria(modalidadeId: string, categoriaId: string) {
   erro.value = ''
   try {
@@ -591,9 +605,18 @@ function faixaEtaria(min: number | null, max: number | null) {
                   <div>
                     <p class="font-extrabold text-slate-800">{{ categoria.nome }}</p>
                     <p class="text-[11px] text-slate-500 mt-0.5">
-                      {{ faixaEtaria(categoria.idadeMinima, categoria.idadeMaxima) }} · {{ categoria.genero }}
                       <span v-if="categoria.pcd" class="ml-1 rounded-md bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold text-indigo-700">PCD</span>
-                      <span v-if="categoria.servidorPublico" class="ml-1 rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">🏛️ Servidor Público</span>
+                      <button
+                        v-if="props.permiteServidorPublico"
+                        type="button"
+                        :disabled="salvando"
+                        class="ml-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold transition cursor-pointer disabled:opacity-50 inline-flex items-center gap-0.5"
+                        :class="categoria.servidorPublico ? 'bg-amber-100 text-amber-900 border border-amber-300 font-extrabold' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 border border-slate-200'"
+                        :title="categoria.servidorPublico ? 'Clique para desmarcar categoria de servidor público' : 'Clique para marcar esta categoria como Servidor Público (Isenção)'"
+                        @click="onToggleServidorPublico(modalidade.id, categoria)"
+                      >
+                        <span>🏛️ {{ categoria.servidorPublico ? 'Servidor Público ✓' : '+ Marcar Servidor' }}</span>
+                      </button>
                     </p>
                   </div>
                   <button
