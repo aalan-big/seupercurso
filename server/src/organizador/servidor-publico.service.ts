@@ -52,12 +52,13 @@ export class ServidorPublicoService {
       );
     }
 
+    let categoriaVinculadaId: string | null = null;
     if (categoriaId) {
       const categoria = await this.prisma.categoria.findFirst({
         where: { id: categoriaId, modalidade: { eventoId } },
       });
-      if (!categoria) {
-        throw new NotFoundException('Categoria informada não pertence a este evento.');
+      if (categoria) {
+        categoriaVinculadaId = categoria.id;
       }
     }
 
@@ -78,7 +79,7 @@ export class ServidorPublicoService {
       const chunk = servidores.slice(i, i + CHUNK_SIZE);
       const dataParaInserir = chunk.map((s) => ({
         eventoId,
-        categoriaId: categoriaId || null,
+        categoriaId: categoriaVinculadaId,
         cpf: s.cpf,
         matricula: s.matricula,
         nome: s.nome || null,

@@ -379,6 +379,31 @@ function faixaEtaria(min: number | null, max: number | null) {
       <AppIcon name="warning" size="16" class="inline mr-1" /> {{ erro }}
     </p>
 
+    <!-- Banner de Gestão de Servidores Públicos se liberado pelo Admin -->
+    <div
+      v-if="props.permiteServidorPublico"
+      class="rounded-3xl border border-amber-300 bg-amber-50/80 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs"
+    >
+      <div class="flex items-start sm:items-center gap-3">
+        <span class="text-3xl">🏛️</span>
+        <div>
+          <h4 class="text-xs font-black uppercase tracking-wider text-amber-950">
+            Categoria Servidor Público Liberada pelo Admin
+          </h4>
+          <p class="text-xs text-amber-900 mt-0.5 font-medium">
+            Limite contratado: <strong>{{ props.vagasServidorPublico ? `${props.vagasServidorPublico} vagas gratuitas` : 'Ilimitado' }}</strong>. Faça o upload do PDF (72+ páginas) ou planilha com as matrículas e CPFs autorizados.
+          </p>
+        </div>
+      </div>
+      <button
+        type="button"
+        class="rounded-xl bg-amber-600 hover:bg-amber-700 text-white px-4 py-2.5 text-xs font-black uppercase tracking-wider transition shadow-sm shrink-0 flex items-center justify-center gap-1.5"
+        @click="abrirModalServidores()"
+      >
+        <span>Gerenciar Lista de Servidores</span>
+      </button>
+    </div>
+
     <!-- Estado Vazio -->
     <div v-if="modalidades.length === 0" class="rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center space-y-3 shadow-xs">
       <div class="h-12 w-12 rounded-2xl bg-amber-50 text-warning flex items-center justify-center mx-auto">
@@ -632,7 +657,7 @@ function faixaEtaria(min: number | null, max: number | null) {
                     v-if="props.permiteServidorPublico"
                     type="button"
                     class="rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 px-3 py-1.5 text-xs font-extrabold text-amber-900 transition flex items-center gap-1 self-start sm:self-auto"
-                    @click="abrirModalServidores(modalidade.id)"
+                    @click="abrirModalServidores()"
                   >
                     <span>🏛️ Lista de Servidores (PDF/Planilha)</span>
                   </button>
