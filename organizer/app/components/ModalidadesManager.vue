@@ -70,12 +70,15 @@ async function onCriarModalidade() {
 }
 
 async function onRemoverModalidade(modalidadeId: string) {
+  if (!confirm('Deseja realmente remover esta modalidade?')) return
   erro.value = ''
   salvando.value = true
   try {
     await removerModalidade(props.eventoId, modalidadeId)
   } catch (e) {
-    erro.value = extrairErro(e)
+    const msg = extrairErro(e)
+    erro.value = msg
+    alert(msg)
   } finally {
     salvando.value = false
   }
@@ -300,11 +303,17 @@ async function onToggleServidorPublico(modalidadeId: string, categoria: any) {
 }
 
 async function onRemoverCategoria(modalidadeId: string, categoriaId: string) {
+  if (!confirm('Deseja realmente remover esta categoria?')) return
   erro.value = ''
+  salvando.value = true
   try {
     await removerCategoria(props.eventoId, modalidadeId, categoriaId)
   } catch (e) {
-    erro.value = extrairErro(e)
+    const msg = extrairErro(e)
+    erro.value = msg
+    alert(msg)
+  } finally {
+    salvando.value = false
   }
 }
 
