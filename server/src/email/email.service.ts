@@ -101,8 +101,12 @@ export class EmailService {
           html,
           ...(replyTo ? { replyTo } : {}),
         });
-        this.logger.log(`[RESEND ENVIADO DIRETO COM SUCESSO!] Para: ${destinatario} | ID: ${res.data?.id}`);
-        return { enviado: true, resendId: res.data?.id };
+        if (res.error) {
+          this.logger.error(`[RESEND REJEITOU O ENVIO PARA ${destinatario}]: ${res.error.message} (status: ${res.error.name || res.error.statusCode})`);
+        } else {
+          this.logger.log(`[RESEND ENVIADO COM SUCESSO!] Para: ${destinatario} | ID: ${res.data?.id}`);
+          return { enviado: true, resendId: res.data?.id };
+        }
       } catch (err) {
         this.logger.error(`Erro ao enviar e-mail via Resend API:`, err);
       }
