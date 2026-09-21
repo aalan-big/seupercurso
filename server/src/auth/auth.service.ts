@@ -53,7 +53,6 @@ export class AuthService {
       data: {
         email: dto.email,
         passwordHash,
-        emailVerificado: true,
         emailToken,
         emailTokenExpiraEm,
       },
@@ -106,7 +105,6 @@ export class AuthService {
         data: {
           email: dto.email,
           passwordHash,
-          emailVerificado: true,
           emailToken,
           emailTokenExpiraEm,
           cliente: {

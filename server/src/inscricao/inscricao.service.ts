@@ -1040,8 +1040,15 @@ export class InscricaoService {
   }
 
   private async garantirEmailVerificado(usuarioId: string) {
-    // Inscrição liberada sem bloqueio por confirmação de e-mail
-    return;
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id: usuarioId },
+      select: { emailVerificado: true },
+    });
+    if (!usuario?.emailVerificado) {
+      throw new ForbiddenException(
+        'Confirme seu e-mail antes de se inscrever em um evento. Verifique sua caixa de entrada.',
+      );
+    }
   }
 
   private async getClienteComPfOuFalhar(usuarioId: string) {
