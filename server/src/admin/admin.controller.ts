@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Query,
   Sse,
@@ -18,6 +19,7 @@ import { NotificacaoAdminService } from './notificacao-admin.service';
 import { MotivoDto } from './dto/motivo.dto';
 import { ComissaoDto } from './dto/comissao.dto';
 import { ServidorPublicoConfigDto } from './dto/servidor-publico-config.dto';
+import { AlterarEmailDto } from './dto/alterar-email.dto';
 import { AlteracaoDocumentoService } from '../cliente/alteracao-documento.service';
 import {
   CurrentAdmin,
@@ -178,5 +180,25 @@ export class AdminController {
       dto.liberado,
       dto.vagas,
     );
+  }
+
+  @Get('usuarios')
+  buscarUsuarios(@Query('busca') busca?: string) {
+    return this.adminService.buscarUsuarios(busca);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('usuarios/:id/verificar-email')
+  verificarEmailUsuario(@Param('id') id: string) {
+    return this.adminService.verificarEmailUsuario(id);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Patch('usuarios/:id/email')
+  alterarEmailUsuario(
+    @Param('id') id: string,
+    @Body() dto: AlterarEmailDto,
+  ) {
+    return this.adminService.alterarEmailUsuario(id, dto.email);
   }
 }

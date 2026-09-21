@@ -18,6 +18,8 @@ const props = withDefaults(
       | 'menu'
       | 'palette'
       | 'tag'
+      | 'users'
+      | 'pencil'
     size?: string | number
     class?: string
   }>(),
@@ -146,6 +148,20 @@ const iconSize = computed(() => (typeof props.size === 'number' ? `${props.size}
     <g v-else-if="name === 'tag'">
       <path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" />
       <circle cx="7.5" cy="7.5" r="1.5" fill="currentColor" stroke="none" />
+    </g>
+
+    <!-- Users / Atletas e Clientes -->
+    <g v-else-if="name === 'users'">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </g>
+
+    <!-- Pencil / Editar -->
+    <g v-else-if="name === 'pencil'">
+      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+      <path d="m15 5 4 4" />
     </g>
   </svg>
 </template>

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrganizadorService } from '../organizador/organizador.service';
 import { Prisma } from '../generated/prisma/client';
@@ -432,5 +432,155 @@ export class AdminService {
       throw new NotFoundException('Evento não encontrado.');
     }
     return evento;
+  }
+
+  async buscarUsuarios(busca?: string) {
+    const termo = busca?.trim();
+    const where: Prisma.UsuarioWhereInput = termo
+      ? {
+          OR: [
+            { email: { contains: termo, mode: 'insensitive' } },
+            {
+              cliente: {
+                pf: {
+                  OR: [
+                    { nomeCompleto: { contains: termo, mode: 'insensitive' } },
+                    { cpf: { contains: termo.replace(/\D/g, '') || termo } },
+                    { celular: { contains: termo } },
+                  ],
+                },
+              },
+            },
+            {
+              cliente: {
+                pj: {
+                  OR: [
+                    { razaoSocial: { contains: termo, mode: 'insensitive' } },
+                    { cnpj: { contains: termo.replace(/\D/g, '') || termo } },
+                  ],
+                },
+              },
+            },
+          ],
+        }
+      : {};
+
+    return this.prisma.usuario.findMany({
+      where,
+      take: 50,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        email: true,
+        emailVerificado: true,
+        status: true,
+        createdAt: true,
+        cliente: {
+          select: {
+            id: true,
+            pf: {
+              select: {
+                nomeCompleto: true,
+                cpf: true,
+                celular: true,
+              },
+            },
+            pj: {
+              select: {
+                razaoSocial: true,
+                cnpj: true,
+                celularComercial: true,
+              },
+            },
+            _count: {
+              select: {
+                inscricoes: true,
+              },
+            },
+            inscricoes: {
+              take: 5,
+              orderBy: { dataInscricao: 'desc' },
+              select: {
+                id: true,
+                status: true,
+                categoria: {
+                  select: {
+                    nome: true,
+                    modalidade: {
+                      select: {
+                        evento: {
+                          select: {
+                            nome: true,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  async verificarEmailUsuario(id: string) {
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id },
+    });
+    if (!usuario) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    return this.prisma.usuario.update({
+      where: { id },
+      data: {
+        emailVerificado: true,
+      },
+      select: {
+        id: true,
+        email: true,
+        emailVerificado: true,
+      },
+    });
+  }
+
+  async alterarEmailUsuario(id: string, novoEmail: string) {
+    const emailNormalizado = novoEmail.trim().toLowerCase();
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id },
+    });
+    if (!usuario) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    if (usuario.email.toLowerCase() === emailNormalizado) {
+      return this.prisma.usuario.update({
+        where: { id },
+        data: { emailVerificado: true },
+        select: { id: true, email: true, emailVerificado: true },
+      });
+    }
+
+    const jaExiste = await this.prisma.usuario.findUnique({
+      where: { email: emailNormalizado },
+    });
+    if (jaExiste) {
+      throw new ConflictException('Já existe outro usuário cadastrado com este e-mail.');
+    }
+
+    return this.prisma.usuario.update({
+      where: { id },
+      data: {
+        email: emailNormalizado,
+        emailVerificado: true,
+      },
+      select: {
+        id: true,
+        email: true,
+        emailVerificado: true,
+      },
+    });
   }
 }

@@ -42,6 +42,9 @@ const linkClasse = 'flex items-center gap-2 rounded-lg px-3 py-2 text-slate-600 
       <NuxtLink to="/organizadores" :class="linkClasse" active-class="bg-warning/10 text-primary font-bold" @click="emit('fechar')">
         <AppIcon name="organizadores" size="18" class="text-slate-500" /> Organizadores
       </NuxtLink>
+      <NuxtLink to="/usuarios" :class="linkClasse" active-class="bg-warning/10 text-primary font-bold" @click="emit('fechar')">
+        <AppIcon name="users" size="18" class="text-slate-500" /> Usuários / Atletas
+      </NuxtLink>
 
       <NuxtLink to="/alteracoes-documento" :class="linkClasse" active-class="bg-warning/10 text-primary font-bold" @click="emit('fechar')">
         <AppIcon name="shield" size="18" /> Alteração de CPF/CNPJ
