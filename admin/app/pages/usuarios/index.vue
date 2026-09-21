@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { UsuarioAdmin } from '~/composables/useAdminUsuarios'
+import type { UsuarioAdmin } from '../../composables/useAdminUsuarios'
 
 const { usuarios, buscarUsuarios, verificarEmail, alterarEmail } = useAdminUsuarios()
 
