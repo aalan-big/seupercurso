@@ -24,6 +24,8 @@ const RESUMO_SELECT = {
   // inscricao e o atleta nao conseguia pagar.
   aplicaDescontoIdoso: true,
   percentualDescontoIdoso: true,
+  permiteServidorPublico: true,
+  vagasServidorPublico: true,
 } as const;
 
 @Injectable()
@@ -188,6 +190,7 @@ export class EventoService {
                 idadeMaxima: true,
                 genero: true,
                 pcd: true,
+                servidorPublico: true,
                 capacidade: true,
                 _count: {
                   select: {
@@ -257,6 +260,7 @@ export class EventoService {
             idadeMaxima: true,
             genero: true,
             pcd: true,
+            servidorPublico: true,
             capacidade: true,
           },
         });

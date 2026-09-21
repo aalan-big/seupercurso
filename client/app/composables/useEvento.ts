@@ -16,6 +16,8 @@ export interface EventoResumo {
   possuiCamisa?: boolean
   aplicaDescontoIdoso?: boolean
   percentualDescontoIdoso?: string | number | null
+  permiteServidorPublico?: boolean
+  vagasServidorPublico?: number | null
   valorApartirDe: number | null
 }
 
@@ -28,6 +30,7 @@ export interface CategoriaEvento {
   idadeMaxima: number | null
   genero: 'MASCULINO' | 'FEMININO' | 'LIVRE'
   pcd: boolean
+  servidorPublico?: boolean
 }
 
 export interface ModalidadeEvento {

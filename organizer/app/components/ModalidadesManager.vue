@@ -7,10 +7,21 @@ const props = defineProps<{
   cidade: string
   estado: string
   modalidades: ModalidadeOrganizador[]
+  permiteServidorPublico?: boolean
+  vagasServidorPublico?: number | null
 }>()
 
-const { criarModalidade, atualizarModalidade, removerModalidade, criarCategoria, atualizarCategoria, removerCategoria } =
-  useEventoOrganizador()
+const {
+  criarModalidade,
+  atualizarModalidade,
+  removerModalidade,
+  criarCategoria,
+  atualizarCategoria,
+  removerCategoria,
+  uploadListaServidores,
+  obterServidoresPublicos,
+  limparServidoresPublicos
+} = useEventoOrganizador()
 
 const generoOpcoes = [
   { valor: 'LIVRE' as const, label: 'Livre' },
@@ -130,7 +141,15 @@ const modalidadeMapaAbertaId = ref<string | null>(null)
 function abrirMapa(modalidadeId: string) {
   modalidadeMapaAbertaId.value = modalidadeMapaAbertaId.value === modalidadeId ? null : modalidadeId
 }
-const novaCategoria = reactive({ nome: '', idadeMinima: '', idadeMaxima: '', genero: 'LIVRE' as const, pcd: false, capacidade: '' })
+const novaCategoria = reactive({
+  nome: '',
+  idadeMinima: '',
+  idadeMaxima: '',
+  genero: 'LIVRE' as const,
+  pcd: false,
+  servidorPublico: false,
+  capacidade: ''
+})
 
 function abrirCategorias(modalidadeId: string) {
   modalidadeAbertaId.value = modalidadeAbertaId.value === modalidadeId ? null : modalidadeId
@@ -151,10 +170,12 @@ async function onCriarCategoria(modalidadeId: string) {
       idadeMaxima: novaCategoria.idadeMaxima ? Number(novaCategoria.idadeMaxima) : undefined,
       genero: novaCategoria.genero,
       pcd: novaCategoria.pcd,
+      servidorPublico: novaCategoria.servidorPublico,
       capacidade: novaCategoria.capacidade ? Number(novaCategoria.capacidade) : undefined
     })
     novaCategoria.nome = ''
     novaCategoria.pcd = false
+    novaCategoria.servidorPublico = false
     novaCategoria.idadeMinima = ''
     novaCategoria.idadeMaxima = ''
     novaCategoria.genero = 'LIVRE'
@@ -164,6 +185,81 @@ async function onCriarCategoria(modalidadeId: string) {
   } finally {
     salvando.value = false
   }
+}
+
+// Modal de Gestão da Lista de Servidores Públicos
+const modalServidoresAberto = ref(false)
+const categoriaServidorSelecionadaId = ref<string | null>(null)
+const dadosServidores = ref<any>(null)
+const carregandoServidores = ref(false)
+const enviandoArquivo = ref(false)
+const mensagemSucessoUpload = ref('')
+const erroUpload = ref('')
+const inputArquivoRef = ref<HTMLInputElement | null>(null)
+
+async function abrirModalServidores(categoriaId?: string) {
+  categoriaServidorSelecionadaId.value = categoriaId || null
+  modalServidoresAberto.value = true
+  mensagemSucessoUpload.value = ''
+  erroUpload.value = ''
+  await carregarServidores()
+}
+
+function fecharModalServidores() {
+  modalServidoresAberto.value = false
+}
+
+async function carregarServidores() {
+  carregandoServidores.value = true
+  try {
+    dadosServidores.value = await obterServidoresPublicos(props.eventoId)
+  } catch (e) {
+    erroUpload.value = extrairErro(e)
+  } finally {
+    carregandoServidores.value = false
+  }
+}
+
+async function onArquivoSelecionado(e: Event) {
+  const target = e.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+
+  enviandoArquivo.value = true
+  mensagemSucessoUpload.value = ''
+  erroUpload.value = ''
+  try {
+    const res = await uploadListaServidores(props.eventoId, file, categoriaServidorSelecionadaId.value || undefined)
+    mensagemSucessoUpload.value = res.mensagem || 'Lista de servidores processada e importada com sucesso!'
+    await carregarServidores()
+    if (inputArquivoRef.value) {
+      inputArquivoRef.value.value = ''
+    }
+  } catch (err) {
+    erroUpload.value = extrairErro(err)
+  } finally {
+    enviandoArquivo.value = false
+  }
+}
+
+async function onLimparServidores() {
+  if (!confirm('Deseja realmente remover os servidores desta lista que ainda NÃO realizaram inscrição?')) return
+  try {
+    const res = await limparServidoresPublicos(props.eventoId)
+    mensagemSucessoUpload.value = res.mensagem || 'Servidores não utilizados foram removidos.'
+    await carregarServidores()
+  } catch (err) {
+    erroUpload.value = extrairErro(err)
+  }
+}
+
+function formatarCpf(val: string | null | undefined) {
+  if (!val) return ''
+  const nums = val.replace(/\D/g, '').slice(0, 11)
+  return nums
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
 }
 
 const categoriaEditandoVagasId = ref<string | null>(null)
@@ -472,6 +568,7 @@ function faixaEtaria(min: number | null, max: number | null) {
                     <p class="text-[11px] text-slate-500 mt-0.5">
                       {{ faixaEtaria(categoria.idadeMinima, categoria.idadeMaxima) }} · {{ categoria.genero }}
                       <span v-if="categoria.pcd" class="ml-1 rounded-md bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold text-indigo-700">PCD</span>
+                      <span v-if="categoria.servidorPublico" class="ml-1 rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">🏛️ Servidor Público</span>
                     </p>
                   </div>
                   <button
@@ -530,14 +627,25 @@ function faixaEtaria(min: number | null, max: number | null) {
                 <h5 class="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1">
                   <Plus :size="14" class="text-slate-700" /> <span>Adicionar Categoria para {{ modalidade.nome }}</span>
                 </h5>
-                <button
-                  type="button"
-                  :disabled="salvando"
-                  class="rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 text-xs font-extrabold text-indigo-700 transition flex items-center gap-1 self-start sm:self-auto"
-                  @click="onCriarCategoriasPcdPadrao(modalidade.id)"
-                >
-                  <Accessibility :size="14" class="text-indigo-700" /> <span>+ Auto-Criar Categorias PCD Padrão</span>
-                </button>
+                <div class="flex flex-wrap items-center gap-2">
+                  <button
+                    v-if="props.permiteServidorPublico"
+                    type="button"
+                    class="rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 px-3 py-1.5 text-xs font-extrabold text-amber-900 transition flex items-center gap-1 self-start sm:self-auto"
+                    @click="abrirModalServidores(modalidade.id)"
+                  >
+                    <span>🏛️ Lista de Servidores (PDF/Planilha)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    :disabled="salvando"
+                    class="rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 text-xs font-extrabold text-indigo-700 transition flex items-center gap-1 self-start sm:self-auto"
+                    @click="onCriarCategoriasPcdPadrao(modalidade.id)"
+                  >
+                    <Accessibility :size="14" class="text-indigo-700" /> <span>+ Auto-Criar Categorias PCD Padrão</span>
+                  </button>
+                </div>
               </div>
 
               <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-5">
@@ -592,10 +700,28 @@ function faixaEtaria(min: number | null, max: number | null) {
               </div>
 
               <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
-                <label class="flex items-center gap-2 text-xs font-extrabold text-indigo-900 bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2 cursor-pointer transition hover:bg-indigo-100">
-                  <input v-model="novaCategoria.pcd" type="checkbox" class="h-4 w-4 rounded accent-indigo-600" />
-                  <Accessibility :size="14" class="text-indigo-700" /> <span>Marcar Categoria PCD (Pessoas com Deficiência)</span>
-                </label>
+                <div class="flex flex-wrap items-center gap-2">
+                  <label class="flex items-center gap-2 text-xs font-extrabold text-indigo-900 bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2 cursor-pointer transition hover:bg-indigo-100">
+                    <input v-model="novaCategoria.pcd" type="checkbox" class="h-4 w-4 rounded accent-indigo-600" />
+                    <Accessibility :size="14" class="text-indigo-700" /> <span>Marcar Categoria PCD</span>
+                  </label>
+
+                  <label
+                    v-if="props.permiteServidorPublico"
+                    class="flex items-center gap-2 text-xs font-extrabold text-amber-950 bg-amber-50 border border-amber-300 rounded-xl px-3 py-2 cursor-pointer transition hover:bg-amber-100"
+                  >
+                    <input v-model="novaCategoria.servidorPublico" type="checkbox" class="h-4 w-4 rounded accent-amber-600" />
+                    <span>🏛️ Marcar Categoria Servidor Público (Isenção 100%)</span>
+                  </label>
+
+                  <span
+                    v-else
+                    class="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-400 bg-slate-100 border border-slate-200 px-3 py-2 rounded-xl cursor-not-allowed"
+                    title="A liberação de categorias de servidor público com taxa pré-paga é feita pela administração"
+                  >
+                    <span>🔒 Categoria Servidor Público (Bloqueado)</span>
+                  </span>
+                </div>
 
                 <button
                   type="button"
@@ -759,5 +885,169 @@ function faixaEtaria(min: number | null, max: number | null) {
         </div>
       </div>
     </div>
+
+    <!-- Modal de Gestão da Lista de Servidores Públicos -->
+    <Teleport to="body">
+      <div
+        v-if="modalServidoresAberto"
+        class="fixed inset-0 z-[130] flex items-center justify-center p-4"
+        role="dialog"
+        aria-modal="true"
+      >
+        <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" @click="fecharModalServidores"></div>
+        <div class="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-white p-6 shadow-2xl overflow-hidden">
+          <!-- Header -->
+          <div class="flex items-start justify-between border-b border-slate-100 pb-4">
+            <div class="flex items-center gap-3">
+              <span class="text-3xl">🏛️</span>
+              <div>
+                <h3 class="text-base font-extrabold text-slate-900">
+                  Lista de Servidores Públicos Autorizados
+                </h3>
+                <p class="text-xs text-slate-500 mt-0.5">
+                  Faça o upload do PDF (suporta 70+ páginas) ou Planilha Excel/CSV com as matrículas e CPFs.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              class="text-slate-400 hover:text-slate-600 font-bold p-1 rounded-lg"
+              @click="fecharModalServidores"
+            >
+              ✕
+            </button>
+          </div>
+
+          <!-- Conteúdo rolável -->
+          <div class="flex-1 overflow-y-auto py-4 space-y-4 pr-1">
+            <!-- Resumo das Vagas -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div class="rounded-xl bg-slate-50 border border-slate-200 p-3 text-center">
+                <p class="text-[10px] font-bold uppercase text-slate-400">Total na Lista</p>
+                <p class="text-lg font-black text-slate-800">{{ dadosServidores?.totalCadastrados ?? 0 }}</p>
+              </div>
+              <div class="rounded-xl bg-slate-50 border border-slate-200 p-3 text-center">
+                <p class="text-[10px] font-bold uppercase text-slate-400">Limite Contratado</p>
+                <p class="text-lg font-black text-amber-600">{{ dadosServidores?.vagasServidorPublico ?? 'Sem limite' }}</p>
+              </div>
+              <div class="rounded-xl bg-slate-50 border border-slate-200 p-3 text-center">
+                <p class="text-[10px] font-bold uppercase text-slate-400">Inscrições Usadas</p>
+                <p class="text-lg font-black text-emerald-600">{{ dadosServidores?.totalUtilizados ?? 0 }}</p>
+              </div>
+              <div class="rounded-xl bg-slate-50 border border-slate-200 p-3 text-center">
+                <p class="text-[10px] font-bold uppercase text-slate-400">Vagas Restantes</p>
+                <p class="text-lg font-black text-slate-800">{{ dadosServidores?.vagasRestantesVagasEvento ?? '-' }}</p>
+              </div>
+            </div>
+
+            <!-- Upload Box -->
+            <div class="rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/50 p-5 text-center">
+              <input
+                ref="inputArquivoRef"
+                type="file"
+                accept=".pdf,.xlsx,.xls,.csv,.txt"
+                class="hidden"
+                @change="onArquivoSelecionado"
+              />
+              <div class="flex flex-col items-center justify-center gap-2">
+                <span class="text-3xl">📄</span>
+                <p class="text-xs font-bold text-slate-700">
+                  Clique para selecionar o PDF (suporta arquivos extensos de 70+ páginas) ou Planilha
+                </p>
+                <p class="text-[11px] text-slate-400">
+                  Formatos aceitos: PDF, Excel (.xlsx, .xls), CSV ou TXT
+                </p>
+                <button
+                  type="button"
+                  :disabled="enviandoArquivo"
+                  class="mt-2 rounded-xl bg-amber-600 hover:bg-amber-700 px-4 py-2 text-xs font-black uppercase tracking-wide text-white transition disabled:opacity-50 flex items-center gap-2 shadow-xs"
+                  @click="inputArquivoRef?.click()"
+                >
+                  <span v-if="enviandoArquivo" class="animate-spin">⏳</span>
+                  <span>{{ enviandoArquivo ? 'Processando arquivo (extraindo dados)...' : 'Selecionar Arquivo da Lista' }}</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Mensagens de Alerta -->
+            <div v-if="mensagemSucessoUpload" class="rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-xs font-bold text-emerald-800 flex items-center justify-between">
+              <span>✅ {{ mensagemSucessoUpload }}</span>
+              <button type="button" class="text-emerald-600 hover:underline" @click="mensagemSucessoUpload = ''">✕</button>
+            </div>
+
+            <div v-if="erroUpload" class="rounded-xl border border-red-300 bg-red-50 p-3 text-xs font-bold text-red-800 flex items-center justify-between">
+              <span>⚠️ {{ erroUpload }}</span>
+              <button type="button" class="text-red-600 hover:underline" @click="erroUpload = ''">✕</button>
+            </div>
+
+            <!-- Tabela dos Servidores Importados -->
+            <div class="border border-slate-200 rounded-xl overflow-hidden">
+              <div class="bg-slate-100 px-4 py-2.5 flex items-center justify-between border-b border-slate-200">
+                <span class="text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Servidores Cadastrados ({{ dadosServidores?.servidores?.length || 0 }})
+                </span>
+                <button
+                  v-if="dadosServidores?.servidores?.length > 0"
+                  type="button"
+                  class="text-[11px] font-bold text-red-600 hover:underline"
+                  @click="onLimparServidores"
+                >
+                  Remover não utilizados
+                </button>
+              </div>
+
+              <div class="max-h-60 overflow-y-auto">
+                <table v-if="dadosServidores?.servidores?.length > 0" class="w-full text-left text-xs">
+                  <thead class="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 border-b border-slate-200">
+                    <tr>
+                      <th class="px-3 py-2">Matrícula</th>
+                      <th class="px-3 py-2">CPF</th>
+                      <th class="px-3 py-2">Nome</th>
+                      <th class="px-3 py-2 text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100">
+                    <tr v-for="s in dadosServidores.servidores" :key="s.id" class="hover:bg-slate-50/80">
+                      <td class="px-3 py-2 font-mono font-bold text-slate-800">{{ s.matricula }}</td>
+                      <td class="px-3 py-2 font-mono text-slate-600">{{ formatarCpf(s.cpf) }}</td>
+                      <td class="px-3 py-2 font-medium text-slate-700 truncate max-w-[150px]">{{ s.nome || '-' }}</td>
+                      <td class="px-3 py-2 text-right">
+                        <span
+                          v-if="s.inscricaoId"
+                          class="rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-bold"
+                        >
+                          Inscrito
+                        </span>
+                        <span
+                          v-else
+                          class="rounded-full bg-slate-100 text-slate-600 px-2 py-0.5 text-[10px] font-bold"
+                        >
+                          Disponível
+                        </span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div v-else class="p-6 text-center text-xs text-slate-400">
+                  Nenhum servidor público cadastrado para este evento ainda.
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Footer -->
+          <div class="border-t border-slate-100 pt-4 flex justify-end">
+            <button
+              type="button"
+              class="rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold uppercase text-white hover:bg-slate-800 transition"
+              @click="fecharModalServidores"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>

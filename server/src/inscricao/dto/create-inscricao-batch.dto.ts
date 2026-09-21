@@ -64,6 +64,11 @@ export class CreateInscricaoItemDto {
   @IsOptional()
   @IsString()
   documentoIdosoUrl?: string;
+
+  /// Matrícula do servidor público, caso a categoria ou o evento tenha isenção
+  @IsOptional()
+  @IsString()
+  matriculaServidor?: string;
 }
 
 export class CreateInscricaoBatchDto {

@@ -33,7 +33,7 @@ const eventoId = route.params.id as string
 
 const { token } = useAuth()
 const { eventoSelecionado, fetchEvento } = useEvento()
-const { minhasInscricoes, fetchMinhas, criarBatch, uploadDocumentoIdoso, pagarInscricao } = useInscricao()
+const { minhasInscricoes, fetchMinhas, criarBatch, uploadDocumentoIdoso, validarServidorPublico, pagarInscricao } = useInscricao()
 const { cliente, fetchMe: fetchClienteMe } = useCliente()
 const { dependentes, fetchDependentes } = useDependente()
 
@@ -80,6 +80,11 @@ interface ItemCarrinho {
   // servidor (sobrevive ao sessionStorage) e o nome so pra mostrar na tela.
   documentoIdosoUrl?: string
   documentoIdosoNome?: string
+  matriculaServidor?: string
+  servidorValidado?: boolean
+  servidorValidando?: boolean
+  servidorErro?: string
+  servidorNome?: string
 }
 
 const carrinho = ref<ItemCarrinho[]>([])
@@ -519,8 +524,48 @@ function precoBasePara(modalidadeId: string) {
   return preco ? Number(preco.valor) : 0
 }
 
+function itemIsServidorPublico(item: ItemCarrinho) {
+  if (!item.modalidadeId || !item.categoriaId) return false
+  const mod = modalidadesAtivas.value.find((m) => m.id === item.modalidadeId)
+  const cat = mod?.categorias?.find((c) => c.id === item.categoriaId)
+  return !!cat?.servidorPublico
+}
+
+async function validarMatriculaServidor(item: ItemCarrinho) {
+  item.servidorErro = ''
+  if (!item.matriculaServidor || !item.matriculaServidor.trim()) {
+    item.servidorErro = 'Digite o número da sua matrícula de servidor público.'
+    return
+  }
+  item.servidorValidando = true
+  try {
+    const res = await validarServidorPublico(eventoId, item.cpf, item.matriculaServidor.trim())
+    if (res.valido) {
+      item.servidorValidado = true
+      item.servidorNome = res.nome || item.nome
+      item.servidorErro = ''
+    }
+  } catch (err: any) {
+    item.servidorValidado = false
+    item.servidorErro = extrairErro(err)
+  } finally {
+    item.servidorValidando = false
+  }
+}
+
+function selecionarCategoriaItem(item: ItemCarrinho, categoriaId: string) {
+  if (item.categoriaId !== categoriaId) {
+    item.categoriaId = categoriaId
+    item.servidorValidado = false
+    item.servidorErro = ''
+  }
+}
+
 function calcularPrecoItem(item: ItemCarrinho) {
   if (!item.modalidadeId) return 0
+  if (itemIsServidorPublico(item) && item.servidorValidado) {
+    return 0
+  }
   const valorBase = precoBasePara(item.modalidadeId)
   let valor = valorBase
 
@@ -548,6 +593,8 @@ const valorTotalCalculado = computed(() => {
 function selecionarModalidadeItem(item: ItemCarrinho, modalidadeId: string) {
   item.modalidadeId = modalidadeId
   item.categoriaId = null
+  item.servidorValidado = false
+  item.servidorErro = ''
   const mod = modalidadesAtivas.value.find((m) => m.id === modalidadeId)
   if (mod && mod.categorias && mod.categorias.length > 0) {
     const elegivel = mod.categorias.find((c) => !motivoInelegibilidadeParaAtleta(c, item))
@@ -561,7 +608,11 @@ const podeAvancar = computed(() => {
     return carrinho.value.length > 0
   }
   if (step.value === 2) {
-    return carrinho.value.every((i) => !!i.modalidadeId && !!i.categoriaId)
+    return carrinho.value.every((i) => {
+      if (!i.modalidadeId || !i.categoriaId) return false
+      if (itemIsServidorPublico(i) && !i.servidorValidado) return false
+      return true
+    })
   }
   if (step.value === 3) {
     return !eventoPossuiCamisa.value || carrinho.value.every((i) => !!i.tamanhoCamisa)
@@ -621,6 +672,13 @@ function avancar() {
     if (pendentes.length > 0) {
       const nomes = pendentes.map((i) => i.nome).join(', ')
       erroInscricao.value = `Selecione o percurso (modalidade) e a categoria para: ${nomes}.`
+      return
+    }
+
+    const servidoresNaoValidados = carrinho.value.filter((i) => itemIsServidorPublico(i) && !i.servidorValidado)
+    if (servidoresNaoValidados.length > 0) {
+      const nomes = servidoresNaoValidados.map((i) => i.nome).join(', ')
+      erroInscricao.value = `Valide a matrícula de servidor público para: ${nomes}.`
       return
     }
   }
@@ -804,6 +862,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
       tamanhoCamisa: eventoPossuiCamisa.value ? item.tamanhoCamisa : undefined,
       cupomCodigo: cupomCodigo.value || undefined,
       dependenteId: item.dependenteId,
+      matriculaServidor: itemIsServidorPublico(item) ? item.matriculaServidor?.trim() : undefined,
       documentoIdosoUrl: temDescontoIdoso(item) ? item.documentoIdosoUrl : undefined,
       atleta: item.tipo === 'MANUAL'
         ? {
@@ -817,6 +876,17 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
     }))
 
     const batchRes = await criarBatch(itemsPayload)
+
+    // Se for inscrição 100% gratuita (Servidor Público com isenção total)
+    if (batchRes.valorTotal === 0 || (batchRes as any).status === 'CONFIRMADA') {
+      inscricaoCriada.value = {
+        pedidoId: batchRes.pedidoId,
+        valor: '0.00',
+        metodo: 'ISENCAO_SERVIDOR_PUBLICO'
+      }
+      limparEstadoCheckout()
+      return
+    }
 
     const pagamentoRes = await pagarInscricao(
       undefined,
@@ -879,8 +949,19 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
             </p>
           </div>
 
+          <!-- Servidor Público Isenção -->
+          <div v-if="inscricaoCriada.metodo === 'ISENCAO_SERVIDOR_PUBLICO'" class="p-5 sm:p-6 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-3">
+            <span class="inline-block px-3 py-1 bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-full text-[11px] font-black uppercase tracking-wider">
+              🏛️ Isenção Concedida · Servidor Público
+            </span>
+            <p class="text-2xl sm:text-3xl font-black text-emerald-600">R$ 0,00 (100% Gratuito)</p>
+            <p class="text-xs sm:text-sm font-semibold text-emerald-900">
+              Sua inscrição foi confirmada com sucesso! As vagas gratuitas foram reservadas e os comprovantes e vouchers enviados para seu e-mail cadastrado.
+            </p>
+          </div>
+
           <!-- PIX QR Code / Copia e Cola Responsivo -->
-          <div v-if="inscricaoCriada.metodo === 'PIX' && inscricaoCriada.pixCopiaECola" class="p-4 sm:p-6 bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
+          <div v-else-if="inscricaoCriada.metodo === 'PIX' && inscricaoCriada.pixCopiaECola" class="p-4 sm:p-6 bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
             <div class="space-y-1">
               <span class="inline-block px-3 py-1 bg-orange-100 text-orange-800 border border-orange-200 rounded-full text-[11px] font-black uppercase tracking-wider">
                 Pagamento via PIX
@@ -1282,7 +1363,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                     <div
                       v-for="cat in modalidadesAtivas.find((m) => m.id === item.modalidadeId)?.categorias || []"
                       :key="cat.id"
-                      @click="!motivoInelegibilidadeParaAtleta(cat, item) && (item.categoriaId = cat.id)"
+                      @click="!motivoInelegibilidadeParaAtleta(cat, item) && selecionarCategoriaItem(item, cat.id)"
                       class="p-3.5 rounded-xl border transition flex items-center justify-between cursor-pointer"
                       :class="[
                         motivoInelegibilidadeParaAtleta(cat, item)
@@ -1293,12 +1374,79 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                       ]"
                     >
                       <div>
-                        <p class="text-sm font-semibold">{{ cat.nome }}</p>
+                        <div class="flex items-center gap-2">
+                          <p class="text-sm font-semibold">{{ cat.nome }}</p>
+                          <span
+                            v-if="cat.servidorPublico"
+                            class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-100 text-blue-800 border border-blue-200"
+                          >
+                            🏛️ Servidor Público
+                          </span>
+                        </div>
                         <p v-if="motivoInelegibilidadeParaAtleta(cat, item)" class="text-xs text-rose-500 mt-0.5">
                           {{ motivoInelegibilidadeParaAtleta(cat, item) }}
                         </p>
                       </div>
                       <Check v-if="item.categoriaId === cat.id" class="w-4 h-4 text-orange-500" />
+                    </div>
+                  </div>
+
+                  <!-- Validação de Servidor Público se a categoria for Servidor Público -->
+                  <div
+                    v-if="itemIsServidorPublico(item)"
+                    class="rounded-xl border p-4 space-y-3 transition mt-3"
+                    :class="item.servidorValidado ? 'bg-emerald-50 border-emerald-300' : 'bg-blue-50 border-blue-200'"
+                  >
+                    <div class="flex items-start gap-3">
+                      <span class="text-2xl">🏛️</span>
+                      <div class="flex-1 space-y-2">
+                        <div>
+                          <h4 class="text-xs font-black uppercase tracking-wider" :class="item.servidorValidado ? 'text-emerald-900' : 'text-blue-900'">
+                            Categoria Servidor Público · 100% Gratuita
+                          </h4>
+                          <p class="text-xs text-slate-600 mt-0.5">
+                            Digite a matrícula funcional de <strong>{{ item.nome.split(' ')[0] }}</strong> (CPF {{ formatarCpf(item.cpf) }}) para validar na lista oficial e liberar a gratuidade.
+                          </p>
+                        </div>
+
+                        <div v-if="!item.servidorValidado" class="flex flex-col sm:flex-row gap-2 pt-1">
+                          <input
+                            v-model="item.matriculaServidor"
+                            type="text"
+                            placeholder="Número da matrícula..."
+                            class="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-800 focus:border-blue-500 focus:outline-none"
+                            @keydown.enter.prevent="validarMatriculaServidor(item)"
+                          />
+                          <button
+                            type="button"
+                            @click="validarMatriculaServidor(item)"
+                            :disabled="item.servidorValidando"
+                            class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-black uppercase tracking-wider rounded-xl transition flex items-center justify-center gap-1.5 shadow-sm shrink-0"
+                          >
+                            <span v-if="item.servidorValidando" class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                            <span>{{ item.servidorValidando ? 'Validando...' : 'Validar Matrícula' }}</span>
+                          </button>
+                        </div>
+
+                        <div v-else class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+                          <div class="flex items-center gap-2 text-xs font-bold text-emerald-800">
+                            <CheckCircle class="w-4 h-4 text-emerald-600 shrink-0" />
+                            <span>Matrícula {{ item.matriculaServidor }} confirmada na lista oficial! {{ item.servidorNome ? `(${item.servidorNome})` : '' }}</span>
+                          </div>
+                          <button
+                            type="button"
+                            @click="item.servidorValidado = false"
+                            class="text-[11px] font-bold text-slate-500 hover:text-slate-700 underline text-left"
+                          >
+                            Alterar Matrícula
+                          </button>
+                        </div>
+
+                        <div v-if="item.servidorErro" class="p-2.5 bg-red-100/70 border border-red-200 text-red-700 text-xs font-semibold rounded-xl flex items-center gap-2">
+                          <AlertTriangle class="w-4 h-4 shrink-0 text-red-600" />
+                          <span>{{ item.servidorErro }}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1351,9 +1499,19 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
               <h3 class="font-black text-base text-slate-900 border-b border-slate-100 pb-3">Resumo dos Valores</h3>
               
               <div class="space-y-2 text-sm">
-                <div v-for="item in carrinho" :key="item.uid" class="flex justify-between text-slate-700">
-                  <span class="font-semibold">{{ item.nome }} ({{ modalidadesAtivas.find((m) => m.id === item.modalidadeId)?.nome }})</span>
-                  <span class="font-mono font-bold text-slate-900">R$ {{ calcularPrecoItem(item).toFixed(2) }}</span>
+                <div v-for="item in carrinho" :key="item.uid" class="flex justify-between items-center text-slate-700">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="font-semibold">{{ item.nome }} ({{ modalidadesAtivas.find((m) => m.id === item.modalidadeId)?.nome }})</span>
+                    <span
+                      v-if="itemIsServidorPublico(item) && item.servidorValidado"
+                      class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-100 text-blue-800 border border-blue-200"
+                    >
+                      🏛️ Servidor Público
+                    </span>
+                  </div>
+                  <span class="font-mono font-bold" :class="calcularPrecoItem(item) === 0 ? 'text-emerald-600' : 'text-slate-900'">
+                    {{ calcularPrecoItem(item) === 0 ? 'GRÁTIS' : `R$ ${calcularPrecoItem(item).toFixed(2)}` }}
+                  </span>
                 </div>
               </div>
 
@@ -1368,104 +1526,128 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
           <div v-if="step === 4" class="space-y-6">
             <h2 class="text-xl font-black text-slate-900 flex items-center gap-2">
               <CreditCard class="w-5 h-5 text-orange-500" />
-              4. Checkout & Pagamento Único
+              4. Checkout & Confirmação
             </h2>
 
-            <!-- Cupom de Desconto -->
-            <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-3 shadow-sm">
-              <label class="block text-xs font-black uppercase tracking-wider text-slate-700">Cupom de Desconto</label>
-              <div class="flex gap-2">
-                <input
-                  v-model="cupomCodigo"
-                  type="text"
-                  placeholder="DIGITE SEU CUPOM"
-                  class="bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-xs uppercase font-mono text-slate-800 focus:border-orange-500 focus:bg-white focus:outline-none flex-1"
-                />
-                <button
-                  @click="aplicarCupom"
-                  :disabled="validandoCupom"
-                  class="px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl transition"
-                >
-                  {{ validandoCupom ? '...' : 'Aplicar' }}
-                </button>
+            <!-- Caso 100% Gratuito (ex: Servidor Público Isento) -->
+            <div v-if="valorTotalCalculado === 0" class="bg-white border border-emerald-200 rounded-2xl p-6 sm:p-8 shadow-sm text-center space-y-4">
+              <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto border border-emerald-200 shadow-xs">
+                <CheckCircle class="w-8 h-8" />
               </div>
-
-              <div v-if="cupomAplicadoInfo" class="text-xs text-emerald-600 font-bold">
-                Cupom "{{ cupomAplicadoInfo.codigo }}" aplicado! Desconto de {{ cupomAplicadoInfo.percentualDesconto }}%.
-              </div>
-              <div v-if="erroCupom" class="text-xs text-red-600 font-semibold">
-                {{ erroCupom }}
-              </div>
-            </div>
-
-            <!-- Seleção do Método de Pagamento -->
-            <div class="bg-white border border-slate-200 rounded-2xl p-6 space-y-6 shadow-sm">
-              <div class="grid grid-cols-2 gap-3">
-                <button
-                  @click="metodoPagamentoSelecionado = 'PIX'"
-                  class="p-4 rounded-xl border text-center transition flex flex-col items-center justify-center space-y-1.5"
-                  :class="metodoPagamentoSelecionado === 'PIX' ? 'bg-orange-50 border-orange-500 text-slate-900 font-bold shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300'"
-                >
-                  <span class="text-base font-black">PIX</span>
-                  <span class="text-[11px] text-slate-500 font-semibold">Aprovação Imediata</span>
-                </button>
-
-                <button
-                  @click="metodoPagamentoSelecionado = 'CREDITO'"
-                  class="p-4 rounded-xl border text-center transition flex flex-col items-center justify-center space-y-1.5"
-                  :class="metodoPagamentoSelecionado === 'CREDITO' ? 'bg-orange-50 border-orange-500 text-slate-900 font-bold shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300'"
-                >
-                  <span class="text-base font-black">Cartão de Crédito</span>
-                  <span class="text-[11px] text-slate-500 font-semibold">{{ rotuloParcelamento }}</span>
-                </button>
-              </div>
-
-              <!-- Cartão: Payment Brick do Mercado Pago -->
-              <div v-if="metodoPagamentoSelecionado === 'CREDITO'" class="border-t border-slate-100 pt-4">
-                <div id="brick-cartao" class="min-h-[16rem]"></div>
-                <p class="mt-2 text-[11px] text-slate-500">
-                  Seus dados de cartão vão criptografados direto para o Mercado Pago — eles
-                  não passam pelo SeuPercurso.
+              <div class="space-y-2">
+                <span class="inline-block px-3 py-1 bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-full text-xs font-black uppercase tracking-wider">
+                  🏛️ Isenção Integral · Servidor Público
+                </span>
+                <h3 class="text-xl sm:text-2xl font-black text-slate-900">Inscrição 100% Gratuita</h3>
+                <p class="text-xs sm:text-sm text-slate-500 max-w-lg mx-auto">
+                  A matrícula e CPF de todos os atletas foram confirmados na lista de servidores públicos autorizados. O valor total da sua inscrição é <strong>R$ 0,00</strong>.
                 </p>
               </div>
 
-              <!-- Total Final, com a taxa discriminada -->
-              <div class="pt-4 border-t border-slate-100 space-y-2">
-                <div class="flex justify-between items-center text-xs font-semibold text-slate-500">
-                  <span>Inscrições</span>
-                  <span>R$ {{ Number(valorTotalCalculado).toFixed(2) }}</span>
-                </div>
-
-                <div
-                  v-if="taxaServico > 0"
-                  class="flex justify-between items-center text-xs font-semibold text-slate-500"
-                >
-                  <span>Taxa de serviço</span>
-                  <span>R$ {{ Number(taxaServico).toFixed(2) }}</span>
-                </div>
-
-                <div
-                  v-if="metodoPagamentoSelecionado === 'PIX' && taxaPix > 0"
-                  class="flex justify-between items-center text-xs font-semibold text-slate-500"
-                >
-                  <span>Taxa de processamento</span>
-                  <span>R$ {{ Number(taxaPix).toFixed(2) }}</span>
-                </div>
-
-                <div
-                  v-else-if="metodoPagamentoSelecionado === 'CREDITO' && taxaCartao > 0"
-                  class="flex justify-between items-center text-xs font-semibold text-slate-500"
-                >
-                  <span>Taxa de processamento</span>
-                  <span>R$ {{ Number(taxaCartao).toFixed(2) }}</span>
-                </div>
-
-                <div class="flex justify-between items-center text-xl font-black text-slate-900 pt-1">
-                  <span>Valor Total a Pagar:</span>
-                  <span class="text-orange-600">R$ {{ Number(valorFinalComMetodo).toFixed(2) }}</span>
-                </div>
+              <div class="pt-4 border-t border-slate-100 flex justify-between items-center text-xl font-black text-slate-900 max-w-md mx-auto">
+                <span>Total a Pagar:</span>
+                <span class="text-emerald-600">R$ 0,00</span>
               </div>
             </div>
+
+            <!-- Caso Pagamento Normal (PIX / Cartão) -->
+            <template v-else>
+              <!-- Cupom de Desconto -->
+              <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-3 shadow-sm">
+                <label class="block text-xs font-black uppercase tracking-wider text-slate-700">Cupom de Desconto</label>
+                <div class="flex gap-2">
+                  <input
+                    v-model="cupomCodigo"
+                    type="text"
+                    placeholder="DIGITE SEU CUPOM"
+                    class="bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-xs uppercase font-mono text-slate-800 focus:border-orange-500 focus:bg-white focus:outline-none flex-1"
+                  />
+                  <button
+                    @click="aplicarCupom"
+                    :disabled="validandoCupom"
+                    class="px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl transition"
+                  >
+                    {{ validandoCupom ? '...' : 'Aplicar' }}
+                  </button>
+                </div>
+
+                <div v-if="cupomAplicadoInfo" class="text-xs text-emerald-600 font-bold">
+                  Cupom "{{ cupomAplicadoInfo.codigo }}" aplicado! Desconto de {{ cupomAplicadoInfo.percentualDesconto }}%.
+                </div>
+                <div v-if="erroCupom" class="text-xs text-red-600 font-semibold">
+                  {{ erroCupom }}
+                </div>
+              </div>
+
+              <!-- Seleção do Método de Pagamento -->
+              <div class="bg-white border border-slate-200 rounded-2xl p-6 space-y-6 shadow-sm">
+                <div class="grid grid-cols-2 gap-3">
+                  <button
+                    @click="metodoPagamentoSelecionado = 'PIX'"
+                    class="p-4 rounded-xl border text-center transition flex flex-col items-center justify-center space-y-1.5"
+                    :class="metodoPagamentoSelecionado === 'PIX' ? 'bg-orange-50 border-orange-500 text-slate-900 font-bold shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300'"
+                  >
+                    <span class="text-base font-black">PIX</span>
+                    <span class="text-[11px] text-slate-500 font-semibold">Aprovação Imediata</span>
+                  </button>
+
+                  <button
+                    @click="metodoPagamentoSelecionado = 'CREDITO'"
+                    class="p-4 rounded-xl border text-center transition flex flex-col items-center justify-center space-y-1.5"
+                    :class="metodoPagamentoSelecionado === 'CREDITO' ? 'bg-orange-50 border-orange-500 text-slate-900 font-bold shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300'"
+                  >
+                    <span class="text-base font-black">Cartão de Crédito</span>
+                    <span class="text-[11px] text-slate-500 font-semibold">{{ rotuloParcelamento }}</span>
+                  </button>
+                </div>
+
+                <!-- Cartão: Payment Brick do Mercado Pago -->
+                <div v-if="metodoPagamentoSelecionado === 'CREDITO'" class="border-t border-slate-100 pt-4">
+                  <div id="brick-cartao" class="min-h-[16rem]"></div>
+                  <p class="mt-2 text-[11px] text-slate-500">
+                    Seus dados de cartão vão criptografados direto para o Mercado Pago — eles
+                    não passam pelo SeuPercurso.
+                  </p>
+                </div>
+
+                <!-- Total Final, com a taxa discriminada -->
+                <div class="pt-4 border-t border-slate-100 space-y-2">
+                  <div class="flex justify-between items-center text-xs font-semibold text-slate-500">
+                    <span>Inscrições</span>
+                    <span>R$ {{ Number(valorTotalCalculado).toFixed(2) }}</span>
+                  </div>
+
+                  <div
+                    v-if="taxaServico > 0"
+                    class="flex justify-between items-center text-xs font-semibold text-slate-500"
+                  >
+                    <span>Taxa de serviço</span>
+                    <span>R$ {{ Number(taxaServico).toFixed(2) }}</span>
+                  </div>
+
+                  <div
+                    v-if="metodoPagamentoSelecionado === 'PIX' && taxaPix > 0"
+                    class="flex justify-between items-center text-xs font-semibold text-slate-500"
+                  >
+                    <span>Taxa de processamento</span>
+                    <span>R$ {{ Number(taxaPix).toFixed(2) }}</span>
+                  </div>
+
+                  <div
+                    v-else-if="metodoPagamentoSelecionado === 'CREDITO' && taxaCartao > 0"
+                    class="flex justify-between items-center text-xs font-semibold text-slate-500"
+                  >
+                    <span>Taxa de processamento</span>
+                    <span>R$ {{ Number(taxaCartao).toFixed(2) }}</span>
+                  </div>
+
+                  <div class="flex justify-between items-center text-xl font-black text-slate-900 pt-1">
+                    <span>Valor Total a Pagar:</span>
+                    <span class="text-orange-600">R$ {{ Number(valorFinalComMetodo).toFixed(2) }}</span>
+                  </div>
+                </div>
+              </div>
+            </template>
 
           </div>
 
@@ -1486,6 +1668,16 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
               class="px-8 py-3 bg-orange-500 hover:bg-orange-600 text-white font-black text-xs uppercase tracking-wider rounded-xl transition shadow-sm"
             >
               Próximo Passo
+            </button>
+
+            <!-- Se for 100% gratuito (Servidor Público) -->
+            <button
+              v-else-if="valorTotalCalculado === 0"
+              @click="onInscrever()"
+              :disabled="inscrevendo"
+              class="px-8 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition shadow-sm disabled:opacity-50"
+            >
+              {{ inscrevendo ? 'Confirmando Inscrições...' : 'Concluir Inscrição Gratuita' }}
             </button>
 
             <!-- No cartão o botão de pagar é o do próprio Brick. -->

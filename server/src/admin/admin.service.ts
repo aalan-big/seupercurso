@@ -166,6 +166,19 @@ export class AdminService {
     });
   }
 
+  async configurarServidorPublico(id: string, liberado: boolean, vagas?: number | null) {
+    await this.getEventoOuFalhar(id);
+
+    return this.prisma.evento.update({
+      where: { id },
+      data: {
+        permiteServidorPublico: liberado,
+        vagasServidorPublico: vagas ?? null,
+      },
+      include: EVENTO_INCLUDE,
+    });
+  }
+
   async obterDashboard() {
     const DIAS_SERIE = 14;
     const desde = new Date();

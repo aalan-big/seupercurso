@@ -9,17 +9,24 @@ import { access } from 'fs/promises';
 import { join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  MetodoPagamento,
   StatusDocumentoIdoso,
   StatusInscricao,
+  StatusPagamento,
 } from '../generated/prisma/enums';
 import { calcularValorInscricao } from '../common/calcular-valor-inscricao';
 import { calcularIdade } from '../common/calcular-idade';
 import { CreateInscricaoDto } from './dto/create-inscricao.dto';
 import { CreateInscricaoBatchDto } from './dto/create-inscricao-batch.dto';
+import { ValidarServidorDto } from './dto/validar-servidor.dto';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class InscricaoService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly emailService: EmailService,
+  ) {}
 
   async create(usuarioId: string, dto: CreateInscricaoDto) {
     await this.garantirEmailVerificado(usuarioId);
@@ -147,6 +154,64 @@ export class InscricaoService {
     return { ...inscricao, valor };
   }
 
+  async validarServidor(dto: ValidarServidorDto) {
+    const cpfLimpo = dto.cpf.replace(/\D/g, '');
+    const matriculaLimpa = dto.matricula.trim();
+
+    const evento = await this.prisma.evento.findUnique({
+      where: { id: dto.eventoId },
+      select: { permiteServidorPublico: true, vagasServidorPublico: true, nome: true },
+    });
+
+    if (!evento) {
+      throw new NotFoundException('Evento não encontrado.');
+    }
+
+    if (!evento.permiteServidorPublico) {
+      throw new BadRequestException('A categoria de servidor público com isenção não está liberada para este evento.');
+    }
+
+    // Checa se o limite de vagas gratuitas já foi atingido
+    if (evento.vagasServidorPublico !== null) {
+      const vagasUtilizadas = await this.prisma.servidorPublico.count({
+        where: { eventoId: dto.eventoId, inscricaoId: { not: null } },
+      });
+      if (vagasUtilizadas >= evento.vagasServidorPublico) {
+        throw new BadRequestException(
+          `O limite de vagas gratuitas para servidores públicos neste evento (${evento.vagasServidorPublico} vagas) já foi esgotado.`,
+        );
+      }
+    }
+
+    const servidor = await this.prisma.servidorPublico.findFirst({
+      where: {
+        eventoId: dto.eventoId,
+        cpf: cpfLimpo,
+        matricula: { equals: matriculaLimpa, mode: 'insensitive' },
+      },
+    });
+
+    if (!servidor) {
+      throw new NotFoundException(
+        'Matrícula ou CPF não localizados na lista oficial de servidores públicos deste evento.',
+      );
+    }
+
+    if (servidor.inscricaoId || servidor.utilizadoEm) {
+      throw new ConflictException(
+        'Esta matrícula e CPF já foram utilizados para uma inscrição gratuita neste evento.',
+      );
+    }
+
+    return {
+      valido: true,
+      nome: servidor.nome,
+      matricula: servidor.matricula,
+      cpf: servidor.cpf,
+      mensagem: 'Servidor público identificado com sucesso! Inscrição 100% gratuita liberada.',
+    };
+  }
+
   async createBatch(usuarioId: string, dto: CreateInscricaoBatchDto) {
     await this.garantirEmailVerificado(usuarioId);
     const cliente = await this.getClienteComPfOuFalhar(usuarioId);
@@ -169,6 +234,9 @@ export class InscricaoService {
       atletaPcd: boolean;
       documentoIdosoUrl: string | null;
       valor: number;
+      isServidorPublico?: boolean;
+      matriculaServidor?: string | null;
+      servidorPublicoId?: string | null;
     }> = [];
 
     const cpfsNoCarrinho = new Set<string>();
@@ -283,14 +351,73 @@ export class InscricaoService {
         item.documentoIdosoUrl,
       );
 
-      const valor = await calcularValorInscricao(this.prisma, {
-        loteId: lote.id,
-        modalidadeId: categoria.modalidadeId,
-        clienteId,
-        eventoId: lote.eventoId,
-        cupomId,
-        dataNascimentoAtleta: atletaDataNascimento,
-      });
+      let isServidorPublico = false;
+      let matriculaServidor: string | null = null;
+      let servidorPublicoId: string | null = null;
+
+      if (categoria.servidorPublico || item.matriculaServidor) {
+        if (!categoria.modalidade.evento.permiteServidorPublico) {
+          throw new BadRequestException('A categoria de servidor público com isenção não está liberada para este evento.');
+        }
+
+        if (!item.matriculaServidor) {
+          throw new BadRequestException(`Informe a matrícula do servidor público para o atleta ${atletaNome}.`);
+        }
+
+        const matriculaLimpa = item.matriculaServidor.trim();
+
+        if (categoria.modalidade.evento.vagasServidorPublico !== null) {
+          const vagasUtilizadas = await this.prisma.servidorPublico.count({
+            where: {
+              eventoId: categoria.modalidade.eventoId,
+              inscricaoId: { not: null },
+            },
+          });
+          if (vagasUtilizadas >= categoria.modalidade.evento.vagasServidorPublico) {
+            throw new BadRequestException(
+              `As vagas gratuitas para servidores públicos deste evento (${categoria.modalidade.evento.vagasServidorPublico} vagas) já foram esgotadas.`,
+            );
+          }
+        }
+
+        const servidor = await this.prisma.servidorPublico.findFirst({
+          where: {
+            eventoId: categoria.modalidade.eventoId,
+            cpf: atletaCpf,
+            matricula: { equals: matriculaLimpa, mode: 'insensitive' },
+          },
+        });
+
+        if (!servidor) {
+          throw new NotFoundException(
+            `A matrícula "${matriculaLimpa}" com o CPF ${atletaCpf} não foi encontrada na lista oficial de servidores deste evento.`,
+          );
+        }
+
+        if (servidor.inscricaoId || servidor.utilizadoEm) {
+          throw new ConflictException(
+            `A matrícula "${matriculaLimpa}" do servidor ${atletaNome} já foi utilizada para outra inscrição gratuita neste evento.`,
+          );
+        }
+
+        isServidorPublico = true;
+        matriculaServidor = servidor.matricula;
+        servidorPublicoId = servidor.id;
+      }
+
+      let valor = 0;
+      if (isServidorPublico) {
+        valor = 0;
+      } else {
+        valor = await calcularValorInscricao(this.prisma, {
+          loteId: lote.id,
+          modalidadeId: categoria.modalidadeId,
+          clienteId,
+          eventoId: lote.eventoId,
+          cupomId,
+          dataNascimentoAtleta: atletaDataNascimento,
+        });
+      }
 
       inscricoesParaCriar.push({
         categoriaId: item.categoriaId,
@@ -308,10 +435,14 @@ export class InscricaoService {
         atletaPcd,
         documentoIdosoUrl,
         valor,
+        isServidorPublico,
+        matriculaServidor,
+        servidorPublicoId,
       });
     }
 
     const valorTotal = inscricoesParaCriar.reduce((acc, i) => acc + i.valor, 0);
+    const ehTotalmenteGratuito = valorTotal === 0;
 
     const resultado = await this.prisma.$transaction(async (tx) => {
       const pedido = await tx.pedido.create({
@@ -345,15 +476,87 @@ export class InscricaoService {
             documentoIdosoStatus: itemData.documentoIdosoUrl
               ? StatusDocumentoIdoso.PENDENTE
               : null,
-            status: StatusInscricao.PENDENTE_PAGAMENTO,
+            isServidorPublico: itemData.isServidorPublico ?? false,
+            matriculaServidor: itemData.matriculaServidor || null,
+            status: ehTotalmenteGratuito
+              ? StatusInscricao.CONFIRMADA
+              : StatusInscricao.PENDENTE_PAGAMENTO,
           },
         });
+
+        // Se era servidor público, amarra o id da inscrição para travar reuso
+        if (itemData.servidorPublicoId) {
+          await tx.servidorPublico.update({
+            where: { id: itemData.servidorPublicoId },
+            data: {
+              inscricaoId: inscricao.id,
+              utilizadoEm: new Date(),
+            },
+          });
+        }
 
         inscricoesCriadas.push({ ...inscricao, valor: itemData.valor });
       }
 
-      return { pedidoId: pedido.id, inscricoes: inscricoesCriadas, valorTotal };
+      // Se for 100% gratuito (ex: servidores públicos com isenção), cria pagamento aprovado zerado
+      if (ehTotalmenteGratuito) {
+        await tx.pagamento.create({
+          data: {
+            pedidoId: pedido.id,
+            valor: 0,
+            comissaoPlataforma: 0,
+            metodo: MetodoPagamento.PIX,
+            status: StatusPagamento.APROVADO,
+            gateway: 'ISENCAO_SERVIDOR_PUBLICO',
+            codigoTransacao: `FREE-${pedido.id.slice(0, 8)}`,
+            dataPagamento: new Date(),
+          },
+        });
+      }
+
+      return {
+        pedidoId: pedido.id,
+        inscricoes: inscricoesCriadas,
+        valorTotal,
+        status: ehTotalmenteGratuito ? 'CONFIRMADA' : 'PENDENTE_PAGAMENTO',
+      };
     });
+
+    if (resultado.status === 'CONFIRMADA') {
+      try {
+        const primeiraInscricao = resultado.inscricoes[0];
+        const categoria = await this.prisma.categoria.findUnique({
+          where: { id: primeiraInscricao.categoriaId },
+          include: { modalidade: { include: { evento: true } } },
+        });
+        const usuario = await this.prisma.usuario.findUnique({
+          where: { id: usuarioId },
+          select: { email: true },
+        });
+        if (categoria && usuario?.email) {
+          await this.emailService.enviarConfirmacaoInscricaoBatch({
+            emailComprador: usuario.email,
+            nomeComprador: cliente.pf?.nomeCompleto || 'Atleta',
+            nomeEvento: categoria.modalidade.evento.nome,
+            dataEvento: new Date(categoria.modalidade.evento.dataInicio).toLocaleDateString('pt-BR'),
+            localEvento: categoria.modalidade.evento.local,
+            cidadeEstado: `${categoria.modalidade.evento.cidade}/${categoria.modalidade.evento.estado}`,
+            valorTotal: '0.00',
+            atletas: resultado.inscricoes.map((i: any) => ({
+              inscricaoId: i.id,
+              nomeAtleta: i.atletaNome || 'Atleta',
+              cpfAtleta: i.atletaCpf || '',
+              modalidade: categoria.modalidade.nome,
+              categoria: categoria.nome,
+              tamanhoCamisa: i.tamanhoCamisa,
+              valor: '0.00',
+            })),
+          });
+        }
+      } catch (err: any) {
+        // Envio de email de confirmação silencioso em caso de falha
+      }
+    }
 
     return resultado;
   }

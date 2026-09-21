@@ -28,6 +28,7 @@ import {
   type AuthenticatedUser,
 } from '../auth/decorators/current-user.decorator';
 import { OrganizadorService } from './organizador.service';
+import { ServidorPublicoService } from './servidor-publico.service';
 import { CreateEventoDto } from './dto/create-evento.dto';
 import { UpdateEventoDto } from './dto/update-evento.dto';
 import { CreateModalidadeDto } from './dto/create-modalidade.dto';
@@ -45,7 +46,10 @@ import { RedefinirSenhaStaffDto } from './dto/redefinir-senha-staff.dto';
 @UseGuards(JwtAuthGuard)
 @Controller('organizadores/me')
 export class OrganizadorController {
-  constructor(private readonly organizadorService: OrganizadorService) {}
+  constructor(
+    private readonly organizadorService: OrganizadorService,
+    private readonly servidorPublicoService: ServidorPublicoService,
+  ) {}
 
   @HttpCode(HttpStatus.CREATED)
   @Post()
@@ -725,5 +729,45 @@ export class OrganizadorController {
     @Param('cupomId') cupomId: string,
   ) {
     return this.organizadorService.removerCupom(user.userId, eventoId, cupomId);
+  }
+
+  @Post('eventos/:id/servidores-publicos/upload')
+  @UseInterceptors(
+    FileInterceptor('arquivo', {
+      storage: memoryStorage(),
+      limits: { fileSize: 25 * 1024 * 1024 }, // 25MB para suportar centenas de páginas
+    }),
+  )
+  uploadListaServidores(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Query('categoriaId') categoriaId?: string,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('Envie o arquivo PDF ou Planilha com os servidores.');
+    return this.servidorPublicoService.importarLista(
+      user.userId,
+      id,
+      categoriaId,
+      file.buffer,
+      file.mimetype,
+      file.originalname,
+    );
+  }
+
+  @Get('eventos/:id/servidores-publicos')
+  listarServidoresPublicos(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.servidorPublicoService.listar(user.userId, id);
+  }
+
+  @Delete('eventos/:id/servidores-publicos')
+  removerServidoresNaoUtilizados(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.servidorPublicoService.removerNaoUtilizados(user.userId, id);
   }
 }

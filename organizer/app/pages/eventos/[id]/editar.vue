@@ -156,6 +156,8 @@ async function onSubmit(payload: Record<string, unknown>, _arquivoRegulamento: F
           :cidade="eventoSelecionado.cidade"
           :estado="eventoSelecionado.estado"
           :modalidades="eventoSelecionado.modalidades || []"
+          :permite-servidor-publico="eventoSelecionado.permiteServidorPublico"
+          :vagas-servidor-publico="eventoSelecionado.vagasServidorPublico"
         />
       </div>
 

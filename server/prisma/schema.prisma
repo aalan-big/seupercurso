@@ -282,17 +282,20 @@ model Evento {
   cidade                  String
   estado                  String
   capacidade              Int?
+  permiteServidorPublico  Boolean      @default(false)
+  vagasServidorPublico    Int?
   status                  StatusEvento @default(RASCUNHO)
   motivoRejeicao          String?
   createdAt               DateTime     @default(now())
   updatedAt               DateTime     @updatedAt
 
-  organizador      Organizador       @relation(fields: [organizadorId], references: [id])
-  patrocinadores   Patrocinador[]
-  modalidades      Modalidade[]
-  lotes            Lote[]
-  cupons           Cupom[]
-  solicitacoesArte SolicitacaoArte[]
+  organizador        Organizador         @relation(fields: [organizadorId], references: [id])
+  patrocinadores     Patrocinador[]
+  modalidades        Modalidade[]
+  lotes              Lote[]
+  cupons             Cupom[]
+  solicitacoesArte   SolicitacaoArte[]
+  servidoresPublicos ServidorPublico[]
 
   @@index([status, dataInicio])
 }
@@ -349,12 +352,14 @@ model Categoria {
   nome         String
   idadeMinima  Int?
   idadeMaxima  Int?
-  genero       GeneroCategoria @default(LIVRE)
-  pcd          Boolean         @default(false)
-  capacidade   Int?
+  genero          GeneroCategoria @default(LIVRE)
+  pcd             Boolean         @default(false)
+  servidorPublico Boolean         @default(false)
+  capacidade      Int?
 
-  modalidade Modalidade  @relation(fields: [modalidadeId], references: [id])
-  inscricoes Inscricao[]
+  modalidade         Modalidade        @relation(fields: [modalidadeId], references: [id])
+  inscricoes         Inscricao[]
+  servidoresPublicos ServidorPublico[]
 }
 
 model Lote {
@@ -468,21 +473,24 @@ model Inscricao {
   documentoIdosoMotivo String?
   documentoIdosoRevisadoEm DateTime?
 
-  numeroPeito   String?
-  tamanhoCamisa String?
-  kitEntregueEm DateTime?
-  dataInscricao DateTime        @default(now())
-  status        StatusInscricao @default(PENDENTE_PAGAMENTO)
+  numeroPeito       String?
+  tamanhoCamisa     String?
+  kitEntregueEm     DateTime?
+  isServidorPublico Boolean         @default(false)
+  matriculaServidor String?
+  dataInscricao     DateTime        @default(now())
+  status            StatusInscricao @default(PENDENTE_PAGAMENTO)
 
-  cliente     Cliente      @relation(fields: [clienteId], references: [id])
-  dependente  Dependente?  @relation(fields: [dependenteId], references: [id])
-  pedido      Pedido?      @relation(fields: [pedidoId], references: [id])
-  categoria   Categoria    @relation(fields: [categoriaId], references: [id])
-  lote        Lote         @relation(fields: [loteId], references: [id])
-  cupom       Cupom?       @relation(fields: [cupomId], references: [id])
-  pagamentos  Pagamento[]
-  certificado Certificado?
-  resultado   Resultado?
+  cliente         Cliente          @relation(fields: [clienteId], references: [id])
+  dependente      Dependente?      @relation(fields: [dependenteId], references: [id])
+  pedido          Pedido?          @relation(fields: [pedidoId], references: [id])
+  categoria       Categoria        @relation(fields: [categoriaId], references: [id])
+  lote            Lote             @relation(fields: [loteId], references: [id])
+  cupom           Cupom?           @relation(fields: [cupomId], references: [id])
+  pagamentos      Pagamento[]
+  certificado     Certificado?
+  resultado       Resultado?
+  servidorPublico ServidorPublico?
 
   @@index([status])
   @@index([pedidoId])
@@ -682,4 +690,30 @@ model SolicitacaoAlteracaoDocumento {
 
   @@index([clienteId, status])
   @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// Servidores Públicos (Isenção pré-paga para eventos com órgãos públicos)
+// ---------------------------------------------------------------------------
+
+model ServidorPublico {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventoId    String    @db.Uuid
+  categoriaId String?   @db.Uuid
+  cpf         String    // Apenas dígitos (11 caracteres)
+  matricula   String    // Normalizada
+  nome        String?
+  orgao       String?
+  inscricaoId String?   @unique @db.Uuid
+  utilizadoEm DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  evento    Evento     @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+  categoria Categoria? @relation(fields: [categoriaId], references: [id], onDelete: SetNull)
+  inscricao Inscricao? @relation(fields: [inscricaoId], references: [id], onDelete: SetNull)
+
+  @@unique([eventoId, cpf])
+  @@index([eventoId, matricula])
+  @@index([eventoId, cpf])
 }

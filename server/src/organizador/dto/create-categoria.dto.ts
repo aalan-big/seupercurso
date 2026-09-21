@@ -25,6 +25,10 @@ export class CreateCategoriaDto {
   pcd?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  servidorPublico?: boolean;
+
+  @IsOptional()
   @IsInt()
   @Min(1)
   capacidade?: number;

@@ -6,6 +6,7 @@ export interface CategoriaOrganizador {
   idadeMaxima: number | null
   genero: 'MASCULINO' | 'FEMININO' | 'LIVRE'
   pcd: boolean
+  servidorPublico?: boolean
   capacidade: number | null
 }
 
@@ -71,6 +72,8 @@ export interface EventoOrganizador {
   capacidade: number | null
   status: 'RASCUNHO' | 'AGUARDANDO_APROVACAO' | 'PUBLICADO' | 'INSCRICOES_ENCERRADAS' | 'CANCELADO' | 'FINALIZADO'
   motivoRejeicao: string | null
+  permiteServidorPublico?: boolean
+  vagasServidorPublico?: number | null
   createdAt: string
   updatedAt: string
   modalidades?: ModalidadeOrganizador[]
@@ -98,12 +101,12 @@ export interface EventoOrganizadorInput {
   cidade: string
   estado: string
   capacidade?: number
+  aplicaDescontoIdoso?: boolean
+  percentualDescontoIdoso?: number
 }
 
 export interface EventoOrganizadorUpdateInput extends Partial<EventoOrganizadorInput> {
   status?: EventoOrganizador['status']
-  aplicaDescontoIdoso?: boolean
-  percentualDescontoIdoso?: number
 }
 
 export interface ModalidadeInput {
@@ -128,6 +131,7 @@ export interface CategoriaInput {
   idadeMaxima?: number
   genero?: CategoriaOrganizador['genero']
   pcd?: boolean
+  servidorPublico?: boolean
   capacidade?: number
 }
 
@@ -280,6 +284,50 @@ export function useEventoOrganizador() {
     await fetchEvento(eventoId)
   }
 
+  async function uploadListaServidores(eventoId: string, arquivo: File, categoriaId?: string) {
+    const formData = new FormData()
+    formData.append('arquivo', arquivo)
+    const query = categoriaId ? `?categoriaId=${categoriaId}` : ''
+    return await api<{
+      sucesso: boolean
+      totalLidos: number
+      novosInseridos: number
+      mensagem: string
+      amostra: any[]
+    }>(`/organizadores/me/eventos/${eventoId}/servidores-publicos/upload${query}`, {
+      method: 'POST',
+      body: formData
+    })
+  }
+
+  async function obterServidoresPublicos(eventoId: string) {
+    return await api<{
+      permiteServidorPublico: boolean
+      vagasServidorPublico: number | null
+      totalCadastrados: number
+      totalUtilizados: number
+      vagasRestantesVagasEvento: number | null
+      servidores: Array<{
+        id: string
+        cpf: string
+        matricula: string
+        nome?: string
+        orgao?: string
+        utilizadoEm?: string | null
+        inscricaoId?: string | null
+        createdAt: string
+        categoria?: { id: string; nome: string } | null
+      }>
+    }>(`/organizadores/me/eventos/${eventoId}/servidores-publicos`)
+  }
+
+  async function limparServidoresPublicos(eventoId: string) {
+    return await api<{ sucesso: boolean; removidos: number; mensagem: string }>(
+      `/organizadores/me/eventos/${eventoId}/servidores-publicos`,
+      { method: 'DELETE' }
+    )
+  }
+
   return {
     eventos,
     eventoSelecionado,
@@ -300,6 +348,9 @@ export function useEventoOrganizador() {
     criarLote,
     atualizarLote,
     removerLote,
-    definirPreco
+    definirPreco,
+    uploadListaServidores,
+    obterServidoresPublicos,
+    limparServidoresPublicos
   }
 }

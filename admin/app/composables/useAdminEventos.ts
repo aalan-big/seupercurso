@@ -13,6 +13,8 @@ export interface EventoAdmin {
   capacidade: number | null
   status: 'RASCUNHO' | 'AGUARDANDO_APROVACAO' | 'PUBLICADO' | 'INSCRICOES_ENCERRADAS' | 'CANCELADO' | 'FINALIZADO' | 'SUSPENSO'
   motivoRejeicao: string | null
+  permiteServidorPublico?: boolean
+  vagasServidorPublico?: number | null
   createdAt: string
   organizador: {
     id: string
@@ -59,5 +61,12 @@ export function useAdminEventos() {
     })
   }
 
-  return { eventos, fetchLista, buscar, aprovar, rejeitar, suspender }
+  async function configurarServidorPublico(id: string, liberado: boolean, vagas?: number | null) {
+    return api<EventoAdmin>(`/admin/eventos/${id}/servidor-publico`, {
+      method: 'POST',
+      body: { liberado, vagas }
+    })
+  }
+
+  return { eventos, fetchLista, buscar, aprovar, rejeitar, suspender, configurarServidorPublico }
 }

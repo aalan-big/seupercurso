@@ -17,6 +17,7 @@ import { AdminService } from './admin.service';
 import { NotificacaoAdminService } from './notificacao-admin.service';
 import { MotivoDto } from './dto/motivo.dto';
 import { ComissaoDto } from './dto/comissao.dto';
+import { ServidorPublicoConfigDto } from './dto/servidor-publico-config.dto';
 import { AlteracaoDocumentoService } from '../cliente/alteracao-documento.service';
 import {
   CurrentAdmin,
@@ -164,5 +165,18 @@ export class AdminController {
   @Post('eventos/:id/suspender')
   suspenderEvento(@Param('id') id: string, @Body() dto: MotivoDto) {
     return this.adminService.suspenderEvento(id, dto.motivo);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('eventos/:id/servidor-publico')
+  configurarServidorPublico(
+    @Param('id') id: string,
+    @Body() dto: ServidorPublicoConfigDto,
+  ) {
+    return this.adminService.configurarServidorPublico(
+      id,
+      dto.liberado,
+      dto.vagas,
+    );
   }
 }

@@ -32,6 +32,7 @@ export interface CategoriaInfo {
   idadeMaxima?: number | null
   genero: string
   pcd: boolean
+  servidorPublico?: boolean
 }
 
 export interface ModalidadeInfo {
@@ -61,6 +62,8 @@ export interface EventoInfo {
   permiteTransferencia?: boolean
   aceitaPix?: boolean
   aceitaCartao?: boolean
+  permiteServidorPublico?: boolean
+  vagasServidorPublico?: number | null
   dataInicio: string
   dataFim: string
   local: string
@@ -134,6 +137,7 @@ export interface InscricaoItemInput {
   tamanhoCamisa?: string
   cupomCodigo?: string
   dependenteId?: string
+  matriculaServidor?: string
   atleta?: {
     nomeCompleto: string
     cpf: string
@@ -148,6 +152,7 @@ export interface InscricaoItemInput {
 export interface InscricaoBatchCriada {
   pedidoId: string
   valorTotal: number
+  status?: string
   inscricoes: InscricaoCriada[]
 }
 
@@ -239,11 +244,22 @@ export function useInscricao() {
     return res
   }
 
+  async function validarServidorPublico(eventoId: string, cpf: string, matricula: string) {
+    return await api<{ valido: boolean; nome?: string; matricula?: string; cpf?: string; mensagem: string }>(
+      '/inscricoes/validar-servidor',
+      {
+        method: 'POST',
+        body: { eventoId, cpf, matricula }
+      }
+    )
+  }
+
   return {
     minhasInscricoes,
     criar,
     criarBatch,
     uploadDocumentoIdoso,
+    validarServidorPublico,
     fetchMinhas,
     cancelar,
     atualizarTamanhoCamisa,

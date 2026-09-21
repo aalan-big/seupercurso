@@ -26,6 +26,10 @@ export class UpdateCategoriaDto {
   pcd?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  servidorPublico?: boolean;
+
+  @IsOptional()
   @IsInt()
   @Min(1)
   capacidade?: number | null;

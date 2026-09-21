@@ -4,13 +4,47 @@ import type { EventoAdmin } from '../../composables/useAdminEventos'
 
 const route = useRoute()
 const config = useRuntimeConfig()
-const { buscar, aprovar, rejeitar, suspender } = useAdminEventos()
+const { buscar, aprovar, rejeitar, suspender, configurarServidorPublico } = useAdminEventos()
 
 const evento = ref<EventoAdmin | null>(null)
 const carregando = ref(true)
 const processando = ref(false)
+const liberandoServidor = ref(false)
 const erro = ref('')
 const sucesso = ref('')
+
+const formServidor = reactive({
+  liberado: false,
+  vagas: ''
+})
+
+watch(
+  evento,
+  (ev) => {
+    if (ev) {
+      formServidor.liberado = !!ev.permiteServidorPublico
+      formServidor.vagas = ev.vagasServidorPublico ? String(ev.vagasServidorPublico) : ''
+    }
+  },
+  { immediate: true }
+)
+
+async function onSalvarServidorPublico() {
+  erro.value = ''
+  sucesso.value = ''
+  liberandoServidor.value = true
+  try {
+    const vagasNum = formServidor.vagas ? Number(formServidor.vagas) : null
+    evento.value = await configurarServidorPublico(route.params.id as string, formServidor.liberado, vagasNum)
+    sucesso.value = formServidor.liberado
+      ? 'Configuração de Servidor Público liberada para este evento com sucesso!'
+      : 'Recurso de Servidor Público desativado para este evento.'
+  } catch (e) {
+    erro.value = extrairErro(e)
+  } finally {
+    liberandoServidor.value = false
+  }
+}
 
 const mostrarMotivoRejeicao = ref(false)
 const mostrarMotivoSuspensao = ref(false)
@@ -141,6 +175,65 @@ async function confirmarSuspensao() {
         >
           <FileText :size="16" /> Ver regulamento
         </a>
+      </div>
+
+      <!-- Gestão de Servidores Públicos (Isenção Pré-paga pela Prefeitura/Órgão) -->
+      <div class="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="flex items-start gap-3">
+            <span class="text-2xl">🏛️</span>
+            <div>
+              <h2 class="text-sm font-bold uppercase tracking-wide text-slate-800">
+                Inscrições de Servidor Público (Isenção Pré-paga)
+              </h2>
+              <p class="text-xs text-slate-500 mt-0.5">
+                Libere esta opção apenas se o organizador/prefeitura pagou a taxa da plataforma (10% por vaga) antecipadamente por fora.
+              </p>
+            </div>
+          </div>
+          <span
+            class="self-start sm:self-auto rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-wider"
+            :class="evento.permiteServidorPublico ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-slate-100 text-slate-600'"
+          >
+            {{ evento.permiteServidorPublico ? 'Liberado para o Organizador' : 'Bloqueado' }}
+          </span>
+        </div>
+
+        <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 items-end border-t border-slate-100 pt-4">
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wide text-slate-600 mb-1.5">Permissão no Painel</label>
+            <label class="flex items-center gap-2 text-xs font-semibold cursor-pointer bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+              <input
+                v-model="formServidor.liberado"
+                type="checkbox"
+                class="h-4 w-4 rounded accent-emerald-600"
+              />
+              <span class="text-slate-800 font-bold">Ativar Categoria Servidor Público</span>
+            </label>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wide text-slate-600 mb-1.5">Limite de Vagas Gratuitas (opcional)</label>
+            <input
+              v-model="formServidor.vagas"
+              type="number"
+              min="1"
+              placeholder="Ex: 500 (Vazio = sem limite)"
+              class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-xs font-semibold focus:border-emerald-600 focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <button
+              type="button"
+              :disabled="liberandoServidor"
+              class="w-full rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-black uppercase tracking-wide text-white transition hover:bg-slate-800 disabled:opacity-50"
+              @click="onSalvarServidorPublico"
+            >
+              {{ liberandoServidor ? 'Salvando...' : 'Salvar Configuração' }}
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- Ações do Administrador Master -->

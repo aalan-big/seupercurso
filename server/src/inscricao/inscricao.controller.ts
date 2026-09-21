@@ -26,11 +26,18 @@ import { CreateInscricaoBatchDto } from './dto/create-inscricao-batch.dto';
 import { UpdateTamanhoCamisaDto } from './dto/update-tamanho-camisa.dto';
 import { TrocarCategoriaDto } from './dto/trocar-categoria.dto';
 import { TransferirInscricaoDto } from './dto/transferir-inscricao.dto';
+import { ValidarServidorDto } from './dto/validar-servidor.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('inscricoes')
 export class InscricaoController {
   constructor(private readonly inscricaoService: InscricaoService) {}
+
+  @HttpCode(HttpStatus.OK)
+  @Post('validar-servidor')
+  validarServidor(@Body() dto: ValidarServidorDto) {
+    return this.inscricaoService.validarServidor(dto);
+  }
 
   @HttpCode(HttpStatus.CREATED)
   @Post()
