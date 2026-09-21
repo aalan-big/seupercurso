@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { UsuarioAdmin } from '../../composables/useAdminUsuarios'
 
-const { usuarios, buscarUsuarios, verificarEmail, alterarEmail } = useAdminUsuarios()
+const { usuarios, buscarUsuarios, verificarEmail, alterarEmail, criarUsuario } = useAdminUsuarios()
 
 const termoBusca = ref('')
 const carregando = ref(false)
@@ -18,6 +18,20 @@ const usuarioSelecionado = ref<UsuarioAdmin | null>(null)
 const novoEmailInput = ref('')
 const salvandoEmail = ref(false)
 const erroModal = ref('')
+
+// Controle do modal de criação manual de usuário
+const modalCriarAberto = ref(false)
+const criandoUsuario = ref(false)
+const erroCriarModal = ref('')
+const formCriar = reactive({
+  nomeCompleto: '',
+  email: '',
+  cpf: '',
+  celular: '',
+  dataNascimento: '',
+  genero: 'MASCULINO' as 'MASCULINO' | 'FEMININO' | 'OUTRO',
+  password: ''
+})
 
 async function carregar(busca?: string) {
   erro.value = ''
@@ -99,6 +113,59 @@ async function onSalvarNovoEmail() {
   }
 }
 
+function abrirModalCriar() {
+  formCriar.nomeCompleto = ''
+  formCriar.email = ''
+  formCriar.cpf = ''
+  formCriar.celular = ''
+  formCriar.dataNascimento = ''
+  formCriar.genero = 'MASCULINO'
+  formCriar.password = ''
+  erroCriarModal.value = ''
+  modalCriarAberto.value = true
+}
+
+function fecharModalCriar() {
+  modalCriarAberto.value = false
+  erroCriarModal.value = ''
+}
+
+async function onSalvarNovoUsuario() {
+  if (!formCriar.nomeCompleto.trim()) {
+    erroCriarModal.value = 'Informe o nome completo do atleta.'
+    return
+  }
+  if (!formCriar.email.trim() || !formCriar.email.includes('@')) {
+    erroCriarModal.value = 'Informe um e-mail válido.'
+    return
+  }
+  const cpfLimpo = formCriar.cpf.replace(/\D/g, '')
+  if (cpfLimpo.length !== 11) {
+    erroCriarModal.value = 'O CPF deve ter exatamente 11 dígitos numéricos.'
+    return
+  }
+
+  criandoUsuario.value = true
+  erroCriarModal.value = ''
+  try {
+    const res = await criarUsuario({
+      nomeCompleto: formCriar.nomeCompleto.trim(),
+      email: formCriar.email.trim().toLowerCase(),
+      cpf: cpfLimpo,
+      celular: formCriar.celular.trim() || undefined,
+      dataNascimento: formCriar.dataNascimento || undefined,
+      genero: formCriar.genero,
+      password: formCriar.password.trim() || undefined
+    })
+    sucessoMsg.value = `Atleta "${formCriar.nomeCompleto}" cadastrado com sucesso! Senha de acesso definida: ${res.senhaDefinida}`
+    fecharModalCriar()
+  } catch (e: any) {
+    erroCriarModal.value = e?.data?.message || 'Erro ao cadastrar usuário.'
+  } finally {
+    criandoUsuario.value = false
+  }
+}
+
 function nomeExibicao(u: UsuarioAdmin) {
   return u.cliente?.pf?.nomeCompleto || u.cliente?.pj?.razaoSocial || 'Atleta sem nome cadastrado'
 }
@@ -134,11 +201,21 @@ onMounted(() => {
 <template>
   <div class="space-y-6">
     <!-- Header -->
-    <div>
-      <h1 class="text-2xl font-extrabold uppercase tracking-tight text-primary">Usuários & Atletas</h1>
-      <p class="mt-1 text-sm text-slate-500">
-        Localize contas por e-mail, nome ou CPF, ative contas pendentes com 1 clique e corrija e-mails digitados incorretamente.
-      </p>
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h1 class="text-2xl font-extrabold uppercase tracking-tight text-primary">Usuários & Atletas</h1>
+        <p class="mt-1 text-sm text-slate-500">
+          Localize contas por e-mail, nome ou CPF, ative contas pendentes com 1 clique e cadastre ou corrija atletas.
+        </p>
+      </div>
+      <button
+        type="button"
+        class="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold uppercase tracking-wide text-white shadow-md transition hover:brightness-110 shrink-0"
+        @click="abrirModalCriar"
+      >
+        <AppIcon name="users" size="18" />
+        + Novo Usuário
+      </button>
     </div>
 
     <!-- Barra de Busca -->
@@ -376,6 +453,129 @@ onMounted(() => {
             {{ salvandoEmail ? 'Salvando...' : 'Salvar e Liberar Conta' }}
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- Modal para Cadastrar Novo Usuário / Atleta -->
+    <div
+      v-if="modalCriarAberto"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      @click.self="fecharModalCriar"
+    >
+      <div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <h2 class="text-base font-extrabold uppercase tracking-tight text-primary">
+            Cadastrar Novo Atleta / Usuário
+          </h2>
+          <button type="button" class="text-slate-400 hover:text-slate-600" @click="fecharModalCriar">
+            <AppIcon name="close" size="18" />
+          </button>
+        </div>
+
+        <form class="mt-4 space-y-3.5" @submit.prevent="onSalvarNovoUsuario">
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-700">Nome Completo *</label>
+            <input
+              v-model="formCriar.nomeCompleto"
+              type="text"
+              required
+              placeholder="Ex: Carlos Eduardo da Silva"
+              class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label class="block text-xs font-bold uppercase text-slate-700">E-mail *</label>
+              <input
+                v-model="formCriar.email"
+                type="email"
+                required
+                placeholder="atleta@gmail.com"
+                class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold uppercase text-slate-700">CPF *</label>
+              <input
+                v-model="formCriar.cpf"
+                type="text"
+                required
+                maxlength="14"
+                placeholder="000.000.000-00"
+                class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div>
+              <label class="block text-xs font-bold uppercase text-slate-700">Celular / WhatsApp</label>
+              <input
+                v-model="formCriar.celular"
+                type="tel"
+                placeholder="(88) 99999-9999"
+                class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold uppercase text-slate-700">Nascimento</label>
+              <input
+                v-model="formCriar.dataNascimento"
+                type="date"
+                class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold uppercase text-slate-700">Gênero</label>
+              <select
+                v-model="formCriar.genero"
+                class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                <option value="MASCULINO">Masculino</option>
+                <option value="FEMININO">Feminino</option>
+                <option value="OUTRO">Outro</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-700">Senha de Acesso</label>
+            <input
+              v-model="formCriar.password"
+              type="text"
+              placeholder="Opcional (se vazio, usa os 6 primeiros dígitos do CPF)"
+              class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+            <p class="mt-1 text-[11px] text-slate-400">
+              O usuário já nasce com a <strong>conta ativada e liberada</strong> para comprar ingressos.
+            </p>
+          </div>
+
+          <p v-if="erroCriarModal" class="rounded-lg bg-red-50 p-2.5 text-xs font-semibold text-red-600">
+            {{ erroCriarModal }}
+          </p>
+
+          <div class="mt-6 flex justify-end gap-2 pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              class="rounded-xl border border-slate-300 px-4 py-2 text-xs font-bold uppercase text-slate-600 hover:bg-slate-50"
+              @click="fecharModalCriar"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              :disabled="criandoUsuario"
+              class="rounded-xl bg-primary px-5 py-2 text-xs font-bold uppercase text-white hover:bg-primary/90 disabled:opacity-50"
+            >
+              {{ criandoUsuario ? 'Cadastrando...' : 'Cadastrar e Liberar Conta' }}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   </div>

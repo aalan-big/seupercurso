@@ -80,10 +80,33 @@ export function useAdminUsuarios() {
     return res
   }
 
+  async function criarUsuario(dados: {
+    nomeCompleto: string
+    email: string
+    cpf: string
+    celular?: string
+    dataNascimento?: string
+    genero?: 'MASCULINO' | 'FEMININO' | 'OUTRO'
+    password?: string
+  }) {
+    const res = await api<{ usuario: UsuarioAdmin; senhaDefinida: string }>(
+      '/admin/usuarios',
+      {
+        method: 'POST',
+        body: dados
+      }
+    )
+    if (res?.usuario) {
+      usuarios.value.unshift(res.usuario)
+    }
+    return res
+  }
+
   return {
     usuarios,
     buscarUsuarios,
     verificarEmail,
-    alterarEmail
+    alterarEmail,
+    criarUsuario
   }
 }

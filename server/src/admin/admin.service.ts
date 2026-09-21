@@ -1,13 +1,16 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrganizadorService } from '../organizador/organizador.service';
 import { Prisma } from '../generated/prisma/client';
 import {
+  Genero,
   StatusEvento,
   StatusInscricao,
   StatusOrganizador,
   StatusPagamento,
 } from '../generated/prisma/enums';
+import { CriarUsuarioAdminDto } from './dto/criar-usuario.dto';
 
 import { montarSerieDiaria } from '../common/montar-serie-diaria';
 
@@ -582,5 +585,103 @@ export class AdminService {
         emailVerificado: true,
       },
     });
+  }
+
+  async criarUsuario(dto: CriarUsuarioAdminDto) {
+    const emailNormalizado = dto.email.trim().toLowerCase();
+    const cpfLimpo = dto.cpf.replace(/\D/g, '');
+
+    const existeEmail = await this.prisma.usuario.findUnique({
+      where: { email: emailNormalizado },
+    });
+    if (existeEmail) {
+      throw new ConflictException('Já existe uma conta com esse e-mail.');
+    }
+
+    const existeCpf = await this.prisma.clientePf.findUnique({
+      where: { cpf: cpfLimpo },
+    });
+    if (existeCpf) {
+      throw new ConflictException('Já existe um atleta cadastrado com esse CPF.');
+    }
+
+    const senha = dto.password?.trim() || `sp${cpfLimpo.slice(0, 6) || '123456'}`;
+    const passwordHash = await bcrypt.hash(senha, 10);
+
+    const dataNasc = dto.dataNascimento
+      ? new Date(dto.dataNascimento)
+      : new Date('2000-01-01');
+
+    const usuario = await this.prisma.usuario.create({
+      data: {
+        email: emailNormalizado,
+        passwordHash,
+        emailVerificado: true,
+        cliente: {
+          create: {
+            pf: {
+              create: {
+                nomeCompleto: dto.nomeCompleto.trim(),
+                cpf: cpfLimpo,
+                dataNascimento: dataNasc,
+                genero: dto.genero || Genero.OUTRO,
+                celular: dto.celular?.trim() || '',
+                nacionalidade: 'Brasileira',
+              },
+            },
+          },
+        },
+      },
+      select: {
+        id: true,
+        email: true,
+        emailVerificado: true,
+        status: true,
+        createdAt: true,
+        cliente: {
+          select: {
+            id: true,
+            pf: {
+              select: {
+                nomeCompleto: true,
+                cpf: true,
+                celular: true,
+              },
+            },
+            _count: {
+              select: {
+                inscricoes: true,
+              },
+            },
+            inscricoes: {
+              take: 5,
+              select: {
+                id: true,
+                status: true,
+                categoria: {
+                  select: {
+                    nome: true,
+                    modalidade: {
+                      select: {
+                        evento: {
+                          select: {
+                            nome: true,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return {
+      usuario,
+      senhaDefinida: senha,
+    };
   }
 }
