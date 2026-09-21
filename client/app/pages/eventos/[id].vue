@@ -435,23 +435,83 @@ function removerAtleta(uid: string) {
 function temDescontoIdoso(item: ItemCarrinho) {
   const ev = eventoSelecionado.value
   if (!ev?.aplicaDescontoIdoso || !ev.percentualDescontoIdoso) return false
+  if (item.servidorValidado) return false
   return calcularIdade(item.dataNascimento, ev.dataInicio) >= 60
+}
+
+async function comprimirImagemSeNecessario(arquivo: File): Promise<File> {
+  if (!arquivo.type.startsWith('image/') || arquivo.type === 'image/svg+xml') {
+    return arquivo
+  }
+
+  return new Promise((resolve) => {
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const img = new Image()
+      img.onload = () => {
+        const maxDim = 1920
+        let { width, height } = img
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width)
+            width = maxDim
+          } else {
+            width = Math.round((width * maxDim) / height)
+            height = maxDim
+          }
+        }
+
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          resolve(arquivo)
+          return
+        }
+
+        ctx.drawImage(img, 0, 0, width, height)
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              resolve(arquivo)
+              return
+            }
+            const compFile = new File([blob], arquivo.name.replace(/\.[^.]+$/, '.jpg'), {
+              type: 'image/jpeg',
+              lastModified: Date.now()
+            })
+            resolve(compFile)
+          },
+          'image/jpeg',
+          0.82
+        )
+      }
+      img.onerror = () => resolve(arquivo)
+      img.src = event.target?.result as string
+    }
+    reader.onerror = () => resolve(arquivo)
+    reader.readAsDataURL(arquivo)
+  })
 }
 
 const enviandoDocumentoIdoso = ref<string | null>(null)
 
 async function onDocumentoIdosoSelecionado(item: ItemCarrinho, e: Event) {
   const input = e.target as HTMLInputElement
-  const arquivo = input.files?.[0]
-  if (!arquivo) return
+  const arquivoOriginal = input.files?.[0]
+  if (!arquivoOriginal) return
   erroInscricao.value = ''
   enviandoDocumentoIdoso.value = item.uid
   try {
+    const arquivo = await comprimirImagemSeNecessario(arquivoOriginal)
     const url = await uploadDocumentoIdoso(arquivo)
     item.documentoIdosoUrl = url
-    item.documentoIdosoNome = arquivo.name
+    item.documentoIdosoNome = arquivoOriginal.name
   } catch (err: any) {
-    erroInscricao.value = extrairErro(err)
+    const msg = extrairErro(err)
+    erroInscricao.value = `Falha ao enviar documento: ${msg}`
+    alert(`Falha ao enviar documento: ${msg}`)
   } finally {
     enviandoDocumentoIdoso.value = null
     input.value = ''
@@ -1252,17 +1312,15 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                       <span class="truncate">{{ item.documentoIdosoNome || 'Documento enviado' }}</span>
                     </div>
                     <div class="flex flex-wrap gap-2">
-                      <!-- capture abre a camera direto no celular; no computador vira o seletor comum -->
                       <label
                         class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-orange-500 text-white text-xs font-bold cursor-pointer hover:bg-orange-600"
                         :class="{ 'opacity-60 pointer-events-none': enviandoDocumentoIdoso === item.uid }"
                       >
                         <Camera class="w-4 h-4" />
-                        <span>{{ enviandoDocumentoIdoso === item.uid ? 'Enviando...' : 'Tirar foto agora' }}</span>
+                        <span>{{ enviandoDocumentoIdoso === item.uid ? 'Enviando...' : (item.documentoIdosoUrl ? 'Tirar outra foto' : 'Tirar foto agora') }}</span>
                         <input
                           type="file"
                           accept="image/*"
-                          capture="environment"
                           class="hidden"
                           @change="onDocumentoIdosoSelecionado(item, $event)"
                         />

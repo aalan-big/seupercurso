@@ -14,7 +14,8 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { extname, join } from 'path';
+import { existsSync, mkdirSync } from 'fs';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
   CurrentUser,
@@ -28,7 +29,6 @@ import { TrocarCategoriaDto } from './dto/trocar-categoria.dto';
 import { TransferirInscricaoDto } from './dto/transferir-inscricao.dto';
 import { ValidarServidorDto } from './dto/validar-servidor.dto';
 
-@UseGuards(JwtAuthGuard)
 @Controller('inscricoes')
 export class InscricaoController {
   constructor(private readonly inscricaoService: InscricaoService) {}
@@ -39,6 +39,7 @@ export class InscricaoController {
     return this.inscricaoService.validarServidor(dto);
   }
 
+  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
   @Post()
   create(
@@ -48,6 +49,7 @@ export class InscricaoController {
     return this.inscricaoService.create(user.userId, dto);
   }
 
+  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
   @Post('batch')
   createBatch(
@@ -57,6 +59,7 @@ export class InscricaoController {
     return this.inscricaoService.createBatch(user.userId, dto);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Get('me')
   findMinhas(@CurrentUser() user: AuthenticatedUser) {
     return this.inscricaoService.findMinhas(user.userId);
@@ -65,20 +68,26 @@ export class InscricaoController {
   /**
    * Recebe o documento com foto de um atleta 60+ antes da inscricao existir:
    * o carrinho e montado no navegador e so vira inscricao no batch, entao o
-   * arquivo sobe antes e o caminho devolvido vai no item. Mesmo destino e
-   * filtros do laudo PCD.
+   * arquivo sobe antes e o caminho devolvido vai no item. Permite upload
+   * anonimo na montagem do carrinho para visitantes vindos de redes sociais.
    */
   @Post('documento-idoso')
   @UseInterceptors(
     FileInterceptor('documento', {
       storage: diskStorage({
-        destination: './uploads/documentos',
+        destination: (_req, _file, callback) => {
+          const dest = join(process.cwd(), 'uploads', 'documentos');
+          if (!existsSync(dest)) {
+            mkdirSync(dest, { recursive: true });
+          }
+          callback(null, dest);
+        },
         filename: (_req, file, callback) => {
           const sufixo = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
           callback(null, `${sufixo}${extname(file.originalname)}`);
         },
       }),
-      limits: { fileSize: 10 * 1024 * 1024 },
+      limits: { fileSize: 25 * 1024 * 1024 },
       fileFilter: (_req, file, callback) => {
         if (!file.mimetype.startsWith('image/') && file.mimetype !== 'application/pdf') {
           callback(new BadRequestException('Envie uma imagem ou um PDF.'), false);
@@ -95,11 +104,13 @@ export class InscricaoController {
     return { url: `/uploads/documentos/${file.filename}` };
   }
 
+  @UseGuards(JwtAuthGuard)
   @Patch(':id/cancelar')
   cancelar(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.inscricaoService.cancelar(user.userId, id);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Patch(':id/tamanho-camisa')
   atualizarTamanhoCamisa(
     @CurrentUser() user: AuthenticatedUser,
@@ -113,6 +124,7 @@ export class InscricaoController {
     );
   }
 
+  @UseGuards(JwtAuthGuard)
   @Patch(':id/trocar-categoria')
   trocarCategoria(
     @CurrentUser() user: AuthenticatedUser,
@@ -126,6 +138,7 @@ export class InscricaoController {
     );
   }
 
+  @UseGuards(JwtAuthGuard)
   @Post(':id/transferir')
   transferirInscricao(
     @CurrentUser() user: AuthenticatedUser,
