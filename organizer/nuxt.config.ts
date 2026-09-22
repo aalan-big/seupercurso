@@ -10,6 +10,18 @@ export default defineNuxtConfig({
       viewport: 'width=device-width, initial-scale=1.0, viewport-fit=cover'
     }
   },
+  routeRules: {
+    '/**': {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate'
+      }
+    },
+    '/_nuxt/**': {
+      headers: {
+        'Cache-Control': 'public, max-age=31536000, immutable'
+      }
+    }
+  },
 
 
   runtimeConfig: {
