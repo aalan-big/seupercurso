@@ -64,6 +64,19 @@ const statusOpcoes = computed(() => {
 
 const tipoEsporteSelecionado = ref('CORRIDA')
 
+function formatarMoedaParaInput(valor: number | string | null | undefined): string {
+  if (valor === null || valor === undefined || valor === '') return ''
+  const num = typeof valor === 'number' ? valor : Number(String(valor).replace(',', '.'))
+  if (Number.isNaN(num)) return ''
+  return num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function mascararMoeda(v: string): string {
+  const digitos = v.replace(/\D/g, '')
+  if (!digitos) return ''
+  return (Number(digitos) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 const form = reactive({
   nome: props.evento?.nome ?? '',
   descricao: props.evento?.descricao ?? '',
@@ -80,7 +93,7 @@ const form = reactive({
   retiradaKitFim: props.evento?.retiradaKitFim?.slice(0, 16) ?? '',
   possuiCamisa: props.evento?.possuiCamisa ?? true,
   camisaOpcional: props.evento?.camisaOpcional ?? false,
-  valorCamisaOpcional: props.evento?.valorCamisaOpcional ? String(props.evento.valorCamisaOpcional) : '',
+  valorCamisaOpcional: formatarMoedaParaInput(props.evento?.valorCamisaOpcional),
   limiteTrocaCamisaAté: props.evento?.limiteTrocaCamisaAté?.slice(0, 16) ?? '',
   camisasBloqueadas: props.evento?.camisasBloqueadas ?? false,
   permiteTransferencia: props.evento?.permiteTransferencia ?? true,
@@ -259,7 +272,7 @@ const temAlteracoes = computed(() => {
     form.retiradaKitFim !== (props.evento.retiradaKitFim?.slice(0, 16) ?? '') ||
     form.possuiCamisa !== (props.evento.possuiCamisa ?? true) ||
     form.camisaOpcional !== (props.evento.camisaOpcional ?? false) ||
-    form.valorCamisaOpcional !== (props.evento.valorCamisaOpcional ? String(props.evento.valorCamisaOpcional) : '') ||
+    form.valorCamisaOpcional !== formatarMoedaParaInput(props.evento.valorCamisaOpcional) ||
     form.limiteTrocaCamisaAté !== (props.evento.limiteTrocaCamisaAté?.slice(0, 16) ?? '') ||
     form.camisasBloqueadas !== (props.evento.camisasBloqueadas ?? false) ||
     form.permiteTransferencia !== (props.evento.permiteTransferencia ?? true) ||
@@ -292,7 +305,7 @@ watch(
       form.retiradaKitFim = ev.retiradaKitFim?.slice(0, 16) ?? ''
       form.possuiCamisa = ev.possuiCamisa ?? true
       form.camisaOpcional = ev.camisaOpcional ?? false
-      form.valorCamisaOpcional = ev.valorCamisaOpcional ? String(ev.valorCamisaOpcional) : ''
+      form.valorCamisaOpcional = formatarMoedaParaInput(ev.valorCamisaOpcional)
       form.limiteTrocaCamisaAté = ev.limiteTrocaCamisaAté?.slice(0, 16) ?? ''
       retiradaKitInicioDisplay.value = converterIsoDatetimeParaDisplay(form.retiradaKitInicio)
       retiradaKitFimDisplay.value = converterIsoDatetimeParaDisplay(form.retiradaKitFim)
@@ -305,16 +318,33 @@ watch(
       form.status = ev.status ?? 'RASCUNHO'
     }
   },
-  { deep: true }
+  { immediate: true }
 )
 
-function onSubmit() {
+function onInputValorCamisa(e: Event) {
+  const input = e.target as HTMLInputElement
+  form.valorCamisaOpcional = mascararMoeda(input.value)
+}
+
+function onFileChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (file) {
+    arquivoRegulamento.value = file
+  }
+}
+
+function onSalvar() {
   tentouEnviar.value = true
   erroValidacao.value = ''
 
-  const faltando = camposObrigatorios.some((campo) => !form[campo])
-  if (faltando) {
-    erroValidacao.value = 'Preencha os campos destacados em vermelho antes de continuar.'
+  const faltando = camposObrigatorios.filter((campo) => !form[campo])
+  if (faltando.length > 0) {
+    erroValidacao.value = 'Preencha os campos obrigatórios marcados em vermelho antes de salvar.'
+    const primeiroId = `campo-${faltando[0]}`
+    nextTick(() => {
+      document.getElementById(primeiroId)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
     return
   }
 
@@ -323,7 +353,7 @@ function onSubmit() {
     return
   }
 
-  const payload: Record<string, unknown> = {
+  const payload: Record<string, any> = {
     nome: form.nome,
     descricao: form.descricao || undefined,
     local: form.local,
@@ -341,7 +371,7 @@ function onSubmit() {
     camisaOpcional: form.possuiCamisa ? form.camisaOpcional : false,
     valorCamisaOpcional:
       form.possuiCamisa && form.camisaOpcional && form.valorCamisaOpcional
-        ? Number(form.valorCamisaOpcional.replace(',', '.'))
+        ? Number(form.valorCamisaOpcional.replace(/\./g, '').replace(',', '.'))
         : undefined,
     limiteTrocaCamisaAté: form.limiteTrocaCamisaAté || undefined,
     camisasBloqueadas: form.camisasBloqueadas,
@@ -737,8 +767,8 @@ function onSubmit() {
 
       <!-- Opção de Camisa Opcional / Venda Avulsa -->
       <div v-if="form.possuiCamisa" class="space-y-3 pl-1">
-        <label class="flex items-center gap-2.5 rounded-xl border border-orange-200 bg-white p-3 cursor-pointer">
-          <input v-model="form.camisaOpcional" type="checkbox" class="h-4 w-4 text-orange-600 accent-orange-500" />
+        <label class="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3 cursor-pointer">
+          <input v-model="form.camisaOpcional" type="checkbox" class="h-4 w-4 text-warning accent-warning cursor-pointer" />
           <div class="text-xs">
             <p class="font-bold text-slate-800">Camisa Opcional (acréscimo pago pelo atleta)</p>
             <p class="text-[11px] text-slate-500 font-normal">
@@ -747,21 +777,19 @@ function onSubmit() {
           </div>
         </label>
 
-        <div v-if="form.camisaOpcional" class="rounded-xl border border-orange-200 bg-white p-3.5 space-y-2">
-          <label class="block text-xs font-bold text-slate-700">Valor adicional da camisa (R$)</label>
-          <div class="relative max-w-xs">
-            <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">R$</span>
+        <div v-if="form.camisaOpcional" class="rounded-xl border border-slate-200 bg-white p-3.5 space-y-2">
+          <label class="block text-xs font-bold text-slate-700">Valor adicional da camisa</label>
+          <div class="relative max-w-[180px]">
+            <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 select-none">R$</span>
             <input
-              v-model="form.valorCamisaOpcional"
+              :value="form.valorCamisaOpcional"
+              @input="onInputValorCamisa"
               type="text"
               inputmode="decimal"
-              placeholder="40,00"
-              class="w-full rounded-xl border border-slate-300 py-2.5 pl-10 pr-3 text-sm font-semibold focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30"
+              placeholder="0,00"
+              class="w-full rounded-xl border border-slate-300 py-2 pl-9 pr-3 text-sm font-bold text-slate-900 focus:border-slate-400 focus:outline-none focus:ring-0"
             />
           </div>
-          <p class="text-[11px] text-slate-500">
-            Exemplo: Se a inscrição custa R$ 40,00 e o adicional da camisa é R$ 40,00, quem optar pela camisa pagará R$ 80,00.
-          </p>
         </div>
       </div>
 
