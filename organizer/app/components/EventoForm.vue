@@ -334,7 +334,7 @@ function onFileChange(e: Event) {
   }
 }
 
-function onSalvar() {
+function onSubmit() {
   tentouEnviar.value = true
   erroValidacao.value = ''
 
