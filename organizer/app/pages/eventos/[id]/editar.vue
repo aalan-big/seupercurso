@@ -148,7 +148,14 @@ async function onSubmit(payload: Record<string, unknown>, _arquivoRegulamento: F
             Alterações salvas.
           </p>
 
-          <EventoForm :evento="eventoSelecionado" modo-edicao :carregando="carregando" @submit="onSubmit" />
+          <EventoForm
+            :evento="eventoSelecionado"
+            modo-edicao
+            :carregando="carregando"
+            :erro-servidor="erro"
+            @limpar-erro="erro = ''"
+            @submit="onSubmit"
+          />
 
           <div class="mt-8 border-t border-slate-200 pt-6">
             <h2 class="text-sm font-bold uppercase tracking-wide text-slate-500">Mídia do evento</h2>

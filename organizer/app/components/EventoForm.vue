@@ -1,14 +1,30 @@
 <script setup lang="ts">
-import { AlertTriangle, Banknote, Smartphone, CreditCard, Shirt, ArrowLeftRight, CalendarDays, FileText } from 'lucide-vue-next'
+import {
+  AlertTriangle,
+  AlertCircle,
+  Banknote,
+  Smartphone,
+  CreditCard,
+  Shirt,
+  ArrowLeftRight,
+  CalendarDays,
+  FileText,
+  X,
+  ArrowRight
+} from 'lucide-vue-next'
 import type { EventoOrganizador } from '../composables/useEventoOrganizador'
 
 const props = defineProps<{
   evento?: EventoOrganizador | null
   carregando?: boolean
   modoEdicao?: boolean
+  erroServidor?: string
 }>()
 
-const emit = defineEmits<{ submit: [payload: Record<string, unknown>, arquivoRegulamento: File | null] }>()
+const emit = defineEmits<{
+  submit: [payload: Record<string, unknown>, arquivoRegulamento: File | null]
+  limparErro: []
+}>()
 
 const arquivoRegulamento = ref<File | null>(null)
 
@@ -234,21 +250,181 @@ function onSelecionarLimiteTrocaCamisa(e: Event) {
   limiteTrocaCamisaDisplay.value = converterIsoDatetimeParaDisplay(input.value)
 }
 
-// Mesmos campos exigidos pelo CreateEventoDto/UpdateEventoDto no backend.
-const camposObrigatorios = ['nome', 'local', 'cidade', 'estado', 'dataInicio', 'dataFim'] as const
+interface ItemPendente {
+  campo: string
+  titulo: string
+  descricao: string
+  idElemento: string
+}
 
 const tentouEnviar = ref(false)
 const erroValidacao = ref('')
+const modalPendenciasAberto = ref(false)
+const itensPendentes = ref<ItemPendente[]>([])
 
-function invalido(campo: (typeof camposObrigatorios)[number]) {
-  return tentouEnviar.value && !form[campo]
+function validarPendencias(): ItemPendente[] {
+  const lista: ItemPendente[] = []
+
+  // 1. Nome do evento
+  if (!form.nome || form.nome.trim().length < 3) {
+    lista.push({
+      campo: 'nome',
+      titulo: 'Nome do evento',
+      descricao: !form.nome?.trim() ? 'Informe o nome do evento.' : 'O nome do evento deve ter no mínimo 3 caracteres.',
+      idElemento: 'campo-nome'
+    })
+  }
+
+  // 2. Data de Início
+  if (!form.dataInicio) {
+    lista.push({
+      campo: 'dataInicio',
+      titulo: eventoDeUmDia.value ? 'Data do evento' : 'Data de início',
+      descricao: 'Informe a data em que o evento será realizado.',
+      idElemento: 'campo-dataInicio'
+    })
+  }
+
+  // 3. Data de Fim
+  if (!eventoDeUmDia.value) {
+    if (!form.dataFim) {
+      lista.push({
+        campo: 'dataFim',
+        titulo: 'Data de término',
+        descricao: 'Informe a data final do evento.',
+        idElemento: 'campo-dataFim'
+      })
+    } else if (form.dataInicio && form.dataFim < form.dataInicio) {
+      lista.push({
+        campo: 'dataFim',
+        titulo: 'Data de término inválida',
+        descricao: 'A data de término não pode ser anterior à data de início.',
+        idElemento: 'campo-dataFim'
+      })
+    }
+  }
+
+  // 4. Local
+  if (!form.local || !form.local.trim()) {
+    lista.push({
+      campo: 'local',
+      titulo: 'Local do evento',
+      descricao: 'Informe o endereço, parque, arena ou ponto de largada.',
+      idElemento: 'campo-local'
+    })
+  }
+
+  // 5. Cidade
+  if (!form.cidade || !form.cidade.trim()) {
+    lista.push({
+      campo: 'cidade',
+      titulo: 'Cidade',
+      descricao: 'Informe a cidade onde o evento acontecerá.',
+      idElemento: 'campo-cidade'
+    })
+  }
+
+  // 6. Estado
+  if (!form.estado) {
+    lista.push({
+      campo: 'estado',
+      titulo: 'Estado (UF)',
+      descricao: 'Selecione o estado (UF) do evento.',
+      idElemento: 'campo-estado'
+    })
+  }
+
+  // 7. Formas de pagamento
+  if (!form.aceitaPix && !form.aceitaCartao) {
+    lista.push({
+      campo: 'pagamento',
+      titulo: 'Formas de pagamento',
+      descricao: 'Selecione pelo menos 1 forma de pagamento aceita (PIX ou Cartão de Crédito).',
+      idElemento: 'campo-formasPagamento'
+    })
+  }
+
+  // 8. Valor da camisa opcional
+  if (form.possuiCamisa && form.camisaOpcional) {
+    const valorNumerico = Number(form.valorCamisaOpcional?.replace(/\./g, '').replace(',', '.'))
+    if (!form.valorCamisaOpcional || isNaN(valorNumerico) || valorNumerico <= 0) {
+      lista.push({
+        campo: 'valorCamisaOpcional',
+        titulo: 'Valor da camisa opcional',
+        descricao: 'Você marcou camisa opcional. Informe o valor cobrado pela camiseta (ex: 40,00).',
+        idElemento: 'campo-valorCamisaOpcional'
+      })
+    }
+  }
+
+  return lista
 }
 
-function classeCampo(campo: (typeof camposObrigatorios)[number]) {
+function invalido(campo: string) {
+  return tentouEnviar.value && itensPendentes.value.some((item) => item.campo === campo)
+}
+
+function classeCampo(campo: string) {
   return invalido(campo)
-    ? 'w-full rounded-xl border border-red-400 px-4 py-3 text-sm focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-200'
+    ? 'w-full rounded-xl border-2 border-red-400 bg-red-50/20 px-4 py-3 text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200'
     : 'w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30'
 }
+
+function fecharModal() {
+  modalPendenciasAberto.value = false
+  emit('limparErro')
+}
+
+function focarPrimeiraPendencia(id?: string) {
+  modalPendenciasAberto.value = false
+  emit('limparErro')
+  const targetId = id || itensPendentes.value[0]?.idElemento
+  if (!targetId) return
+  nextTick(() => {
+    setTimeout(() => {
+      const el = document.getElementById(targetId)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        if (typeof (el as HTMLElement).focus === 'function') {
+          el.focus()
+        }
+      }
+    }, 120)
+  })
+}
+
+watch(
+  () => props.erroServidor,
+  (val) => {
+    if (val) {
+      modalPendenciasAberto.value = true
+    }
+  }
+)
+
+watch(
+  () => [
+    form.nome,
+    form.dataInicio,
+    form.dataFim,
+    form.local,
+    form.cidade,
+    form.estado,
+    form.aceitaPix,
+    form.aceitaCartao,
+    form.possuiCamisa,
+    form.camisaOpcional,
+    form.valorCamisaOpcional
+  ],
+  () => {
+    if (tentouEnviar.value) {
+      itensPendentes.value = validarPendencias()
+      if (itensPendentes.value.length === 0) {
+        erroValidacao.value = ''
+      }
+    }
+  }
+)
 
 const regAtual = computed(() =>
   props.evento?.regulamentoUrl?.startsWith('/uploads/') ? '' : (props.evento?.regulamentoUrl ?? '')
@@ -337,19 +513,11 @@ function onFileChange(e: Event) {
 function onSubmit() {
   tentouEnviar.value = true
   erroValidacao.value = ''
+  itensPendentes.value = validarPendencias()
 
-  const faltando = camposObrigatorios.filter((campo) => !form[campo])
-  if (faltando.length > 0) {
-    erroValidacao.value = 'Preencha os campos obrigatórios marcados em vermelho antes de salvar.'
-    const primeiroId = `campo-${faltando[0]}`
-    nextTick(() => {
-      document.getElementById(primeiroId)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    })
-    return
-  }
-
-  if (!form.aceitaPix && !form.aceitaCartao) {
-    erroValidacao.value = 'Selecione pelo menos 1 forma de pagamento (PIX ou Cartão de Crédito).'
+  if (itensPendentes.value.length > 0) {
+    modalPendenciasAberto.value = true
+    erroValidacao.value = 'Preencha as informações obrigatórias pendentes antes de salvar.'
     return
   }
 
@@ -387,12 +555,31 @@ function onSubmit() {
 
 <template>
   <form class="flex flex-col gap-4" novalidate @submit.prevent="onSubmit">
-    <div v-if="erroValidacao" class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-700 flex items-center gap-2">
-      <AlertTriangle :size="16" class="text-red-600" /> {{ erroValidacao }}
+    <div
+      v-if="erroValidacao || props.erroServidor"
+      class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-700 flex items-center justify-between gap-3 shadow-xs"
+    >
+      <div class="flex items-center gap-2">
+        <AlertTriangle :size="16" class="text-red-600 shrink-0" />
+        <span>{{ props.erroServidor || erroValidacao }}</span>
+      </div>
+      <button
+        v-if="itensPendentes.length > 0"
+        type="button"
+        @click="modalPendenciasAberto = true"
+        class="shrink-0 rounded-lg bg-red-100 px-2.5 py-1 text-red-800 hover:bg-red-200 transition font-extrabold text-[11px] cursor-pointer"
+      >
+        Ver pendências
+      </button>
     </div>
 
     <!-- Seção: Formas de Pagamento Aceitas -->
-    <div class="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 space-y-3">
+    <div
+      id="campo-formasPagamento"
+      tabindex="-1"
+      class="rounded-2xl border p-4 space-y-3 transition scroll-mt-20 focus:outline-none"
+      :class="invalido('pagamento') ? 'border-2 border-red-400 bg-red-50/40 ring-2 ring-red-400/20' : 'border-amber-200 bg-amber-50/50'"
+    >
       <label class="text-sm font-extrabold text-amber-950 flex items-center gap-2">
         <Banknote :size="18" class="text-amber-700" /> Formas de Pagamento Aceitas no Evento
       </label>
@@ -510,8 +697,17 @@ function onSubmit() {
 
     <div>
       <label class="mb-1 block text-sm font-semibold text-slate-700">Nome do evento *</label>
-      <input v-model="form.nome" type="text" minlength="3" placeholder="Ex.: 1º Desafio de Ciclismo MTB" :class="classeCampo('nome')" />
-      <p v-if="invalido('nome')" class="mt-1 text-xs text-red-600">Campo obrigatório.</p>
+      <input
+        id="campo-nome"
+        v-model="form.nome"
+        type="text"
+        minlength="3"
+        placeholder="Ex.: 1º Desafio de Ciclismo MTB"
+        :class="classeCampo('nome')"
+      />
+      <p v-if="invalido('nome')" class="mt-1 text-xs text-red-600 font-semibold">
+        {{ !form.nome?.trim() ? 'Campo obrigatório.' : 'Deve ter no mínimo 3 caracteres.' }}
+      </p>
     </div>
 
     <div>
@@ -545,6 +741,7 @@ function onSubmit() {
         </label>
         <div class="relative">
           <input
+            id="campo-dataInicio"
             :value="dataInicioDisplay"
             @input="formatarDataInicio"
             type="text"
@@ -565,12 +762,13 @@ function onSubmit() {
             style="width: 2.75rem; min-width: 0; max-width: none; min-height: 0; padding: 0;"
           />
         </div>
-        <p v-if="invalido('dataInicio')" class="mt-1 text-xs text-red-600">Campo obrigatório.</p>
+        <p v-if="invalido('dataInicio')" class="mt-1 text-xs text-red-600 font-semibold">Campo obrigatório.</p>
       </div>
       <div v-if="!eventoDeUmDia" class="min-w-0">
         <label class="mb-1 block text-sm font-semibold text-slate-700">Data de fim *</label>
         <div class="relative">
           <input
+            id="campo-dataFim"
             :value="dataFimDisplay"
             @input="formatarDataFim"
             type="text"
@@ -598,27 +796,28 @@ function onSubmit() {
     <div>
       <label class="mb-1 block text-sm font-semibold text-slate-700">Local *</label>
       <input
+        id="campo-local"
         v-model="form.local"
         type="text"
         placeholder="Nome do parque, arena, largada..."
         :class="classeCampo('local')"
       />
-      <p v-if="invalido('local')" class="mt-1 text-xs text-red-600">Campo obrigatório.</p>
+      <p v-if="invalido('local')" class="mt-1 text-xs text-red-600 font-semibold">Campo obrigatório.</p>
     </div>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <div>
         <label class="mb-1 block text-sm font-semibold text-slate-700">Cidade *</label>
-        <input v-model="form.cidade" type="text" :class="classeCampo('cidade')" />
-        <p v-if="invalido('cidade')" class="mt-1 text-xs text-red-600">Campo obrigatório.</p>
+        <input id="campo-cidade" v-model="form.cidade" type="text" :class="classeCampo('cidade')" />
+        <p v-if="invalido('cidade')" class="mt-1 text-xs text-red-600 font-semibold">Campo obrigatório.</p>
       </div>
       <div>
         <label class="mb-1 block text-sm font-semibold text-slate-700">Estado *</label>
-        <select v-model="form.estado" :class="classeCampo('estado')">
+        <select id="campo-estado" v-model="form.estado" :class="classeCampo('estado')">
           <option value="" disabled>Selecione</option>
           <option v-for="uf in estadosBr" :key="uf.sigla" :value="uf.sigla">{{ uf.sigla }} - {{ uf.nome }}</option>
         </select>
-        <p v-if="invalido('estado')" class="mt-1 text-xs text-red-600">Campo obrigatório.</p>
+        <p v-if="invalido('estado')" class="mt-1 text-xs text-red-600 font-semibold">Campo obrigatório.</p>
       </div>
     </div>
 
@@ -778,18 +977,21 @@ function onSubmit() {
         </label>
 
         <div v-if="form.camisaOpcional" class="rounded-xl border border-slate-200 bg-white p-3.5 space-y-2">
-          <label class="block text-xs font-bold text-slate-700">Valor adicional da camisa</label>
+          <label class="block text-xs font-bold text-slate-700">Valor adicional da camisa *</label>
           <div class="relative max-w-[180px]">
             <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 select-none">R$</span>
             <input
+              id="campo-valorCamisaOpcional"
               :value="form.valorCamisaOpcional"
               @input="onInputValorCamisa"
               type="text"
               inputmode="decimal"
               placeholder="0,00"
-              class="w-full rounded-xl border border-slate-300 py-2 pl-9 pr-3 text-sm font-bold text-slate-900 focus:border-slate-400 focus:outline-none focus:ring-0"
+              class="w-full rounded-xl border py-2 pl-9 pr-3 text-sm font-bold text-slate-900 focus:outline-none"
+              :class="invalido('valorCamisaOpcional') ? 'border-2 border-red-400 bg-red-50/20' : 'border-slate-300 focus:border-slate-400'"
             />
           </div>
+          <p v-if="invalido('valorCamisaOpcional')" class="text-xs text-red-600 font-semibold">Informe um valor válido maior que zero.</p>
         </div>
       </div>
 
@@ -849,4 +1051,120 @@ function onSubmit() {
       {{ props.carregando ? 'Salvando...' : props.modoEdicao ? 'Salvar alterações' : 'Criar evento' }}
     </button>
   </form>
+
+  <!-- Modal: Informações Pendentes / Erros de Validação -->
+  <Teleport to="body">
+    <Transition
+      enter-active-class="transition duration-200 ease-out"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
+      leave-active-class="transition duration-150 ease-in"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="modalPendenciasAberto"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs overflow-y-auto"
+        @click.self="fecharModal"
+      >
+        <div
+          class="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl transition-all border border-slate-100 my-8 text-left"
+          role="dialog"
+          aria-modal="true"
+        >
+          <!-- Botão Fechar (X) -->
+          <button
+            type="button"
+            @click="fecharModal"
+            class="absolute right-4 top-4 rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition cursor-pointer"
+            aria-label="Fechar"
+          >
+            <X :size="20" />
+          </button>
+
+          <!-- Cabeçalho -->
+          <div class="flex items-start gap-3.5 mb-4">
+            <div class="rounded-2xl bg-amber-100 p-3 text-amber-700 shrink-0">
+              <AlertTriangle :size="26" />
+            </div>
+            <div class="pr-6">
+              <h3 class="text-lg font-extrabold text-slate-900 leading-tight">
+                {{ itensPendentes.length > 0 ? 'Faltam informações no cadastro' : 'Aviso do sistema' }}
+              </h3>
+              <p class="text-xs text-slate-500 mt-1">
+                {{
+                  itensPendentes.length > 0
+                    ? 'Preencha os campos obrigatórios abaixo para poder salvar o evento:'
+                    : 'Verifique a pendência informada para prosseguir:'
+                }}
+              </p>
+            </div>
+          </div>
+
+          <!-- Alerta do Servidor (se houver) -->
+          <div
+            v-if="props.erroServidor"
+            class="mb-4 rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs text-red-800"
+          >
+            <p class="font-bold flex items-center gap-1.5 text-red-900 mb-1">
+              <AlertCircle :size="15" class="text-red-600" /> Detalhes do sistema:
+            </p>
+            <p class="leading-relaxed">{{ props.erroServidor }}</p>
+          </div>
+
+          <!-- Lista de Pendências -->
+          <div
+            v-if="itensPendentes.length > 0"
+            class="space-y-2 mb-6 max-h-[50vh] overflow-y-auto pr-1"
+          >
+            <button
+              v-for="(item, idx) in itensPendentes"
+              :key="item.campo"
+              type="button"
+              @click="focarPrimeiraPendencia(item.idElemento)"
+              class="w-full text-left flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50/50 p-3 text-xs hover:bg-red-100/70 hover:border-red-300 transition group cursor-pointer"
+            >
+              <div class="flex items-start gap-2.5 min-w-0">
+                <span
+                  class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-200 text-[11px] font-extrabold text-red-800 mt-0.5"
+                >
+                  {{ idx + 1 }}
+                </span>
+                <div class="min-w-0">
+                  <p class="font-bold text-red-950 truncate">{{ item.titulo }}</p>
+                  <p class="text-red-700 text-[11px] mt-0.5 leading-snug">{{ item.descricao }}</p>
+                </div>
+              </div>
+              <span
+                class="shrink-0 flex items-center gap-1 text-[11px] font-bold text-red-700 group-hover:translate-x-0.5 transition"
+              >
+                Preencher <ArrowRight :size="13" />
+              </span>
+            </button>
+          </div>
+
+          <!-- Botões de Ação -->
+          <div class="space-y-2">
+            <button
+              v-if="itensPendentes.length > 0"
+              type="button"
+              @click="focarPrimeiraPendencia()"
+              class="w-full rounded-xl bg-amber-500 py-3 text-sm font-bold uppercase tracking-wide text-slate-950 shadow-md hover:bg-amber-400 transition flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>Preencher campos pendentes</span>
+              <ArrowRight :size="16" />
+            </button>
+
+            <button
+              type="button"
+              @click="fecharModal"
+              class="w-full rounded-xl border border-slate-200 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+            >
+              Fechar e continuar editando
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>

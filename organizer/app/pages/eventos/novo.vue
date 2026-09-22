@@ -38,7 +38,12 @@ async function onSubmit(payload: Record<string, unknown>, arquivoRegulamento: Fi
     </p>
 
     <div class="mt-6">
-      <EventoForm :carregando="carregando" @submit="onSubmit" />
+      <EventoForm
+        :carregando="carregando"
+        :erro-servidor="erro"
+        @limpar-erro="erro = ''"
+        @submit="onSubmit"
+      />
     </div>
   </div>
 </template>
