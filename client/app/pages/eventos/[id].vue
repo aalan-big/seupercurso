@@ -107,7 +107,11 @@ function abrirFotosModelo(modelo: ModeloCamisaEvento) {
 
 function fotoAtualModelo(modelo: ModeloCamisaEvento | null) {
   if (!modelo) return null
-  const caminho = abaFotoAtiva.value === 'frente' ? modelo.fotoFrenteUrl : modelo.fotoVersoUrl
+  if (modelo.fotoFrenteUrl && modelo.fotoVersoUrl) {
+    const caminho = abaFotoAtiva.value === 'frente' ? modelo.fotoFrenteUrl : modelo.fotoVersoUrl
+    return urlFoto(caminho, apiBase)
+  }
+  const caminho = modelo.fotoFrenteUrl || modelo.fotoVersoUrl
   return urlFoto(caminho, apiBase)
 }
 
@@ -1788,7 +1792,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                             class="w-full py-1 px-2 rounded-lg bg-white border border-slate-200 hover:border-orange-300 hover:bg-orange-50/50 text-[11px] font-bold text-slate-700 flex items-center justify-center gap-1.5 transition"
                           >
                             <Eye class="w-3.5 h-3.5 text-orange-500" />
-                            <span>Ver Fotos (Frente e Verso)</span>
+                            <span>{{ (modCamisa.fotoFrenteUrl && modCamisa.fotoVersoUrl) ? 'Ver Fotos (Frente e Verso)' : 'Ver Foto da Camisa' }}</span>
                           </button>
                         </div>
                       </div>
@@ -1828,7 +1832,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                         class="py-1.5 px-3 rounded-lg bg-white border border-slate-200 hover:border-orange-300 hover:bg-orange-50/50 text-xs font-bold text-slate-700 flex items-center gap-1.5 transition shrink-0"
                       >
                         <Eye class="w-3.5 h-3.5 text-orange-500" />
-                        <span>Ver Fotos</span>
+                        <span>{{ (eventoSelecionado.modelosCamisa[0].fotoFrenteUrl && eventoSelecionado.modelosCamisa[0].fotoVersoUrl) ? 'Ver Fotos (Frente e Verso)' : 'Ver Foto' }}</span>
                       </button>
                     </div>
 
@@ -2377,19 +2381,16 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
             </button>
           </div>
 
-          <!-- Abas Frente / Verso -->
-          <div class="flex items-center justify-center gap-2 border-b border-slate-100 bg-slate-50/70 p-2.5">
+          <!-- Abas Frente / Verso (Exibidas apenas se o organizador enviou as DUAS fotos) -->
+          <div
+            v-if="modeloVisualizado.fotoFrenteUrl && modeloVisualizado.fotoVersoUrl"
+            class="flex items-center justify-center gap-2 border-b border-slate-100 bg-slate-50/70 p-2.5"
+          >
             <button
               type="button"
               @click="abaFotoAtiva = 'frente'"
-              :disabled="!modeloVisualizado.fotoFrenteUrl"
               class="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer"
-              :class="[
-                abaFotoAtiva === 'frente'
-                  ? 'bg-orange-500 text-white shadow-sm'
-                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200',
-                !modeloVisualizado.fotoFrenteUrl ? 'opacity-40 cursor-not-allowed' : ''
-              ]"
+              :class="abaFotoAtiva === 'frente' ? 'bg-orange-500 text-white shadow-sm' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'"
             >
               <span>📷 Foto da Frente</span>
             </button>
@@ -2397,14 +2398,8 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
             <button
               type="button"
               @click="abaFotoAtiva = 'verso'"
-              :disabled="!modeloVisualizado.fotoVersoUrl"
               class="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer"
-              :class="[
-                abaFotoAtiva === 'verso'
-                  ? 'bg-orange-500 text-white shadow-sm'
-                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200',
-                !modeloVisualizado.fotoVersoUrl ? 'opacity-40 cursor-not-allowed' : ''
-              ]"
+              :class="abaFotoAtiva === 'verso' ? 'bg-orange-500 text-white shadow-sm' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'"
             >
               <span>📷 Foto do Verso</span>
             </button>

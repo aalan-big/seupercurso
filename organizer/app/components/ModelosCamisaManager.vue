@@ -263,12 +263,15 @@ async function onUploadFoto(modelo: ModeloCamisa, tipo: 'frente' | 'verso', even
           </div>
         </div>
 
-        <!-- Grade de Fotos: Frente e Verso -->
+        <!-- Grade de Fotos: Principal e Verso Opcional -->
         <div class="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
-          <!-- Foto da Frente -->
+          <!-- Foto Principal / Cartaz -->
           <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2 flex flex-col justify-between">
             <div class="text-[11px] font-bold text-slate-700 flex items-center justify-between">
-              <span>Foto Frente</span>
+              <div>
+                <span>Foto Principal</span>
+                <p class="text-[10px] text-slate-400 font-normal">Frente ou arte única</p>
+              </div>
               <span v-if="modelo.fotoFrenteUrl" class="text-emerald-600 font-bold">✓ Enviada</span>
               <span v-else class="text-slate-400 font-normal">Pendente</span>
             </div>
@@ -280,7 +283,7 @@ async function onUploadFoto(modelo: ModeloCamisa, tipo: 'frente' | 'verso', even
             >
               <img
                 :src="resolverUrl(modelo.fotoFrenteUrl)"
-                :alt="`Frente ${modelo.nome}`"
+                :alt="`Principal ${modelo.nome}`"
                 class="w-full h-full object-cover object-center group-hover:scale-105 transition duration-200"
               />
               <div class="absolute inset-0 bg-slate-900/30 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white">
@@ -298,7 +301,7 @@ async function onUploadFoto(modelo: ModeloCamisa, tipo: 'frente' | 'verso', even
               :class="{ 'opacity-60 pointer-events-none': enviandoFoto?.id === modelo.id && enviandoFoto?.tipo === 'frente' }"
             >
               <Upload class="w-3.5 h-3.5 text-slate-500" />
-              <span>{{ enviandoFoto?.id === modelo.id && enviandoFoto?.tipo === 'frente' ? 'Enviando...' : (modelo.fotoFrenteUrl ? 'Trocar Frente' : 'Enviar Frente') }}</span>
+              <span>{{ enviandoFoto?.id === modelo.id && enviandoFoto?.tipo === 'frente' ? 'Enviando...' : (modelo.fotoFrenteUrl ? 'Trocar Foto' : 'Enviar Foto') }}</span>
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
@@ -308,12 +311,15 @@ async function onUploadFoto(modelo: ModeloCamisa, tipo: 'frente' | 'verso', even
             </label>
           </div>
 
-          <!-- Foto do Verso -->
+          <!-- Foto do Verso (Opcional) -->
           <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2 flex flex-col justify-between">
             <div class="text-[11px] font-bold text-slate-700 flex items-center justify-between">
-              <span>Foto Verso</span>
+              <div>
+                <span>Foto Verso</span>
+                <p class="text-[10px] text-slate-400 font-normal">Opcional (costas)</p>
+              </div>
               <span v-if="modelo.fotoVersoUrl" class="text-emerald-600 font-bold">✓ Enviada</span>
-              <span v-else class="text-slate-400 font-normal">Pendente</span>
+              <span v-else class="text-slate-400 font-normal">Opcional</span>
             </div>
 
             <div
@@ -331,9 +337,9 @@ async function onUploadFoto(modelo: ModeloCamisa, tipo: 'frente' | 'verso', even
               </div>
             </div>
 
-            <div v-else class="aspect-square w-full rounded-lg border border-dashed border-slate-300 bg-white flex flex-col items-center justify-center text-slate-400 text-xs">
-              <ImageIcon class="w-6 h-6 mb-1 text-slate-300" />
-              <span>Sem foto</span>
+            <div v-else class="aspect-square w-full rounded-lg border border-dashed border-slate-300 bg-white flex flex-col items-center justify-center text-slate-400 text-xs text-center p-1">
+              <ImageIcon class="w-5 h-5 mb-1 text-slate-300" />
+              <span class="text-[10px] text-slate-400 leading-tight">Envie apenas se tiver foto separada</span>
             </div>
 
             <label
@@ -409,6 +415,7 @@ async function onUploadFoto(modelo: ModeloCamisa, tipo: 'frente' | 'verso', even
                   min="0"
                   class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs font-semibold focus:border-orange-500 focus:outline-none"
                 />
+                <p class="text-[10px] text-slate-400 mt-1">Ordem em que este modelo aparece para o atleta (ex: 1 = primeiro, 2 = segundo).</p>
               </div>
 
               <div class="flex items-center pt-5">
