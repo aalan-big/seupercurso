@@ -47,7 +47,7 @@ export interface CategoriaEvento {
 export interface ModalidadeEvento {
   id: string
   nome: string
-  distanciaKm: string
+  distanciaKm: string | null
   descricao: string | null
   idadeMinima: number | null
   idadeMaxima: number | null

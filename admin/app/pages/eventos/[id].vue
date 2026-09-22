@@ -157,7 +157,7 @@ async function confirmarSuspensao() {
           <div><dt class="inline font-semibold text-slate-500">Local:</dt> <dd class="inline text-slate-700">{{ evento.local }} — {{ evento.cidade }}/{{ evento.estado }}</dd></div>
           <div><dt class="inline font-semibold text-slate-500">Data:</dt> <dd class="inline text-slate-700">{{ formatarData(evento.dataInicio) }} até {{ formatarData(evento.dataFim) }}</dd></div>
           <div v-if="evento.capacidade"><dt class="inline font-semibold text-slate-500">Capacidade:</dt> <dd class="inline text-slate-700">{{ evento.capacidade }} vagas</dd></div>
-          <div v-if="evento.modalidades.length"><dt class="inline font-semibold text-slate-500">Modalidades:</dt> <dd class="inline text-slate-700">{{ evento.modalidades.map((m) => `${m.nome} (${m.distanciaKm}km)`).join(', ') }}</dd></div>
+          <div v-if="evento.modalidades.length"><dt class="inline font-semibold text-slate-500">Modalidades:</dt> <dd class="inline text-slate-700">{{ evento.modalidades.map((m) => m.distanciaKm ? `${m.nome} (${m.distanciaKm}km)` : m.nome).join(', ') }}</dd></div>
         </dl>
         <p v-if="evento.descricao" class="mt-3 whitespace-pre-line text-sm text-slate-600">{{ evento.descricao }}</p>
 

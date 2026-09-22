@@ -127,7 +127,7 @@ async function onArquivo(e: Event) {
       </div>
 
       <p v-if="modalidade.rotaGeoJson" class="text-xs font-bold text-emerald-700 bg-emerald-50 rounded-xl p-2.5 border border-emerald-200 flex items-center gap-1.5">
-        <CheckCircle :size="14" class="text-emerald-600" /> Essa modalidade ({{ modalidade.distanciaKm }} km) já tem uma rota interativa salva.
+        <CheckCircle :size="14" class="text-emerald-600" /> Essa modalidade ({{ modalidade.distanciaKm ? `${modalidade.distanciaKm} km` : 'Percurso livre' }}) já tem uma rota interativa salva.
       </p>
     </div>
 

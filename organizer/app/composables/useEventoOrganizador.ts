@@ -21,7 +21,7 @@ export interface ModalidadeOrganizador {
   id: string
   eventoId: string
   nome: string
-  distanciaKm: string
+  distanciaKm: string | null
   descricao: string | null
   idadeMinima: number | null
   idadeMaxima: number | null
@@ -129,7 +129,7 @@ export interface EventoOrganizadorUpdateInput extends Partial<EventoOrganizadorI
 
 export interface ModalidadeInput {
   nome: string
-  distanciaKm: number
+  distanciaKm?: number | null
   descricao?: string
   idadeMinima?: number
   idadeMaxima?: number

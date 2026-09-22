@@ -24,7 +24,7 @@ export interface EventoAdmin {
       pj: { razaoSocial: string } | null
     }
   }
-  modalidades: { id: string; nome: string; distanciaKm: string }[]
+  modalidades: { id: string; nome: string; distanciaKm: string | null }[]
 }
 
 export function useAdminEventos() {

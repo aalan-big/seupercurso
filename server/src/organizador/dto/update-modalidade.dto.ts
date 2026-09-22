@@ -18,7 +18,7 @@ export class UpdateModalidadeDto {
   @IsOptional()
   @IsNumber()
   @Min(0.1)
-  distanciaKm?: number;
+  distanciaKm?: number | null;
 
   @IsOptional()
   @IsString()

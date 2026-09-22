@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Footprints, Plus, Accessibility, Pencil, ArrowRightLeft } from 'lucide-vue-next'
+import { Footprints, Plus, Accessibility, Pencil, ArrowRightLeft, Trophy } from 'lucide-vue-next'
 import type { ModalidadeOrganizador } from '../composables/useEventoOrganizador'
 
 const props = defineProps<{
@@ -36,30 +36,35 @@ const salvando = ref(false)
 const mostrarFormModalidade = ref(false)
 const novaModalidade = reactive({ nome: '', distanciaKm: '', descricao: '', idadeMinima: '', idadeMaxima: '', capacidade: '', valor: '' })
 
-function normalizarDistancia(val: string | number | null | undefined): number {
-  if (val === null || val === undefined) return 0
-  if (typeof val === 'number') return isNaN(val) ? 0 : val
+function normalizarDistancia(val: string | number | null | undefined): number | null {
+  if (val === null || val === undefined) return null
+  if (typeof val === 'number') return isNaN(val) ? null : val
   const limpo = String(val)
     .replace(/km/gi, '')
     .replace(/\s+/g, '')
     .replace(',', '.')
+  if (!limpo) return null
   const num = parseFloat(limpo)
-  return isNaN(num) ? 0 : Number(num.toFixed(2))
+  return isNaN(num) ? null : Number(num.toFixed(2))
 }
 
 async function onCriarModalidade() {
   erro.value = ''
+  if (!novaModalidade.nome?.trim()) {
+    erro.value = 'Informe o nome da modalidade.'
+    return
+  }
   const distanciaKm = normalizarDistancia(novaModalidade.distanciaKm)
-  if (!novaModalidade.nome?.trim() || !distanciaKm || distanciaKm <= 0) {
-    erro.value = 'Informe o nome e uma distância válida em km (ex: 5, 21, 42, 100, 150, 200).'
+  if (distanciaKm !== null && distanciaKm <= 0) {
+    erro.value = 'A distância deve ser maior que zero (ou deixe em branco caso não tenha distância fixa).'
     return
   }
 
   salvando.value = true
   try {
     await criarModalidade(props.eventoId, {
-      nome: novaModalidade.nome,
-      distanciaKm,
+      nome: novaModalidade.nome.trim(),
+      distanciaKm: distanciaKm !== null ? distanciaKm : undefined,
       descricao: novaModalidade.descricao || undefined,
       idadeMinima: novaModalidade.idadeMinima ? Number(novaModalidade.idadeMinima) : undefined,
       idadeMaxima: novaModalidade.idadeMaxima ? Number(novaModalidade.idadeMaxima) : undefined,
@@ -125,17 +130,21 @@ function cancelarEdicao() {
 
 async function onSalvarEdicao(modalidadeId: string) {
   erro.value = ''
+  if (!edicaoModalidade.nome?.trim()) {
+    erro.value = 'Informe o nome da modalidade.'
+    return
+  }
   const distanciaKm = normalizarDistancia(edicaoModalidade.distanciaKm)
-  if (!edicaoModalidade.nome?.trim() || !distanciaKm || distanciaKm <= 0) {
-    erro.value = 'Informe o nome e uma distância válida em km (ex: 5, 21, 42, 100, 150, 200).'
+  if (distanciaKm !== null && distanciaKm <= 0) {
+    erro.value = 'A distância deve ser maior que zero (ou deixe em branco caso não tenha distância fixa).'
     return
   }
 
   salvando.value = true
   try {
     await atualizarModalidade(props.eventoId, modalidadeId, {
-      nome: edicaoModalidade.nome,
-      distanciaKm,
+      nome: edicaoModalidade.nome.trim(),
+      distanciaKm: distanciaKm !== null ? distanciaKm : null,
       descricao: edicaoModalidade.descricao || undefined,
       idadeMinima: edicaoModalidade.idadeMinima ? Number(edicaoModalidade.idadeMinima) : undefined,
       idadeMaxima: edicaoModalidade.idadeMaxima ? Number(edicaoModalidade.idadeMaxima) : undefined,
@@ -553,17 +562,17 @@ function faixaEtaria(min: number | null, max: number | null) {
             </div>
             <div>
               <div class="flex items-center justify-between mb-1">
-                <label class="block text-[11px] font-bold text-slate-500 uppercase">Distância (km) *</label>
+                <label class="block text-[11px] font-bold text-slate-500 uppercase">Distância (km) <span class="text-[10px] font-normal text-slate-400 lowercase">(opcional)</span></label>
                 <span class="text-[10px] text-slate-400 font-medium">Aceita 100, 150, 200 km...</span>
               </div>
               <input
                 v-model="edicaoModalidade.distanciaKm"
                 type="text"
                 inputmode="decimal"
-                placeholder="Ex.: 10, 100, 150 ou 200"
+                placeholder="Ex.: 10 ou deixe em branco"
                 class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-semibold focus:border-warning focus:outline-none"
               />
-              <p class="text-[10px] text-slate-400 mt-1">Sem limite de km (ex: 100, 150, 200 km).</p>
+              <p class="text-[10px] text-slate-400 mt-1">Opcional: preencha para percurso fixo ou deixe vazio para desafio/livre.</p>
             </div>
             <div>
               <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Idade Mínima</label>
@@ -640,8 +649,11 @@ function faixaEtaria(min: number | null, max: number | null) {
         <div v-else class="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div class="space-y-1">
             <div class="flex items-center gap-2">
-              <span class="rounded-lg bg-amber-100 px-2.5 py-1 text-xs font-black text-amber-950 uppercase tracking-wider flex items-center gap-1">
+              <span v-if="modalidade.distanciaKm" class="rounded-lg bg-amber-100 px-2.5 py-1 text-xs font-black text-amber-950 uppercase tracking-wider flex items-center gap-1">
                 <Footprints :size="14" class="text-amber-950" /> {{ modalidade.distanciaKm }} km
+              </span>
+              <span v-else class="rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-1 text-xs font-black text-amber-900 uppercase tracking-wider flex items-center gap-1">
+                <Trophy :size="14" class="text-amber-800" /> Desafio / Livre
               </span>
               <h3 class="font-extrabold text-base text-slate-900">{{ modalidade.nome }}</h3>
             </div>
@@ -968,17 +980,17 @@ function faixaEtaria(min: number | null, max: number | null) {
           </div>
           <div>
             <div class="flex items-center justify-between mb-1">
-              <label class="block text-xs font-bold text-slate-700 uppercase">Distância (em km) *</label>
+              <label class="block text-xs font-bold text-slate-700 uppercase">Distância (em km) <span class="text-[10px] font-normal text-slate-400 lowercase">(opcional)</span></label>
               <span class="text-[10px] text-slate-400 font-medium">Aceita 100, 150, 200 km...</span>
             </div>
             <input
               v-model="novaModalidade.distanciaKm"
               type="text"
               inputmode="decimal"
-              placeholder="Ex.: 10, 100, 150 ou 200"
+              placeholder="Ex.: 10 ou deixe vazio se não houver"
               class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-semibold focus:border-amber-500 focus:outline-none"
             />
-            <p class="text-[10px] text-slate-400 mt-1">Sem limite de km: digite qualquer distância (ex: 100, 150, 200 km).</p>
+            <p class="text-[10px] text-slate-400 mt-1">Opcional: preencha para percursos com KM fixo ou deixe vazio para desafios e percursos livres.</p>
           </div>
           <div>
             <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Idade Mínima Permitida</label>
@@ -1035,7 +1047,7 @@ function faixaEtaria(min: number | null, max: number | null) {
         <div class="flex items-center gap-3 pt-2">
           <button
             type="button"
-            :disabled="salvando || !novaModalidade.nome || !novaModalidade.distanciaKm"
+            :disabled="salvando || !novaModalidade.nome?.trim()"
             class="rounded-xl bg-warning px-6 py-3 text-xs font-black uppercase tracking-wider text-primary shadow hover:brightness-95 disabled:opacity-50 flex items-center gap-1.5"
             @click="onCriarModalidade"
           >

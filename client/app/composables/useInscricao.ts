@@ -38,7 +38,7 @@ export interface CategoriaInfo {
 export interface ModalidadeInfo {
   id: string
   nome: string
-  distanciaKm: number | string
+  distanciaKm?: number | string | null
   descricao?: string | null
   mapaPercursoUrl?: string | null
   mapaEmbedUrl?: string | null
@@ -119,7 +119,7 @@ export interface InscricaoComEvento {
     modalidade: {
       id: string
       nome: string
-      distanciaKm: number | string
+      distanciaKm?: number | string | null
       mapaPercursoUrl?: string | null
       mapaEmbedUrl?: string | null
       gpxUrl?: string | null

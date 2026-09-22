@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { DollarSign, Footprints, Lightbulb } from 'lucide-vue-next'
+import { DollarSign, Footprints, Lightbulb, Trophy } from 'lucide-vue-next'
 import type { LoteOrganizador, ModalidadeOrganizador } from '../composables/useEventoOrganizador'
 
 const props = defineProps<{
@@ -260,7 +260,8 @@ function formatarData(iso: string) {
               class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50/50 p-3.5 shadow-xs"
             >
               <div class="flex items-center gap-2">
-                <span class="rounded-lg bg-amber-200/60 px-2 py-0.5 text-xs font-black text-amber-950 inline-flex items-center gap-1"><Footprints :size="13" class="text-amber-950" /> {{ modalidade.distanciaKm }} km</span>
+                <span v-if="modalidade.distanciaKm" class="rounded-lg bg-amber-200/60 px-2 py-0.5 text-xs font-black text-amber-950 inline-flex items-center gap-1"><Footprints :size="13" class="text-amber-950" /> {{ modalidade.distanciaKm }} km</span>
+                <span v-else class="rounded-lg bg-amber-200/60 px-2 py-0.5 text-xs font-black text-amber-950 inline-flex items-center gap-1"><Trophy :size="13" class="text-amber-950" /> Desafio</span>
                 <span class="font-extrabold text-xs text-slate-900">{{ modalidade.nome }}</span>
               </div>
               <div class="flex items-center gap-2 self-end sm:self-auto">

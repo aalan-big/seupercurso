@@ -473,7 +473,7 @@ async function submeterTransferencia() {
                     :class="novaCategoriaId === cat.id ? 'bg-secondary text-white border-secondary shadow' : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-50'"
                     @click="novaCategoriaId = cat.id"
                   >
-                    <p class="flex items-center gap-1.5 font-extrabold text-sm"><Footprints :size="14" /> {{ mod.nome }} ({{ mod.distanciaKm }} km)</p>
+                    <p class="flex items-center gap-1.5 font-extrabold text-sm"><Footprints :size="14" /> {{ mod.nome }}<span v-if="mod.distanciaKm"> ({{ mod.distanciaKm }} km)</span></p>
                     <p class="mt-1 text-[11px] opacity-90">Categoria: {{ cat.nome }}</p>
                   </button>
                 </template>

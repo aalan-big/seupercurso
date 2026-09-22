@@ -13,9 +13,10 @@ export class CreateModalidadeDto {
   @MinLength(2)
   nome!: string;
 
+  @IsOptional()
   @IsNumber()
   @Min(0.1)
-  distanciaKm!: number;
+  distanciaKm?: number;
 
   @IsOptional()
   @IsString()

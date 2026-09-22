@@ -348,7 +348,7 @@ model Modalidade {
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   eventoId        String   @db.Uuid
   nome            String
-  distanciaKm     Decimal  @db.Decimal(6, 2)
+  distanciaKm     Decimal? @db.Decimal(6, 2)
   descricao       String?
   idadeMinima     Int?
   idadeMaxima     Int?
