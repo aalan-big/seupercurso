@@ -429,39 +429,45 @@ function formatarData(iso: string) {
 
     <!-- MODAL DO ATLETA / INSCRIÇÃO -->
     <Teleport to="body">
-      <div v-if="modalAberto && atletaSelecionado" class="fixed inset-0 z-[300] flex items-center justify-center p-4">
+      <div
+        v-if="modalAberto && atletaSelecionado"
+        class="fixed inset-0 z-[300] flex items-center justify-center p-3 sm:p-4"
+        @keydown.window.escape="modalAberto = false"
+      >
         <div class="fixed inset-0 bg-slate-950/75 backdrop-blur-xs" @click="modalAberto = false"></div>
 
-        <div class="relative w-full max-w-xl overflow-hidden rounded-3xl bg-white shadow-2xl z-[301] p-6 space-y-5">
-          <!-- Cabeçalho do Modal -->
-          <div class="flex items-center justify-between border-b border-slate-100 pb-4">
-            <div class="flex items-center gap-3">
-              <div class="h-10 w-10 rounded-2xl bg-primary/10 text-primary font-black flex items-center justify-center text-lg">
+        <div class="relative flex w-full max-w-xl max-h-[90vh] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl z-[301]">
+          <!-- Cabeçalho do Modal (Fixo no topo) -->
+          <div class="flex items-center justify-between border-b border-slate-100 p-5 sm:p-6 shrink-0 bg-white">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="h-10 w-10 shrink-0 rounded-2xl bg-primary/10 text-primary font-black flex items-center justify-center text-lg">
                 <Footprints :size="20" />
               </div>
-              <div>
-                <h3 class="font-black text-base text-slate-900">{{ nomeCliente(atletaSelecionado) }}</h3>
-                <p class="text-xs text-slate-500">
+              <div class="min-w-0">
+                <h3 class="font-black text-base text-slate-900 truncate">{{ nomeCliente(atletaSelecionado) }}</h3>
+                <p class="text-xs text-slate-500 truncate">
                   CPF: {{ documentoCliente(atletaSelecionado) }} · {{ atletaSelecionado.cliente.usuario.email }}
-                  <span v-if="compradorTitular(atletaSelecionado)" class="block text-orange-600 font-bold mt-0.5">
-                    📌 {{ compradorTitular(atletaSelecionado) }}
-                  </span>
                 </p>
+                <span v-if="compradorTitular(atletaSelecionado)" class="block text-orange-600 font-bold text-xs mt-0.5 truncate">
+                  📌 {{ compradorTitular(atletaSelecionado) }}
+                </span>
               </div>
             </div>
             <button
               type="button"
-              class="rounded-xl bg-slate-100 p-2 text-xs font-bold text-slate-500 hover:bg-slate-200 transition inline-flex items-center gap-1"
+              class="rounded-xl bg-slate-100 p-2 text-xs font-bold text-slate-500 hover:bg-slate-200 transition inline-flex items-center gap-1 shrink-0 ml-2"
               @click="modalAberto = false"
             >
               <X :size="13" /> Fechar
             </button>
           </div>
 
-          <!-- Alerta de Sucesso -->
-          <p v-if="sucessoModal" class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-800 flex items-center gap-2">
-            <CheckCircle :size="14" class="text-emerald-600" /> {{ sucessoModal }}
-          </p>
+          <!-- Conteúdo Rolável -->
+          <div class="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5">
+            <!-- Alerta de Sucesso -->
+            <p v-if="sucessoModal" class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-800 flex items-center gap-2">
+              <CheckCircle :size="14" class="text-emerald-600 shrink-0" /> {{ sucessoModal }}
+            </p>
 
           <!-- Dados do Evento e Edição -->
           <div class="space-y-4 text-xs">
@@ -616,12 +622,13 @@ function formatarData(iso: string) {
               </div>
             </div>
           </div>
+        </div>
 
-          <!-- Rodapé de Ações do Modal -->
-          <div class="flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
+          <!-- Rodapé de Ações do Modal (Fixo na base) -->
+          <div class="flex items-center justify-end gap-3 border-t border-slate-100 p-4 sm:px-6 shrink-0 bg-slate-50">
             <button
               type="button"
-              class="rounded-xl border border-slate-300 px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 transition"
+              class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 transition"
               @click="modalAberto = false"
             >
               Cancelar

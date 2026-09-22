@@ -7,6 +7,7 @@ import {
 import { Test } from '@nestjs/testing';
 import { InscricaoService } from './inscricao.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmailService } from '../email/email.service';
 import { StatusInscricao } from '../generated/prisma/enums';
 
 describe('InscricaoService', () => {
@@ -79,6 +80,10 @@ describe('InscricaoService', () => {
         update: jest.fn(),
         count: jest.fn().mockResolvedValue(0),
       },
+      servidorPublico: {
+        findFirst: jest.fn(),
+        count: jest.fn().mockResolvedValue(0),
+      },
       $transaction: jest.fn((fn: any) => fn(tx)),
     };
 
@@ -86,6 +91,13 @@ describe('InscricaoService', () => {
       providers: [
         InscricaoService,
         { provide: PrismaService, useValue: prisma },
+        {
+          provide: EmailService,
+          useValue: {
+            enviarEmail: jest.fn(),
+            enviarEmailRecusaDocumentoIdoso: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -227,6 +239,110 @@ describe('InscricaoService', () => {
       });
       expect(resultado).toEqual(
         expect.objectContaining({ id: 'inscricao-1', valor: 60 }),
+      );
+    });
+  });
+
+  describe('createBatch com idoso e servidor público', () => {
+    it('permite atleta com 60+ anos na categoria servidor público sem documento de idoso', async () => {
+      const categoriaServidor = {
+        ...categoriaPadrao,
+        servidorPublico: true,
+        modalidade: {
+          ...categoriaPadrao.modalidade,
+          evento: {
+            ...categoriaPadrao.modalidade.evento,
+            aplicaDescontoIdoso: true,
+            percentualDescontoIdoso: 50,
+            permiteServidorPublico: true,
+            vagasServidorPublico: null,
+          },
+        },
+      };
+
+      prisma.categoria.findUnique.mockResolvedValue(categoriaServidor);
+      prisma.lote.findUnique.mockResolvedValue(lotePadrao);
+      prisma.lote.findMany.mockResolvedValue([loteDisponivel]);
+      prisma.inscricao.findFirst.mockResolvedValue(null);
+      prisma.servidorPublico.findFirst.mockResolvedValue({
+        id: 'servidor-1',
+        matricula: '12345',
+        inscricaoId: null,
+        utilizadoEm: null,
+      });
+
+      tx.pedido = { create: jest.fn().mockResolvedValue({ id: 'pedido-1' }) };
+      tx.inscricao = { create: jest.fn().mockResolvedValue({ id: 'inscricao-servidor' }) };
+      tx.servidorPublico = { update: jest.fn().mockResolvedValue({}) };
+      tx.pagamento = { create: jest.fn().mockResolvedValue({ id: 'pag-1' }) };
+
+      const batchDto = {
+        items: [
+          {
+            categoriaId: 'categoria-1',
+            loteId: 'lote-1',
+            matriculaServidor: '12345',
+            atleta: {
+              nomeCompleto: 'Atleta Idoso Servidor',
+              cpf: '12345678900',
+              dataNascimento: '1950-01-01',
+              genero: 'FEMININO' as const,
+              pcd: false,
+            },
+          },
+        ],
+      };
+
+      const res = await service.createBatch(usuarioId, batchDto);
+
+      expect(res.valorTotal).toBe(0);
+      expect(tx.inscricao.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          isServidorPublico: true,
+          status: StatusInscricao.CONFIRMADA,
+          documentoIdosoUrl: null,
+        }),
+      });
+    });
+
+    it('exige documento do idoso se for categoria normal e nao servidor publico', async () => {
+      const categoriaNormal = {
+        ...categoriaPadrao,
+        servidorPublico: false,
+        modalidade: {
+          ...categoriaPadrao.modalidade,
+          evento: {
+            ...categoriaPadrao.modalidade.evento,
+            aplicaDescontoIdoso: true,
+            percentualDescontoIdoso: 50,
+            permiteServidorPublico: true,
+          },
+        },
+      };
+
+      prisma.categoria.findUnique.mockResolvedValue(categoriaNormal);
+      prisma.lote.findUnique.mockResolvedValue(lotePadrao);
+      prisma.lote.findMany.mockResolvedValue([loteDisponivel]);
+      prisma.inscricao.findFirst.mockResolvedValue(null);
+
+      const batchDto = {
+        items: [
+          {
+            categoriaId: 'categoria-1',
+            loteId: 'lote-1',
+            atleta: {
+              nomeCompleto: 'Atleta Idoso Normal',
+              cpf: '12345678900',
+              dataNascimento: '1950-01-01',
+              genero: 'FEMININO' as const,
+              pcd: false,
+            },
+          },
+        ],
+      };
+
+      await expect(service.createBatch(usuarioId, batchDto)).rejects.toThrow(
+        BadRequestException,
       );
     });
   });

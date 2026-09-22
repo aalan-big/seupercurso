@@ -718,11 +718,14 @@ function avancar() {
       erroInscricao.value = 'Adicione ao menos um participante no carrinho para avançar.'
       return
     }
-    const semDocumento = atletasSemDocumentoIdoso()
-    if (semDocumento.length > 0) {
-      const nomes = semDocumento.map((i) => i.nome).join(', ')
-      erroInscricao.value = `Envie um documento com foto (RG ou CNH) para comprovar a idade de: ${nomes}.`
-      return
+    // Se o evento não possui servidor público liberado, valida documento imediatamente
+    if (!eventoSelecionado.value?.permiteServidorPublico) {
+      const semDocumento = atletasSemDocumentoIdoso()
+      if (semDocumento.length > 0) {
+        const nomes = semDocumento.map((i) => i.nome).join(', ')
+        erroInscricao.value = `Envie um documento com foto (RG ou CNH) para comprovar a idade de: ${nomes}.`
+        return
+      }
     }
   }
 
@@ -739,6 +742,15 @@ function avancar() {
     if (servidoresNaoValidados.length > 0) {
       const nomes = servidoresNaoValidados.map((i) => i.nome).join(', ')
       erroInscricao.value = `Valide a matrícula de servidor público para: ${nomes}.`
+      return
+    }
+
+    // Agora que as categorias foram selecionadas, quem não for servidor público precisa do documento do idoso
+    const semDocumento = atletasSemDocumentoIdoso()
+    if (semDocumento.length > 0) {
+      const nomes = semDocumento.map((i) => i.nome).join(', ')
+      erroInscricao.value = `Envie um documento com foto (RG ou CNH) para comprovar o desconto de idoso de: ${nomes}.`
+      step.value = 1
       return
     }
   }
@@ -923,7 +935,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
       cupomCodigo: cupomCodigo.value || undefined,
       dependenteId: item.dependenteId,
       matriculaServidor: (itemIsServidorPublico(item) || item.servidorValidado) ? item.matriculaServidor?.trim() : undefined,
-      documentoIdosoUrl: temDescontoIdoso(item) ? item.documentoIdosoUrl : undefined,
+      documentoIdosoUrl: item.documentoIdosoUrl || undefined,
       atleta: item.tipo === 'MANUAL'
         ? {
             nomeCompleto: item.nome,
@@ -1305,7 +1317,12 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                   >
                     <p class="text-[11px] font-bold" :class="item.documentoIdosoUrl ? 'text-emerald-900' : 'text-amber-900'">
                       Desconto do idoso ({{ eventoSelecionado?.percentualDescontoIdoso }}%) — envie um documento com foto (RG ou CNH) pra comprovar a idade.
-                      Ele será conferido na retirada do kit.
+                      <span v-if="eventoSelecionado?.permiteServidorPublico" class="block font-normal mt-0.5 text-slate-600">
+                        (Não obrigatório caso vá inscrever este atleta na categoria Servidor Público com isenção).
+                      </span>
+                      <span v-else class="block font-normal mt-0.5">
+                        Ele será conferido na retirada do kit.
+                      </span>
                     </p>
                     <div v-if="item.documentoIdosoUrl" class="flex items-center gap-2 text-xs font-bold text-emerald-800">
                       <CheckCircle class="w-4 h-4 shrink-0" />

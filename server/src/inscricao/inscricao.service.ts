@@ -115,6 +115,7 @@ export class InscricaoService {
       cliente.pf!.dataNascimento,
       cliente.pf!.nomeCompleto,
       dto.documentoIdosoUrl,
+      !categoria.servidorPublico,
     );
 
     const valor = await calcularValorInscricao(this.prisma, {
@@ -344,13 +345,6 @@ export class InscricaoService {
         ? await this.resolverCupomOuFalhar(lote.eventoId, item.cupomCodigo)
         : null;
 
-      const documentoIdosoUrl = await this.resolverDocumentoIdoso(
-        categoria.modalidade.evento,
-        atletaDataNascimento,
-        atletaNome,
-        item.documentoIdosoUrl,
-      );
-
       let isServidorPublico = false;
       let matriculaServidor: string | null = null;
       let servidorPublicoId: string | null = null;
@@ -404,6 +398,16 @@ export class InscricaoService {
         matriculaServidor = servidor.matricula;
         servidorPublicoId = servidor.id;
       }
+
+      // Servidor público tem isenção total (100% gratuito); não usufrui do
+      // desconto do idoso e não deve ser obrigado a comprovar documento do idoso.
+      const documentoIdosoUrl = await this.resolverDocumentoIdoso(
+        categoria.modalidade.evento,
+        atletaDataNascimento,
+        atletaNome,
+        item.documentoIdosoUrl,
+        !isServidorPublico,
+      );
 
       let valor = 0;
       if (isServidorPublico) {
@@ -820,6 +824,7 @@ export class InscricaoService {
     dataNascimento: Date,
     nomeAtleta: string,
     documentoIdosoUrl?: string,
+    exigirDocumento: boolean = true,
   ): Promise<string | null> {
     const temDesconto =
       evento.aplicaDescontoIdoso && Number(evento.percentualDescontoIdoso) > 0;
@@ -827,6 +832,10 @@ export class InscricaoService {
     if (calcularIdade(dataNascimento, evento.dataInicio) < 60) return null;
 
     const caminho = (documentoIdosoUrl || '').trim();
+    if (!exigirDocumento && !caminho) {
+      return null;
+    }
+
     // Aceita so o que o proprio upload devolveu: um caminho qualquer viraria
     // link para fora da pasta, e "../" leria arquivo do servidor.
     const prefixo = '/uploads/documentos/';
@@ -839,6 +848,7 @@ export class InscricaoService {
       !nomeArquivo.includes('\\') &&
       !nomeArquivo.includes('..');
     if (!valido) {
+      if (!exigirDocumento) return null;
       throw new BadRequestException(
         `${nomeAtleta} tem direito ao desconto do idoso neste evento. Envie um documento com foto (RG ou CNH) para comprovar a idade.`,
       );
@@ -847,6 +857,7 @@ export class InscricaoService {
     try {
       await access(join(process.cwd(), caminho));
     } catch {
+      if (!exigirDocumento) return null;
       throw new BadRequestException(
         `O documento enviado para ${nomeAtleta} não foi encontrado. Envie o arquivo novamente.`,
       );
