@@ -1707,7 +1707,12 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                         :class="!item.incluiCamisa ? 'bg-orange-50 border-orange-500 text-slate-900 font-extrabold shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'"
                       >
                         <div class="flex items-center gap-3">
-                          <span class="text-2xl">🏃</span>
+                          <div
+                            class="w-10 h-10 shrink-0 rounded-xl flex items-center justify-center transition"
+                            :class="!item.incluiCamisa ? 'bg-orange-100 text-orange-600' : 'bg-slate-200/70 text-slate-500'"
+                          >
+                            <Ticket class="w-5 h-5" />
+                          </div>
                           <div>
                             <p class="text-sm font-bold">Sem Camiseta</p>
                             <p class="text-xs text-slate-500 font-normal">Apenas inscrição no evento</p>
@@ -1723,7 +1728,12 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                         :class="item.incluiCamisa ? 'bg-orange-50 border-orange-500 text-slate-900 font-extrabold shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'"
                       >
                         <div class="flex items-center gap-3">
-                          <span class="text-2xl">🎽</span>
+                          <div
+                            class="w-10 h-10 shrink-0 rounded-xl flex items-center justify-center transition"
+                            :class="item.incluiCamisa ? 'bg-orange-100 text-orange-600' : 'bg-slate-200/70 text-slate-500'"
+                          >
+                            <Shirt class="w-5 h-5" />
+                          </div>
                           <div>
                             <div class="flex items-center gap-1.5 flex-wrap">
                               <p class="text-sm font-bold">Com Camiseta Oficial</p>
@@ -1881,11 +1891,13 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                     {{ modalidadesAtivas.find((m) => m.id === item.modalidadeId)?.nome }} ·
                     {{ modalidadesAtivas.find((m) => m.id === item.modalidadeId)?.categorias?.find((c) => c.id === item.categoriaId)?.nome }}
                   </p>
-                  <p v-if="eventoSelecionado?.camisaOpcional && !item.incluiCamisa" class="text-xs text-slate-500 font-semibold mt-1">
-                    🏃 Sem camiseta oficial (apenas inscrição)
+                  <p v-if="eventoSelecionado?.camisaOpcional && !item.incluiCamisa" class="text-xs text-slate-500 font-semibold mt-1 flex items-center gap-1.5">
+                    <Ticket class="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span>Sem camiseta oficial (apenas inscrição)</span>
                   </p>
-                  <p v-else-if="eventoPossuiCamisa && item.modeloCamisaId" class="text-xs text-slate-600 font-semibold mt-1">
-                    🎽 Modelo: {{ eventoSelecionado?.modelosCamisa?.find(m => m.id === item.modeloCamisaId)?.nome || 'Padrão' }}
+                  <p v-else-if="eventoPossuiCamisa && item.modeloCamisaId" class="text-xs text-slate-600 font-semibold mt-1 flex items-center gap-1.5">
+                    <Shirt class="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                    <span>Modelo: {{ eventoSelecionado?.modelosCamisa?.find(m => m.id === item.modeloCamisaId)?.nome || 'Padrão' }}</span>
                   </p>
                 </div>
 
@@ -2392,7 +2404,8 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
               class="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer"
               :class="abaFotoAtiva === 'frente' ? 'bg-orange-500 text-white shadow-sm' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'"
             >
-              <span>📷 Foto da Frente</span>
+              <Camera class="w-3.5 h-3.5" />
+              <span>Foto da Frente</span>
             </button>
 
             <button
@@ -2401,7 +2414,8 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
               class="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer"
               :class="abaFotoAtiva === 'verso' ? 'bg-orange-500 text-white shadow-sm' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'"
             >
-              <span>📷 Foto do Verso</span>
+              <Camera class="w-3.5 h-3.5" />
+              <span>Foto do Verso</span>
             </button>
           </div>
 

@@ -115,11 +115,11 @@ async function onSubmit(payload: Record<string, unknown>, _arquivoRegulamento: F
         <button
           v-if="eventoSelecionado.possuiCamisa !== false"
           type="button"
-          class="shrink-0 whitespace-nowrap rounded-lg px-4 py-2 transition flex items-center gap-1.5"
+          class="shrink-0 whitespace-nowrap rounded-lg px-4 py-2 transition"
           :class="abaAtiva === 'camisas' ? 'bg-white text-primary shadow' : 'text-slate-500'"
           @click="abaAtiva = 'camisas'"
         >
-          👕 Modelos de Camisa
+          Modelos de Camisa
         </button>
         <button
           type="button"

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { Shirt, Plus, Trash2, Edit2, Upload, Eye, Check, AlertCircle, Image as ImageIcon } from 'lucide-vue-next'
+import { Shirt, Plus, Trash2, Edit2, Upload, Eye, Check, AlertCircle, Image as ImageIcon, X } from 'lucide-vue-next'
 import type { ModeloCamisa } from '../composables/useEventoOrganizador'
 
 const props = defineProps<{
@@ -272,7 +272,10 @@ async function onUploadFoto(modelo: ModeloCamisa, tipo: 'frente' | 'verso', even
                 <span>Foto Principal</span>
                 <p class="text-[10px] text-slate-400 font-normal">Frente ou arte única</p>
               </div>
-              <span v-if="modelo.fotoFrenteUrl" class="text-emerald-600 font-bold">✓ Enviada</span>
+              <span v-if="modelo.fotoFrenteUrl" class="text-emerald-600 font-bold flex items-center gap-1">
+                <Check class="w-3.5 h-3.5" />
+                <span>Enviada</span>
+              </span>
               <span v-else class="text-slate-400 font-normal">Pendente</span>
             </div>
 
@@ -291,9 +294,9 @@ async function onUploadFoto(modelo: ModeloCamisa, tipo: 'frente' | 'verso', even
               </div>
             </div>
 
-            <div v-else class="aspect-square w-full rounded-lg border border-dashed border-slate-300 bg-white flex flex-col items-center justify-center text-slate-400 text-xs">
-              <ImageIcon class="w-6 h-6 mb-1 text-slate-300" />
-              <span>Sem foto</span>
+            <div v-else class="aspect-square w-full rounded-lg border border-dashed border-slate-300 bg-white flex flex-col items-center justify-center text-slate-400 text-xs text-center p-1">
+              <ImageIcon class="w-5 h-5 mb-1 text-slate-300" />
+              <span class="text-[10px] text-slate-400 leading-tight">Arte única ou frente</span>
             </div>
 
             <label
@@ -318,7 +321,10 @@ async function onUploadFoto(modelo: ModeloCamisa, tipo: 'frente' | 'verso', even
                 <span>Foto Verso</span>
                 <p class="text-[10px] text-slate-400 font-normal">Opcional (costas)</p>
               </div>
-              <span v-if="modelo.fotoVersoUrl" class="text-emerald-600 font-bold">✓ Enviada</span>
+              <span v-if="modelo.fotoVersoUrl" class="text-emerald-600 font-bold flex items-center gap-1">
+                <Check class="w-3.5 h-3.5" />
+                <span>Enviada</span>
+              </span>
               <span v-else class="text-slate-400 font-normal">Opcional</span>
             </div>
 
@@ -460,9 +466,9 @@ async function onUploadFoto(modelo: ModeloCamisa, tipo: 'frente' | 'verso', even
           <button
             type="button"
             @click="fotoAmpliadaUrl = null"
-            class="absolute top-4 right-4 bg-slate-900/70 hover:bg-slate-900 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-black transition"
+            class="absolute top-4 right-4 bg-slate-900/70 hover:bg-slate-900 text-white rounded-full w-8 h-8 flex items-center justify-center transition cursor-pointer"
           >
-            ✕
+            <X class="w-4 h-4" />
           </button>
         </div>
       </div>
