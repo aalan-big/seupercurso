@@ -518,6 +518,12 @@ function onSubmit() {
   if (itensPendentes.value.length > 0) {
     modalPendenciasAberto.value = true
     erroValidacao.value = 'Preencha as informações obrigatórias pendentes antes de salvar.'
+    const primeiroId = itensPendentes.value[0]?.idElemento
+    if (primeiroId) {
+      nextTick(() => {
+        document.getElementById(primeiroId)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      })
+    }
     return
   }
 
@@ -1044,127 +1050,132 @@ function onSubmit() {
     </div>
 
     <button
-      type="submit"
+      type="button"
+      @click="onSubmit"
       :disabled="props.carregando"
-      class="mt-2 rounded-xl bg-warning px-4 py-3 text-sm font-bold uppercase tracking-wide text-primary transition hover:brightness-95 disabled:opacity-50"
+      class="mt-2 rounded-xl bg-warning px-4 py-3 text-sm font-bold uppercase tracking-wide text-primary transition hover:brightness-95 disabled:opacity-50 cursor-pointer"
     >
       {{ props.carregando ? 'Salvando...' : props.modoEdicao ? 'Salvar alterações' : 'Criar evento' }}
     </button>
   </form>
 
   <!-- Modal: Informações Pendentes / Erros de Validação -->
-  <Teleport to="body">
-    <Transition
-      enter-active-class="transition duration-200 ease-out"
-      enter-from-class="opacity-0"
-      enter-to-class="opacity-100"
-      leave-active-class="transition duration-150 ease-in"
-      leave-from-class="opacity-100"
-      leave-to-class="opacity-0"
-    >
-      <div
-        v-if="modalPendenciasAberto"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs overflow-y-auto"
-        @click.self="fecharModal"
+  <ClientOnly>
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition duration-200 ease-out"
+        enter-from-class="opacity-0"
+        enter-to-class="opacity-100"
+        leave-active-class="transition duration-150 ease-in"
+        leave-from-class="opacity-100"
+        leave-to-class="opacity-0"
       >
         <div
-          class="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl transition-all border border-slate-100 my-8 text-left"
-          role="dialog"
-          aria-modal="true"
+          v-if="modalPendenciasAberto"
+          class="fixed inset-0 z-[300] flex items-center justify-center p-4 overflow-y-auto"
         >
-          <!-- Botão Fechar (X) -->
-          <button
-            type="button"
-            @click="fecharModal"
-            class="absolute right-4 top-4 rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition cursor-pointer"
-            aria-label="Fechar"
-          >
-            <X :size="20" />
-          </button>
+          <!-- Fundo escuro com clique para fechar -->
+          <div class="fixed inset-0 bg-slate-950/75 backdrop-blur-xs" @click="fecharModal"></div>
 
-          <!-- Cabeçalho -->
-          <div class="flex items-start gap-3.5 mb-4">
-            <div class="rounded-2xl bg-amber-100 p-3 text-amber-700 shrink-0">
-              <AlertTriangle :size="26" />
-            </div>
-            <div class="pr-6">
-              <h3 class="text-lg font-extrabold text-slate-900 leading-tight">
-                {{ itensPendentes.length > 0 ? 'Faltam informações no cadastro' : 'Aviso do sistema' }}
-              </h3>
-              <p class="text-xs text-slate-500 mt-1">
-                {{
-                  itensPendentes.length > 0
-                    ? 'Preencha os campos obrigatórios abaixo para poder salvar o evento:'
-                    : 'Verifique a pendência informada para prosseguir:'
-                }}
-              </p>
-            </div>
-          </div>
-
-          <!-- Alerta do Servidor (se houver) -->
           <div
-            v-if="props.erroServidor"
-            class="mb-4 rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs text-red-800"
+            class="relative z-[301] w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl transition-all border border-slate-100 my-8 text-left"
+            role="dialog"
+            aria-modal="true"
           >
-            <p class="font-bold flex items-center gap-1.5 text-red-900 mb-1">
-              <AlertCircle :size="15" class="text-red-600" /> Detalhes do sistema:
-            </p>
-            <p class="leading-relaxed">{{ props.erroServidor }}</p>
-          </div>
-
-          <!-- Lista de Pendências -->
-          <div
-            v-if="itensPendentes.length > 0"
-            class="space-y-2 mb-6 max-h-[50vh] overflow-y-auto pr-1"
-          >
-            <button
-              v-for="(item, idx) in itensPendentes"
-              :key="item.campo"
-              type="button"
-              @click="focarPrimeiraPendencia(item.idElemento)"
-              class="w-full text-left flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50/50 p-3 text-xs hover:bg-red-100/70 hover:border-red-300 transition group cursor-pointer"
-            >
-              <div class="flex items-start gap-2.5 min-w-0">
-                <span
-                  class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-200 text-[11px] font-extrabold text-red-800 mt-0.5"
-                >
-                  {{ idx + 1 }}
-                </span>
-                <div class="min-w-0">
-                  <p class="font-bold text-red-950 truncate">{{ item.titulo }}</p>
-                  <p class="text-red-700 text-[11px] mt-0.5 leading-snug">{{ item.descricao }}</p>
-                </div>
-              </div>
-              <span
-                class="shrink-0 flex items-center gap-1 text-[11px] font-bold text-red-700 group-hover:translate-x-0.5 transition"
-              >
-                Preencher <ArrowRight :size="13" />
-              </span>
-            </button>
-          </div>
-
-          <!-- Botões de Ação -->
-          <div class="space-y-2">
-            <button
-              v-if="itensPendentes.length > 0"
-              type="button"
-              @click="focarPrimeiraPendencia()"
-              class="w-full rounded-xl bg-amber-500 py-3 text-sm font-bold uppercase tracking-wide text-slate-950 shadow-md hover:bg-amber-400 transition flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <span>Preencher campos pendentes</span>
-              <ArrowRight :size="16" />
-            </button>
-
+            <!-- Botão Fechar (X) -->
             <button
               type="button"
               @click="fecharModal"
-              class="w-full rounded-xl border border-slate-200 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+              class="absolute right-4 top-4 rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition cursor-pointer"
+              aria-label="Fechar"
             >
-              Fechar e continuar editando
+              <X :size="20" />
             </button>
+
+            <!-- Cabeçalho -->
+            <div class="flex items-start gap-3.5 mb-4">
+              <div class="rounded-2xl bg-amber-100 p-3 text-amber-700 shrink-0">
+                <AlertTriangle :size="26" />
+              </div>
+              <div class="pr-6">
+                <h3 class="text-lg font-extrabold text-slate-900 leading-tight">
+                  {{ itensPendentes.length > 0 ? 'Faltam informações no cadastro' : 'Aviso do sistema' }}
+                </h3>
+                <p class="text-xs text-slate-500 mt-1">
+                  {{
+                    itensPendentes.length > 0
+                      ? 'Preencha os campos obrigatórios abaixo para poder salvar o evento:'
+                      : 'Verifique a pendência informada para prosseguir:'
+                  }}
+                </p>
+              </div>
+            </div>
+
+            <!-- Alerta do Servidor (se houver) -->
+            <div
+              v-if="props.erroServidor"
+              class="mb-4 rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs text-red-800"
+            >
+              <p class="font-bold flex items-center gap-1.5 text-red-900 mb-1">
+                <AlertCircle :size="15" class="text-red-600" /> Detalhes do sistema:
+              </p>
+              <p class="leading-relaxed">{{ props.erroServidor }}</p>
+            </div>
+
+            <!-- Lista de Pendências -->
+            <div
+              v-if="itensPendentes.length > 0"
+              class="space-y-2 mb-6 max-h-[50vh] overflow-y-auto pr-1"
+            >
+              <button
+                v-for="(item, idx) in itensPendentes"
+                :key="item.campo"
+                type="button"
+                @click="focarPrimeiraPendencia(item.idElemento)"
+                class="w-full text-left flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50/50 p-3 text-xs hover:bg-red-100/70 hover:border-red-300 transition group cursor-pointer"
+              >
+                <div class="flex items-start gap-2.5 min-w-0">
+                  <span
+                    class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-200 text-[11px] font-extrabold text-red-800 mt-0.5"
+                  >
+                    {{ idx + 1 }}
+                  </span>
+                  <div class="min-w-0">
+                    <p class="font-bold text-red-950 truncate">{{ item.titulo }}</p>
+                    <p class="text-red-700 text-[11px] mt-0.5 leading-snug">{{ item.descricao }}</p>
+                  </div>
+                </div>
+                <span
+                  class="shrink-0 flex items-center gap-1 text-[11px] font-bold text-red-700 group-hover:translate-x-0.5 transition"
+                >
+                  Preencher <ArrowRight :size="13" />
+                </span>
+              </button>
+            </div>
+
+            <!-- Botões de Ação -->
+            <div class="space-y-2">
+              <button
+                v-if="itensPendentes.length > 0"
+                type="button"
+                @click="focarPrimeiraPendencia()"
+                class="w-full rounded-xl bg-amber-500 py-3 text-sm font-bold uppercase tracking-wide text-slate-950 shadow-md hover:bg-amber-400 transition flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>Preencher campos pendentes</span>
+                <ArrowRight :size="16" />
+              </button>
+
+              <button
+                type="button"
+                @click="fecharModal"
+                class="w-full rounded-xl border border-slate-200 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+              >
+                Fechar e continuar editando
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    </Transition>
-  </Teleport>
+      </Transition>
+    </Teleport>
+  </ClientOnly>
 </template>
