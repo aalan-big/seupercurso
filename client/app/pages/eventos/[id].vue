@@ -522,6 +522,19 @@ function atletasSemDocumentoIdoso() {
   return carrinho.value.filter((i) => temDescontoIdoso(i) && !i.documentoIdosoUrl)
 }
 
+function rolarParaErro() {
+  if (import.meta.client) {
+    nextTick(() => {
+      const alerta = document.getElementById('alerta-documento-idoso-checkout') || document.querySelector('.bg-red-50')
+      if (alerta) {
+        alerta.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      } else {
+        window.scrollTo({ top: 120, behavior: 'smooth' })
+      }
+    })
+  }
+}
+
 function calcularIdade(nascimentoIso: string, referenciaIso: string) {
   if (!nascimentoIso || !referenciaIso) return 0
   const nascimento = new Date(nascimentoIso)
@@ -709,6 +722,7 @@ function avancar() {
 
   if (carrinho.value.length === 0) {
     erroInscricao.value = 'Adicione ao menos um atleta no carrinho para continuar.'
+    rolarParaErro()
     return
   }
 
@@ -716,6 +730,7 @@ function avancar() {
     // Na Etapa 1, apenas confirma se há atletas no carrinho
     if (carrinho.value.length === 0) {
       erroInscricao.value = 'Adicione ao menos um participante no carrinho para avançar.'
+      rolarParaErro()
       return
     }
     // Se o evento não possui servidor público liberado, valida documento imediatamente
@@ -724,6 +739,7 @@ function avancar() {
       if (semDocumento.length > 0) {
         const nomes = semDocumento.map((i) => i.nome).join(', ')
         erroInscricao.value = `Envie um documento com foto (RG ou CNH) para comprovar a idade de: ${nomes}.`
+        rolarParaErro()
         return
       }
     }
@@ -735,6 +751,7 @@ function avancar() {
     if (pendentes.length > 0) {
       const nomes = pendentes.map((i) => i.nome).join(', ')
       erroInscricao.value = `Selecione o percurso (modalidade) e a categoria para: ${nomes}.`
+      rolarParaErro()
       return
     }
 
@@ -742,6 +759,7 @@ function avancar() {
     if (servidoresNaoValidados.length > 0) {
       const nomes = servidoresNaoValidados.map((i) => i.nome).join(', ')
       erroInscricao.value = `Valide a matrícula de servidor público para: ${nomes}.`
+      rolarParaErro()
       return
     }
 
@@ -750,7 +768,7 @@ function avancar() {
     if (semDocumento.length > 0) {
       const nomes = semDocumento.map((i) => i.nome).join(', ')
       erroInscricao.value = `Envie um documento com foto (RG ou CNH) para comprovar o desconto de idoso de: ${nomes}.`
-      step.value = 1
+      rolarParaErro()
       return
     }
   }
@@ -761,6 +779,7 @@ function avancar() {
     if (faltamCamisetas.length > 0) {
       const nomes = faltamCamisetas.map((i) => i.nome).join(', ')
       erroInscricao.value = `Selecione o tamanho da camiseta para: ${nomes}.`
+      rolarParaErro()
       return
     }
   }
@@ -911,18 +930,20 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
 
   if (carrinho.value.length === 0) {
     erroInscricao.value = 'Adicione ao menos um atleta participante para prosseguir.'
+    rolarParaErro()
     return
   }
 
   if (carrinho.value.some((i) => !i.categoriaId || !i.modalidadeId)) {
     erroInscricao.value = 'Selecione a modalidade e a categoria para todos os atletas do carrinho.'
+    rolarParaErro()
     return
   }
 
   const semDocumento = atletasSemDocumentoIdoso()
   if (semDocumento.length > 0) {
-    erroInscricao.value = `Envie um documento com foto para comprovar a idade de: ${semDocumento.map((i) => i.nome).join(', ')}.`
-    step.value = 1
+    erroInscricao.value = `Envie um documento com foto (RG ou CNH) para comprovar a idade de: ${semDocumento.map((i) => i.nome).join(', ')}.`
+    rolarParaErro()
     return
   }
 
@@ -984,6 +1005,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
     }
   } catch (e: any) {
     erroInscricao.value = extrairErro(e)
+    rolarParaErro()
   } finally {
     inscrevendo.value = false
   }
@@ -1033,7 +1055,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
           </div>
 
           <!-- PIX QR Code / Copia e Cola Responsivo -->
-          <div v-else-if="inscricaoCriada.metodo === 'PIX' && inscricaoCriada.pixCopiaECola" class="p-4 sm:p-6 bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
+          <div v-else-if="inscricaoCriada.metodo === 'PIX'" class="p-4 sm:p-6 bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
             <div class="space-y-1">
               <span class="inline-block px-3 py-1 bg-orange-100 text-orange-800 border border-orange-200 rounded-full text-[11px] font-black uppercase tracking-wider">
                 Pagamento via PIX
@@ -1048,7 +1070,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
             </div>
 
             <!-- Código Copia e Cola com Botão de Ação Destacado -->
-            <div class="space-y-2 text-left max-w-md mx-auto">
+            <div v-if="inscricaoCriada.pixCopiaECola" class="space-y-2 text-left max-w-md mx-auto">
               <label class="block text-xs font-bold text-slate-700">PIX Copia e Cola:</label>
               <div class="flex flex-col sm:flex-row items-stretch gap-2">
                 <input
@@ -1066,6 +1088,10 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                   <span>{{ pixCopiado ? 'Copiado com Sucesso!' : 'Copiar Código' }}</span>
                 </button>
               </div>
+            </div>
+
+            <div v-else-if="!inscricaoCriada.pixQrCodeUrl" class="p-3 bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold rounded-xl">
+              Gerando dados do PIX... Caso demore, acesse suas inscrições para efetuar o pagamento.
             </div>
 
             <!-- Estado da cobranca, atualizado automaticamente a cada 5s -->
@@ -1524,6 +1550,61 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                       </div>
                     </div>
                   </div>
+
+                  <!-- Desconto do idoso na Etapa 2 para quem não é servidor público -->
+                  <div
+                    v-if="temDescontoIdoso(item) && !itemIsServidorPublico(item)"
+                    class="rounded-xl border p-4 space-y-2 transition mt-3"
+                    :class="item.documentoIdosoUrl ? 'border-emerald-200 bg-emerald-50' : 'border-amber-300 bg-amber-50'"
+                  >
+                    <div class="flex items-start gap-2.5">
+                      <span class="text-xl">🪪</span>
+                      <div class="flex-1 space-y-1.5">
+                        <p class="text-xs font-black uppercase tracking-wider" :class="item.documentoIdosoUrl ? 'text-emerald-900' : 'text-amber-900'">
+                          Desconto 60+ (Idoso) · {{ eventoSelecionado?.percentualDescontoIdoso }}% OFF
+                        </p>
+                        <p class="text-xs" :class="item.documentoIdosoUrl ? 'text-emerald-800' : 'text-amber-800'">
+                          Para validar o desconto por idade de <strong>{{ item.nome.split(' ')[0] }}</strong>, anexe uma foto do documento oficial (RG ou CNH).
+                        </p>
+
+                        <div v-if="item.documentoIdosoUrl" class="flex items-center gap-2 text-xs font-bold text-emerald-800 pt-1">
+                          <CheckCircle class="w-4 h-4 shrink-0 text-emerald-600" />
+                          <span class="truncate">{{ item.documentoIdosoNome || 'Documento enviado com sucesso' }}</span>
+                        </div>
+
+                        <div class="flex flex-wrap gap-2 pt-1">
+                          <label
+                            class="px-3 py-1.5 bg-white border border-slate-300 hover:border-slate-400 text-slate-700 rounded-lg text-xs font-bold cursor-pointer transition flex items-center gap-1.5 shadow-xs"
+                            :class="{ 'opacity-60 pointer-events-none': enviandoDocumentoIdoso === item.uid }"
+                          >
+                            <Camera class="w-3.5 h-3.5" />
+                            <span>{{ enviandoDocumentoIdoso === item.uid ? 'Enviando...' : (item.documentoIdosoUrl ? 'Tirar outra foto' : 'Tirar foto agora') }}</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              capture="environment"
+                              class="hidden"
+                              @change="onDocumentoIdosoSelecionado(item, $event)"
+                            />
+                          </label>
+
+                          <label
+                            class="px-3 py-1.5 bg-white border border-slate-300 hover:border-slate-400 text-slate-700 rounded-lg text-xs font-bold cursor-pointer transition flex items-center gap-1.5 shadow-xs"
+                            :class="{ 'opacity-60 pointer-events-none': enviandoDocumentoIdoso === item.uid }"
+                          >
+                            <FileText class="w-3.5 h-3.5" />
+                            <span>{{ item.documentoIdosoUrl ? 'Trocar arquivo' : 'Escolher arquivo (PDF ou Foto)' }}</span>
+                            <input
+                              type="file"
+                              accept="image/*,application/pdf"
+                              class="hidden"
+                              @change="onDocumentoIdosoSelecionado(item, $event)"
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
               </div>
@@ -1681,6 +1762,76 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                     <p v-if="item.servidorErro" class="text-xs font-semibold text-rose-600">
                       {{ item.servidorErro }}
                     </p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Comprovação de Desconto de Idoso (60+) no Checkout se houver pendência -->
+              <div
+                v-if="atletasSemDocumentoIdoso().length > 0"
+                id="alerta-documento-idoso-checkout"
+                class="bg-amber-50 border border-amber-300 rounded-2xl p-5 space-y-3 shadow-sm"
+              >
+                <div class="flex items-start gap-3">
+                  <span class="text-2xl">🪪</span>
+                  <div class="flex-1 space-y-1">
+                    <h4 class="text-xs font-black uppercase tracking-wider text-amber-900">
+                      Comprovante de Idade (Desconto 60+) Obrigatório
+                    </h4>
+                    <p class="text-xs text-amber-800">
+                      Para confirmar o desconto de {{ eventoSelecionado?.percentualDescontoIdoso }}% para atletas 60+, anexe um documento oficial com foto (RG ou CNH) antes de concluir o pagamento.
+                    </p>
+                  </div>
+                </div>
+
+                <div class="space-y-3 pt-1">
+                  <div
+                    v-for="item in atletasSemDocumentoIdoso()"
+                    :key="item.uid"
+                    class="p-3 bg-white rounded-xl border border-amber-200 space-y-2"
+                  >
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-bold text-slate-900">
+                        {{ item.nome }} · {{ calcularIdade(item.dataNascimento, eventoSelecionado?.dataInicio || '') }} anos
+                      </span>
+                      <span v-if="item.documentoIdosoUrl" class="text-xs font-bold text-emerald-600 flex items-center gap-1">
+                        <CheckCircle class="w-4 h-4" /> Comprovante Enviado
+                      </span>
+                      <span v-else class="text-xs font-bold text-amber-600">
+                        Pendente de Comprovante
+                      </span>
+                    </div>
+
+                    <div class="flex flex-wrap gap-2 pt-1">
+                      <label
+                        class="px-3.5 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-black uppercase tracking-wider cursor-pointer transition flex items-center gap-1.5 shadow-xs"
+                        :class="{ 'opacity-60 pointer-events-none': enviandoDocumentoIdoso === item.uid }"
+                      >
+                        <Camera class="w-4 h-4" />
+                        <span>{{ enviandoDocumentoIdoso === item.uid ? 'Enviando...' : (item.documentoIdosoUrl ? 'Tirar outra foto' : 'Tirar foto agora') }}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          class="hidden"
+                          @change="onDocumentoIdosoSelecionado(item, $event)"
+                        />
+                      </label>
+
+                      <label
+                        class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer transition flex items-center gap-1.5 shadow-xs"
+                        :class="{ 'opacity-60 pointer-events-none': enviandoDocumentoIdoso === item.uid }"
+                      >
+                        <FileText class="w-4 h-4" />
+                        <span>{{ item.documentoIdosoUrl ? 'Trocar arquivo' : 'Escolher arquivo (PDF ou Foto)' }}</span>
+                        <input
+                          type="file"
+                          accept="image/*,application/pdf"
+                          class="hidden"
+                          @change="onDocumentoIdosoSelecionado(item, $event)"
+                        />
+                      </label>
+                    </div>
                   </div>
                 </div>
               </div>

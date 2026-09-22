@@ -839,8 +839,11 @@ export class InscricaoService {
     // Aceita so o que o proprio upload devolveu: um caminho qualquer viraria
     // link para fora da pasta, e "../" leria arquivo do servidor.
     const prefixo = '/uploads/documentos/';
-    const nomeArquivo = caminho.startsWith(prefixo)
-      ? caminho.slice(prefixo.length)
+    const idx = caminho.indexOf(prefixo);
+    const caminhoLimpo = idx !== -1 ? caminho.slice(idx) : caminho;
+
+    const nomeArquivo = caminhoLimpo.startsWith(prefixo)
+      ? caminhoLimpo.slice(prefixo.length)
       : '';
     const valido =
       nomeArquivo.length > 0 &&
@@ -855,7 +858,7 @@ export class InscricaoService {
     }
 
     try {
-      await access(join(process.cwd(), caminho));
+      await access(join(process.cwd(), caminhoLimpo));
     } catch {
       if (!exigirDocumento) return null;
       throw new BadRequestException(
@@ -863,7 +866,7 @@ export class InscricaoService {
       );
     }
 
-    return caminho;
+    return caminhoLimpo;
   }
 
   private validarElegibilidadeCategoria(
