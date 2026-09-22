@@ -36,11 +36,22 @@ const salvando = ref(false)
 const mostrarFormModalidade = ref(false)
 const novaModalidade = reactive({ nome: '', distanciaKm: '', descricao: '', idadeMinima: '', idadeMaxima: '', capacidade: '', valor: '' })
 
+function normalizarDistancia(val: string | number | null | undefined): number {
+  if (val === null || val === undefined) return 0
+  if (typeof val === 'number') return isNaN(val) ? 0 : val
+  const limpo = String(val)
+    .replace(/km/gi, '')
+    .replace(/\s+/g, '')
+    .replace(',', '.')
+  const num = parseFloat(limpo)
+  return isNaN(num) ? 0 : Number(num.toFixed(2))
+}
+
 async function onCriarModalidade() {
   erro.value = ''
-  const distanciaKm = Number(novaModalidade.distanciaKm)
-  if (!novaModalidade.nome || !distanciaKm) {
-    erro.value = 'Informe nome e distância da modalidade.'
+  const distanciaKm = normalizarDistancia(novaModalidade.distanciaKm)
+  if (!novaModalidade.nome?.trim() || !distanciaKm || distanciaKm <= 0) {
+    erro.value = 'Informe o nome e uma distância válida em km (ex: 5, 21, 42, 100, 150, 200).'
     return
   }
 
@@ -114,9 +125,9 @@ function cancelarEdicao() {
 
 async function onSalvarEdicao(modalidadeId: string) {
   erro.value = ''
-  const distanciaKm = Number(edicaoModalidade.distanciaKm)
-  if (!edicaoModalidade.nome || !distanciaKm) {
-    erro.value = 'Informe nome e distância da modalidade.'
+  const distanciaKm = normalizarDistancia(edicaoModalidade.distanciaKm)
+  if (!edicaoModalidade.nome?.trim() || !distanciaKm || distanciaKm <= 0) {
+    erro.value = 'Informe o nome e uma distância válida em km (ex: 5, 21, 42, 100, 150, 200).'
     return
   }
 
@@ -434,6 +445,13 @@ const sugestoesModalidades = [
   { nome: 'MTB Pro', km: '50' },
   { nome: 'MTB Sport', km: '25' },
   { nome: 'Ciclismo Estrada', km: '80' },
+  { nome: 'Ciclismo 100k', km: '100' },
+  { nome: 'Ciclismo 150k', km: '150' },
+  { nome: 'Ciclismo 200k', km: '200' },
+  { nome: 'Desafio 100k', km: '100' },
+  { nome: 'Desafio 150k', km: '150' },
+  { nome: 'Desafio 200k', km: '200' },
+  { nome: 'Ultramaratona', km: '100' },
   { nome: 'Motocross MX1', km: '12' },
   { nome: 'Motocross MX2', km: '10' },
   { nome: 'Enduro Pro', km: '40' },
@@ -453,9 +471,7 @@ const sugestoesFiltradas = computed(() => {
 
 function selecionarSugestao(sug: { nome: string; km: string }) {
   novaModalidade.nome = sug.nome
-  if (!novaModalidade.distanciaKm) {
-    novaModalidade.distanciaKm = sug.km
-  }
+  novaModalidade.distanciaKm = sug.km
   menuSugestoesAberto.value = false
 }
 
@@ -536,15 +552,18 @@ function faixaEtaria(min: number | null, max: number | null) {
               />
             </div>
             <div>
-              <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Distância (km)</label>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-[11px] font-bold text-slate-500 uppercase">Distância (km) *</label>
+                <span class="text-[10px] text-slate-400 font-medium">Aceita 100, 150, 200 km...</span>
+              </div>
               <input
                 v-model="edicaoModalidade.distanciaKm"
-                type="number"
-                step="0.1"
-                min="0.1"
-                placeholder="Ex.: 10"
+                type="text"
+                inputmode="decimal"
+                placeholder="Ex.: 10, 100, 150 ou 200"
                 class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-semibold focus:border-warning focus:outline-none"
               />
+              <p class="text-[10px] text-slate-400 mt-1">Sem limite de km (ex: 100, 150, 200 km).</p>
             </div>
             <div>
               <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Idade Mínima</label>
@@ -948,15 +967,18 @@ function faixaEtaria(min: number | null, max: number | null) {
             </div>
           </div>
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Distância (em km) *</label>
+            <div class="flex items-center justify-between mb-1">
+              <label class="block text-xs font-bold text-slate-700 uppercase">Distância (em km) *</label>
+              <span class="text-[10px] text-slate-400 font-medium">Aceita 100, 150, 200 km...</span>
+            </div>
             <input
               v-model="novaModalidade.distanciaKm"
-              type="number"
-              step="0.1"
-              min="0.1"
-              placeholder="Ex.: 10"
+              type="text"
+              inputmode="decimal"
+              placeholder="Ex.: 10, 100, 150 ou 200"
               class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-semibold focus:border-amber-500 focus:outline-none"
             />
+            <p class="text-[10px] text-slate-400 mt-1">Sem limite de km: digite qualquer distância (ex: 100, 150, 200 km).</p>
           </div>
           <div>
             <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Idade Mínima Permitida</label>
