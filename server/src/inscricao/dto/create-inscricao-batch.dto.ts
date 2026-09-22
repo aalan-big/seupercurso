@@ -47,6 +47,14 @@ export class CreateInscricaoItemDto {
   tamanhoCamisa?: string;
 
   @IsOptional()
+  @IsBoolean()
+  incluiCamisa?: boolean;
+
+  @IsOptional()
+  @IsUUID()
+  modeloCamisaId?: string;
+
+  @IsOptional()
   @IsString()
   cupomCodigo?: string;
 

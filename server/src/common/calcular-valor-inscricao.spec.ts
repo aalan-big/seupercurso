@@ -17,6 +17,8 @@ function prismaFalso(opcoes: {
   comissaoPagaPeloAtleta?: boolean;
   aplicaDescontoIdoso?: boolean;
   percentualDescontoIdoso?: number | null;
+  camisaOpcional?: boolean;
+  valorCamisaOpcional?: number | string | null;
 }) {
   return {
     loteModalidadePreco: {
@@ -26,6 +28,8 @@ function prismaFalso(opcoes: {
       findUnique: jest.fn().mockResolvedValue({
         aplicaDescontoIdoso: opcoes.aplicaDescontoIdoso ?? false,
         percentualDescontoIdoso: opcoes.percentualDescontoIdoso ?? null,
+        camisaOpcional: opcoes.camisaOpcional ?? false,
+        valorCamisaOpcional: opcoes.valorCamisaOpcional ?? null,
         dataInicio: new Date('2026-12-01'),
         comissaoPagaPeloAtleta: opcoes.comissaoPagaPeloAtleta ?? false,
         // De proposito ligado: e o campo aposentado. O evento que ja existe no
@@ -154,6 +158,57 @@ describe('auditoria da comissao da plataforma', () => {
       expect(preco + taxaServico).toBe(22);
       // Antes: base inflava para 22, comissao virava 2,20 e sobravam 19,80.
       expect(preco + taxaServico - taxaServico).toBe(20);
+    });
+  });
+
+  describe('camisa opcional configurável', () => {
+    it('evento com camisa opcional: sem camisa paga apenas valor base (R$ 40)', async () => {
+      const valor = await calcularValorInscricao(
+        prismaFalso({
+          preco: '40',
+          camisaOpcional: true,
+          valorCamisaOpcional: 40,
+        }),
+        { ...ctx, incluiCamisa: false },
+      );
+      expect(valor).toBe(40);
+    });
+
+    it('evento com camisa opcional: com camisa soma o adicional (R$ 40 + R$ 40 = R$ 80)', async () => {
+      const valor = await calcularValorInscricao(
+        prismaFalso({
+          preco: '40',
+          camisaOpcional: true,
+          valorCamisaOpcional: 40,
+        }),
+        { ...ctx, incluiCamisa: true },
+      );
+      expect(valor).toBe(80);
+    });
+
+    it('evento com camisa opcional e sem desconto idoso: idoso paga valor normal (R$ 40 sem camisa, R$ 80 com camisa)', async () => {
+      const idosoNasc = new Date('1950-01-01');
+      const valorSemCamisa = await calcularValorInscricao(
+        prismaFalso({
+          preco: '40',
+          camisaOpcional: true,
+          valorCamisaOpcional: 40,
+          aplicaDescontoIdoso: false,
+        }),
+        { ...ctx, dataNascimentoAtleta: idosoNasc, incluiCamisa: false },
+      );
+      expect(valorSemCamisa).toBe(40);
+
+      const valorComCamisa = await calcularValorInscricao(
+        prismaFalso({
+          preco: '40',
+          camisaOpcional: true,
+          valorCamisaOpcional: 40,
+          aplicaDescontoIdoso: false,
+        }),
+        { ...ctx, dataNascimentoAtleta: idosoNasc, incluiCamisa: true },
+      );
+      expect(valorComCamisa).toBe(80);
     });
   });
 });

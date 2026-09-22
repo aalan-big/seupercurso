@@ -14,11 +14,22 @@ export interface EventoResumo {
   aceitaCartao?: boolean
   bannerUrl?: string | null
   possuiCamisa?: boolean
+  camisaOpcional?: boolean
+  valorCamisaOpcional?: string | number | null
   aplicaDescontoIdoso?: boolean
   percentualDescontoIdoso?: string | number | null
   permiteServidorPublico?: boolean
   vagasServidorPublico?: number | null
   valorApartirDe: number | null
+}
+
+export interface ModeloCamisaEvento {
+  id: string
+  nome: string
+  descricao?: string | null
+  fotoFrenteUrl?: string | null
+  fotoVersoUrl?: string | null
+  ordem: number
 }
 
 export interface CategoriaEvento {
@@ -69,6 +80,7 @@ export interface LoteEvento {
 export interface EventoDetalhe extends EventoResumo {
   modalidades: ModalidadeEvento[]
   lotes: LoteEvento[]
+  modelosCamisa?: ModeloCamisaEvento[]
 }
 
 export function useEvento() {

@@ -47,11 +47,26 @@ function eventoPossuiCamisa(inscrito: { categoria: { modalidade: { evento: { id:
   return evento?.possuiCamisa !== false
 }
 
+function formatarCamisa(inscrito: (typeof inscritos.value)[number]) {
+  const evento = eventos.value.find((e) => e.id === inscrito.categoria.modalidade.evento.id)
+  if (evento?.possuiCamisa === false) return 'Sem camisa'
+  if (evento?.camisaOpcional && inscrito.incluiCamisa === false) return 'Sem camisa'
+  if (!inscrito.tamanhoCamisa) return '—'
+  if (inscrito.modeloCamisa?.nome) {
+    return `${inscrito.modeloCamisa.nome} (${inscrito.tamanhoCamisa})`
+  }
+  return inscrito.tamanhoCamisa
+}
+
 const mostrarColunaCamisa = computed(() => inscritos.value.some((i) => eventoPossuiCamisa(i)))
 
-const atletaSelecionadoPossuiCamisa = computed(
-  () => !atletaSelecionado.value || eventoPossuiCamisa(atletaSelecionado.value)
-)
+const atletaSelecionadoPossuiCamisa = computed(() => {
+  if (!atletaSelecionado.value) return true
+  const evento = eventos.value.find((e) => e.id === atletaSelecionado.value?.categoria.modalidade.evento.id)
+  if (evento?.possuiCamisa === false) return false
+  if (evento?.camisaOpcional && atletaSelecionado.value.incluiCamisa === false) return false
+  return true
+})
 
 const inscritosPorCategoria = computed(() => {
   const grupos = new Map<string, { id: string; titulo: string; itens: typeof inscritos.value }>()
@@ -412,7 +427,7 @@ function formatarData(iso: string) {
             <td class="px-4 py-3.5 font-semibold text-slate-700">{{ inscrito.categoria.modalidade.evento.nome }}</td>
             <td class="px-4 py-3.5 text-slate-600">{{ inscrito.categoria.modalidade.nome }} · {{ inscrito.categoria.nome }}</td>
             <td v-if="mostrarColunaCamisa" class="px-4 py-3.5 text-center font-bold text-slate-700">
-              {{ eventoPossuiCamisa(inscrito) ? inscrito.tamanhoCamisa || '—' : 'Sem camisa' }}
+              {{ formatarCamisa(inscrito) }}
             </td>
             <td class="px-4 py-3.5 text-center">
               <span
@@ -734,7 +749,7 @@ function formatarData(iso: string) {
                       </td>
                       <td class="px-3 py-2.5 text-slate-600 font-mono">{{ documentoCliente(inscrito) }}</td>
                       <td v-if="mostrarColunaCamisa" class="px-3 py-2.5 text-center font-bold text-slate-700">
-                        {{ eventoPossuiCamisa(inscrito) ? inscrito.tamanhoCamisa || '—' : 'Sem camisa' }}
+                        {{ formatarCamisa(inscrito) }}
                       </td>
                       <td class="px-3 py-2.5 text-center">
                         <span

@@ -44,6 +44,19 @@ export interface LoteOrganizador {
   precos: PrecoLoteOrganizador[]
 }
 
+export interface ModeloCamisa {
+  id: string
+  eventoId: string
+  nome: string
+  descricao: string | null
+  fotoFrenteUrl: string | null
+  fotoVersoUrl: string | null
+  ordem: number
+  ativo: boolean
+  createdAt?: string
+  updatedAt?: string
+}
+
 export interface EventoOrganizador {
   id: string
   organizadorId: string
@@ -56,6 +69,8 @@ export interface EventoOrganizador {
   retiradaKitInicio: string | null
   retiradaKitFim: string | null
   possuiCamisa: boolean
+  camisaOpcional?: boolean
+  valorCamisaOpcional?: string | number | null
   limiteTrocaCamisaAté: string | null
   camisasBloqueadas: boolean
   permiteTransferencia: boolean
@@ -78,6 +93,7 @@ export interface EventoOrganizador {
   updatedAt: string
   modalidades?: ModalidadeOrganizador[]
   lotes?: LoteOrganizador[]
+  modelosCamisa?: ModeloCamisa[]
 }
 
 export interface EventoOrganizadorInput {
@@ -92,6 +108,8 @@ export interface EventoOrganizadorInput {
   retiradaKitInicio?: string
   retiradaKitFim?: string
   possuiCamisa?: boolean
+  camisaOpcional?: boolean
+  valorCamisaOpcional?: number
   limiteTrocaCamisaAté?: string
   camisasBloqueadas?: boolean
   permiteTransferencia?: boolean
@@ -337,6 +355,60 @@ export function useEventoOrganizador() {
     )
   }
 
+  async function listarModelosCamisa(eventoId: string) {
+    return await api<ModeloCamisa[]>(`/organizadores/me/eventos/${eventoId}/modelos-camisa`)
+  }
+
+  async function criarModeloCamisa(
+    eventoId: string,
+    input: { nome: string; descricao?: string; ordem?: number; ativo?: boolean }
+  ) {
+    const res = await api<ModeloCamisa>(`/organizadores/me/eventos/${eventoId}/modelos-camisa`, {
+      method: 'POST',
+      body: input
+    })
+    await fetchEvento(eventoId)
+    return res
+  }
+
+  async function atualizarModeloCamisa(
+    eventoId: string,
+    modeloId: string,
+    input: Partial<{ nome: string; descricao?: string; ordem?: number; ativo?: boolean }>
+  ) {
+    const res = await api<ModeloCamisa>(`/organizadores/me/eventos/${eventoId}/modelos-camisa/${modeloId}`, {
+      method: 'PATCH',
+      body: input
+    })
+    await fetchEvento(eventoId)
+    return res
+  }
+
+  async function removerModeloCamisa(eventoId: string, modeloId: string) {
+    await api(`/organizadores/me/eventos/${eventoId}/modelos-camisa/${modeloId}`, { method: 'DELETE' })
+    await fetchEvento(eventoId)
+  }
+
+  async function uploadFotoModeloCamisa(
+    eventoId: string,
+    modeloId: string,
+    tipo: 'frente' | 'verso',
+    arquivo: File
+  ) {
+    const formData = new FormData()
+    formData.append('arquivo', arquivo)
+    const endpoint = tipo === 'frente' ? 'foto-frente' : 'foto-verso'
+    const res = await api<ModeloCamisa>(
+      `/organizadores/me/eventos/${eventoId}/modelos-camisa/${modeloId}/${endpoint}`,
+      {
+        method: 'PATCH',
+        body: formData
+      }
+    )
+    await fetchEvento(eventoId)
+    return res
+  }
+
   return {
     eventos,
     eventoSelecionado,
@@ -361,6 +433,11 @@ export function useEventoOrganizador() {
     definirPreco,
     uploadListaServidores,
     obterServidoresPublicos,
-    limparServidoresPublicos
+    limparServidoresPublicos,
+    listarModelosCamisa,
+    criarModeloCamisa,
+    atualizarModeloCamisa,
+    removerModeloCamisa,
+    uploadFotoModeloCamisa
   }
 }

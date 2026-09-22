@@ -14,7 +14,7 @@ const sucesso = ref(false)
 // despercebido. O popup cobre a tela e so some quando ela fechar.
 const popupSucesso = ref<'salvo' | 'criado' | null>(null)
 
-const abaAtiva = ref<'dados' | 'modalidades' | 'lotes' | 'descontos' | 'cronometragem'>('dados')
+const abaAtiva = ref<'dados' | 'modalidades' | 'lotes' | 'camisas' | 'descontos' | 'cronometragem'>('dados')
 
 onMounted(async () => {
   if (route.query.criado === '1') {
@@ -113,6 +113,15 @@ async function onSubmit(payload: Record<string, unknown>, _arquivoRegulamento: F
           Lotes e preços
         </button>
         <button
+          v-if="eventoSelecionado.possuiCamisa !== false"
+          type="button"
+          class="shrink-0 whitespace-nowrap rounded-lg px-4 py-2 transition flex items-center gap-1.5"
+          :class="abaAtiva === 'camisas' ? 'bg-white text-primary shadow' : 'text-slate-500'"
+          @click="abaAtiva = 'camisas'"
+        >
+          👕 Modelos de Camisa
+        </button>
+        <button
           type="button"
           class="shrink-0 whitespace-nowrap rounded-lg px-4 py-2 transition flex items-center gap-1.5"
           :class="abaAtiva === 'descontos' ? 'bg-white text-primary shadow' : 'text-slate-500'"
@@ -163,6 +172,10 @@ async function onSubmit(payload: Record<string, unknown>, _arquivoRegulamento: F
 
       <div v-if="abaAtiva === 'lotes'" class="mt-6">
         <LotesManager :evento-id="id" :lotes="eventoSelecionado.lotes || []" :modalidades="eventoSelecionado.modalidades || []" />
+      </div>
+
+      <div v-if="abaAtiva === 'camisas'" class="mt-6">
+        <ModelosCamisaManager :evento-id="id" />
       </div>
 
       <div v-if="abaAtiva === 'descontos'" class="mt-6 max-w-2xl">

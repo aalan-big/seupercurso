@@ -42,6 +42,7 @@ import { CreateCupomDto } from './dto/create-cupom.dto';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
 import { RedefinirSenhaStaffDto } from './dto/redefinir-senha-staff.dto';
+import { CriarModeloCamisaDto, AtualizarModeloCamisaDto } from './dto/modelo-camisa.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('organizadores/me')
@@ -409,6 +410,115 @@ export class OrganizadorController {
       user.userId,
       id,
       'regulamentoUrl',
+      `/uploads/eventos/${file.filename}`,
+    );
+  }
+
+  @Get('eventos/:eventoId/modelos-camisa')
+  listarModelosCamisa(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('eventoId') eventoId: string,
+  ) {
+    return this.organizadorService.listarModelosCamisa(user.userId, eventoId);
+  }
+
+  @HttpCode(HttpStatus.CREATED)
+  @Post('eventos/:eventoId/modelos-camisa')
+  criarModeloCamisa(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('eventoId') eventoId: string,
+    @Body() dto: CriarModeloCamisaDto,
+  ) {
+    return this.organizadorService.criarModeloCamisa(user.userId, eventoId, dto);
+  }
+
+  @Patch('eventos/:eventoId/modelos-camisa/:id')
+  atualizarModeloCamisa(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('eventoId') eventoId: string,
+    @Param('id') id: string,
+    @Body() dto: AtualizarModeloCamisaDto,
+  ) {
+    return this.organizadorService.atualizarModeloCamisa(user.userId, eventoId, id, dto);
+  }
+
+  @Delete('eventos/:eventoId/modelos-camisa/:id')
+  deletarModeloCamisa(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('eventoId') eventoId: string,
+    @Param('id') id: string,
+  ) {
+    return this.organizadorService.deletarModeloCamisa(user.userId, eventoId, id);
+  }
+
+  @Patch('eventos/:eventoId/modelos-camisa/:id/foto-frente')
+  @UseInterceptors(
+    FileInterceptor('arquivo', {
+      storage: diskStorage({
+        destination: './uploads/eventos',
+        filename: (_req, file, callback) => {
+          const sufixo = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+          callback(null, `${sufixo}${extname(file.originalname)}`);
+        },
+      }),
+      limits: { fileSize: 5 * 1024 * 1024 },
+      fileFilter: (_req, file, callback) => {
+        if (!file.mimetype.startsWith('image/')) {
+          callback(new BadRequestException('Envie um arquivo de imagem.'), false);
+          return;
+        }
+        callback(null, true);
+      },
+    }),
+  )
+  uploadFotoFrenteModelo(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('eventoId') eventoId: string,
+    @Param('id') id: string,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('Nenhum arquivo enviado.');
+    return this.organizadorService.atualizarFotoModeloCamisa(
+      user.userId,
+      eventoId,
+      id,
+      'fotoFrenteUrl',
+      `/uploads/eventos/${file.filename}`,
+    );
+  }
+
+  @Patch('eventos/:eventoId/modelos-camisa/:id/foto-verso')
+  @UseInterceptors(
+    FileInterceptor('arquivo', {
+      storage: diskStorage({
+        destination: './uploads/eventos',
+        filename: (_req, file, callback) => {
+          const sufixo = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+          callback(null, `${sufixo}${extname(file.originalname)}`);
+        },
+      }),
+      limits: { fileSize: 5 * 1024 * 1024 },
+      fileFilter: (_req, file, callback) => {
+        if (!file.mimetype.startsWith('image/')) {
+          callback(new BadRequestException('Envie um arquivo de imagem.'), false);
+          return;
+        }
+        callback(null, true);
+      },
+    }),
+  )
+  uploadFotoVersoModelo(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('eventoId') eventoId: string,
+    @Param('id') id: string,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('Nenhum arquivo enviado.');
+    return this.organizadorService.atualizarFotoModeloCamisa(
+      user.userId,
+      eventoId,
+      id,
+      'fotoVersoUrl',
       `/uploads/eventos/${file.filename}`,
     );
   }

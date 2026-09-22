@@ -4,9 +4,19 @@ export interface KitsPorModalidade {
   tamanhos: Record<string, number>
 }
 
+export interface KitsPorModelo {
+  modeloId: string
+  modeloNome: string
+  tamanhos: Record<string, number>
+  total: number
+}
+
 export interface KitsResumo {
   total: number
+  totalComCamisa?: number
+  totalSemCamisa?: number
   totalPorTamanho: Record<string, number>
+  porModelo?: KitsPorModelo[]
   porModalidade: KitsPorModalidade[]
 }
 

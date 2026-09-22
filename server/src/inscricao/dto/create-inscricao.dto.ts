@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CreateInscricaoDto {
   @IsUUID()
@@ -10,6 +10,14 @@ export class CreateInscricaoDto {
   @IsOptional()
   @IsString()
   tamanhoCamisa?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  incluiCamisa?: boolean;
+
+  @IsOptional()
+  @IsUUID()
+  modeloCamisaId?: string;
 
   @IsOptional()
   @IsString()

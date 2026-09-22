@@ -9,6 +9,7 @@ interface ContextoValor {
   eventoId: string;
   cupomId?: string | null;
   dataNascimentoAtleta?: Date | null;
+  incluiCamisa?: boolean;
 }
 
 export async function calcularValorInscricao(
@@ -24,6 +25,8 @@ export async function calcularValorInscricao(
       aplicaDescontoIdoso: true,
       percentualDescontoIdoso: true,
       dataInicio: true,
+      camisaOpcional: true,
+      valorCamisaOpcional: true,
     },
   });
 
@@ -50,6 +53,11 @@ export async function calcularValorInscricao(
     if (cupom?.ativo) {
       valor -= valor * (Number(cupom.percentualDesconto) / 100);
     }
+  }
+
+  // Se o evento oferece camisa opcional e o participante optou por incluí-la:
+  if (evento?.camisaOpcional && ctx.incluiCamisa && evento.valorCamisaOpcional) {
+    valor += Number(evento.valorCamisaOpcional);
   }
 
   // A comissao da plataforma NAO entra aqui. Esta funcao devolve so o preco da

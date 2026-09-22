@@ -118,12 +118,17 @@ export class InscricaoService {
       !categoria.servidorPublico,
     );
 
+    const evento = categoria.modalidade.evento;
+    const querCamisa =
+      evento.possuiCamisa && (!evento.camisaOpcional || !!dto.incluiCamisa);
+
     const valor = await calcularValorInscricao(this.prisma, {
       loteId: lote.id,
       modalidadeId: categoria.modalidadeId,
       clienteId,
       eventoId: lote.eventoId,
       cupomId,
+      incluiCamisa: querCamisa,
     });
 
     const inscricao = await this.prisma.$transaction(async (tx) => {
@@ -140,9 +145,13 @@ export class InscricaoService {
           categoriaId: dto.categoriaId,
           loteId: lote.id,
           cupomId,
-          tamanhoCamisa: categoria.modalidade.evento.possuiCamisa
-            ? dto.tamanhoCamisa
-            : null,
+          incluiCamisa: querCamisa,
+          valorCamisa:
+            evento.camisaOpcional && querCamisa && evento.valorCamisaOpcional
+              ? evento.valorCamisaOpcional
+              : null,
+          modeloCamisaId: querCamisa ? dto.modeloCamisaId || null : null,
+          tamanhoCamisa: querCamisa ? dto.tamanhoCamisa || null : null,
           documentoIdosoUrl,
           documentoIdosoStatus: documentoIdosoUrl
             ? StatusDocumentoIdoso.PENDENTE
@@ -226,6 +235,9 @@ export class InscricaoService {
       categoriaId: string;
       loteId: string;
       cupomId: string | null;
+      incluiCamisa?: boolean;
+      valorCamisa?: any;
+      modeloCamisaId?: string | null;
       tamanhoCamisa: string | null;
       dependenteId: string | null;
       atletaNome: string;
@@ -409,6 +421,10 @@ export class InscricaoService {
         !isServidorPublico,
       );
 
+      const evento = categoria.modalidade.evento;
+      const querCamisa =
+        evento.possuiCamisa && (!evento.camisaOpcional || !!item.incluiCamisa);
+
       let valor = 0;
       if (isServidorPublico) {
         valor = 0;
@@ -420,6 +436,7 @@ export class InscricaoService {
           eventoId: lote.eventoId,
           cupomId,
           dataNascimentoAtleta: atletaDataNascimento,
+          incluiCamisa: querCamisa,
         });
       }
 
@@ -427,10 +444,13 @@ export class InscricaoService {
         categoriaId: item.categoriaId,
         loteId: lote.id,
         cupomId,
-        // Evento sem camisa nunca guarda tamanho, mesmo que o cliente mande um.
-        tamanhoCamisa: categoria.modalidade.evento.possuiCamisa
-          ? item.tamanhoCamisa || null
-          : null,
+        incluiCamisa: querCamisa,
+        valorCamisa:
+          evento.camisaOpcional && querCamisa && evento.valorCamisaOpcional
+            ? evento.valorCamisaOpcional
+            : null,
+        modeloCamisaId: querCamisa ? item.modeloCamisaId || null : null,
+        tamanhoCamisa: querCamisa ? item.tamanhoCamisa || null : null,
         dependenteId,
         atletaNome,
         atletaCpf,
@@ -475,6 +495,9 @@ export class InscricaoService {
             atletaDataNascimento: itemData.atletaDataNascimento,
             atletaGenero: itemData.atletaGenero,
             atletaPcd: itemData.atletaPcd,
+            incluiCamisa: itemData.incluiCamisa ?? false,
+            valorCamisa: itemData.valorCamisa ?? null,
+            modeloCamisaId: itemData.modeloCamisaId ?? null,
             tamanhoCamisa: itemData.tamanhoCamisa,
             documentoIdosoUrl: itemData.documentoIdosoUrl,
             documentoIdosoStatus: itemData.documentoIdosoUrl

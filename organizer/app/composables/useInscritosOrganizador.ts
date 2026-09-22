@@ -2,6 +2,9 @@ export interface InscritoOrganizador {
   id: string
   numeroPeito: string | null
   tamanhoCamisa: string | null
+  incluiCamisa?: boolean
+  valorCamisa?: number | string | null
+  modeloCamisa?: { id: string; nome: string } | null
   dataInscricao: string
   status: 'PENDENTE_PAGAMENTO' | 'CONFIRMADA' | 'CANCELADA' | 'EXPIRADA'
   /** Documento com foto de quem levou o desconto do idoso; nulo quando nao levou. */
@@ -19,7 +22,7 @@ export interface InscritoOrganizador {
     nome: string
     modalidade: {
       nome: string
-      evento: { id: string; nome: string }
+      evento: { id: string; nome: string; camisaOpcional?: boolean }
     }
   }
 }

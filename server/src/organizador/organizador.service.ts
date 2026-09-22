@@ -34,6 +34,7 @@ import { DefinirPrecoDto } from './dto/definir-preco.dto';
 import { CreateCupomDto } from './dto/create-cupom.dto';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
+import { CriarModeloCamisaDto, AtualizarModeloCamisaDto } from './dto/modelo-camisa.dto';
 
 const COMISSAO_PADRAO = 10;
 const STAFF_SALT_ROUNDS = 12;
@@ -367,13 +368,14 @@ export class OrganizadorService {
       include: {
         modalidades: { include: { categorias: true }, orderBy: { createdAt: 'asc' } },
         lotes: { include: { precos: true }, orderBy: { createdAt: 'asc' } },
+        modelosCamisa: { orderBy: [{ ordem: 'asc' }, { createdAt: 'asc' }] },
       },
     });
   }
 
   async obterKits(usuarioId: string, eventoId: string) {
     const organizador = await this.getOrganizadorOuFalhar(usuarioId);
-    await this.getEventoDoOrganizadorOuFalhar(organizador.id, eventoId);
+    const evento = await this.getEventoDoOrganizadorOuFalhar(organizador.id, eventoId);
 
     const inscricoes = await this.prisma.inscricao.findMany({
       where: {
@@ -384,6 +386,8 @@ export class OrganizadorService {
       },
       select: {
         tamanhoCamisa: true,
+        incluiCamisa: true,
+        modeloCamisa: { select: { id: true, nome: true } },
         categoria: {
           select: { modalidade: { select: { id: true, nome: true } } },
         },
@@ -391,16 +395,45 @@ export class OrganizadorService {
     });
 
     const totalPorTamanho: Record<string, number> = {};
+    const porModelo = new Map<
+      string,
+      { modeloId: string; modeloNome: string; tamanhos: Record<string, number>; total: number }
+    >();
     const porModalidade = new Map<
       string,
       { modalidadeId: string; modalidade: string; tamanhos: Record<string, number> }
     >();
 
+    let totalComCamisa = 0;
+    let totalSemCamisa = 0;
+
     for (const inscricao of inscricoes) {
+      const semCamisa = evento.camisaOpcional && !inscricao.incluiCamisa;
+      if (semCamisa) {
+        totalSemCamisa++;
+        totalPorTamanho['Sem camisa'] = (totalPorTamanho['Sem camisa'] || 0) + 1;
+        continue;
+      }
+
+      totalComCamisa++;
       const tamanho = inscricao.tamanhoCamisa || 'Não informado';
       const modalidade = inscricao.categoria.modalidade;
+      const modeloId = inscricao.modeloCamisa?.id || 'padrao';
+      const modeloNome = inscricao.modeloCamisa?.nome || 'Modelo Padrão';
 
       totalPorTamanho[tamanho] = (totalPorTamanho[tamanho] || 0) + 1;
+
+      if (!porModelo.has(modeloId)) {
+        porModelo.set(modeloId, {
+          modeloId,
+          modeloNome,
+          tamanhos: {},
+          total: 0,
+        });
+      }
+      const entradaModelo = porModelo.get(modeloId)!;
+      entradaModelo.tamanhos[tamanho] = (entradaModelo.tamanhos[tamanho] || 0) + 1;
+      entradaModelo.total++;
 
       if (!porModalidade.has(modalidade.id)) {
         porModalidade.set(modalidade.id, {
@@ -415,7 +448,10 @@ export class OrganizadorService {
 
     return {
       total: inscricoes.length,
+      totalComCamisa,
+      totalSemCamisa,
       totalPorTamanho,
+      porModelo: Array.from(porModelo.values()),
       porModalidade: Array.from(porModalidade.values()),
     };
   }
@@ -496,6 +532,113 @@ export class OrganizadorService {
 
     return this.prisma.evento.update({
       where: { id: eventoId },
+      data: { [campo]: caminhoRelativo },
+    });
+  }
+
+  async listarModelosCamisa(usuarioId: string, eventoId: string) {
+    const organizador = await this.getOrganizadorOuFalhar(usuarioId);
+    await this.getEventoDoOrganizadorOuFalhar(organizador.id, eventoId);
+
+    return this.prisma.modeloCamisa.findMany({
+      where: { eventoId },
+      orderBy: [{ ordem: 'asc' }, { createdAt: 'asc' }],
+    });
+  }
+
+  async criarModeloCamisa(
+    usuarioId: string,
+    eventoId: string,
+    dto: CriarModeloCamisaDto,
+  ) {
+    const organizador = await this.getOrganizadorAprovadoOuFalhar(usuarioId);
+    await this.getEventoDoOrganizadorOuFalhar(organizador.id, eventoId);
+
+    return this.prisma.modeloCamisa.create({
+      data: {
+        eventoId,
+        nome: dto.nome.trim(),
+        descricao: dto.descricao?.trim() || null,
+        ordem: dto.ordem ?? 0,
+        ativo: dto.ativo ?? true,
+      },
+    });
+  }
+
+  async atualizarModeloCamisa(
+    usuarioId: string,
+    eventoId: string,
+    modeloId: string,
+    dto: AtualizarModeloCamisaDto,
+  ) {
+    const organizador = await this.getOrganizadorAprovadoOuFalhar(usuarioId);
+    await this.getEventoDoOrganizadorOuFalhar(organizador.id, eventoId);
+
+    const modelo = await this.prisma.modeloCamisa.findFirst({
+      where: { id: modeloId, eventoId },
+    });
+    if (!modelo) throw new NotFoundException('Modelo de camisa não encontrado.');
+
+    return this.prisma.modeloCamisa.update({
+      where: { id: modeloId },
+      data: {
+        ...(dto.nome !== undefined ? { nome: dto.nome.trim() } : {}),
+        ...(dto.descricao !== undefined
+          ? { descricao: dto.descricao?.trim() || null }
+          : {}),
+        ...(dto.ordem !== undefined ? { ordem: dto.ordem } : {}),
+        ...(dto.ativo !== undefined ? { ativo: dto.ativo } : {}),
+      },
+    });
+  }
+
+  async deletarModeloCamisa(
+    usuarioId: string,
+    eventoId: string,
+    modeloId: string,
+  ) {
+    const organizador = await this.getOrganizadorAprovadoOuFalhar(usuarioId);
+    await this.getEventoDoOrganizadorOuFalhar(organizador.id, eventoId);
+
+    const modelo = await this.prisma.modeloCamisa.findFirst({
+      where: { id: modeloId, eventoId },
+    });
+    if (!modelo) throw new NotFoundException('Modelo de camisa não encontrado.');
+
+    if (modelo.fotoFrenteUrl?.startsWith('/uploads/')) {
+      unlink(join(process.cwd(), modelo.fotoFrenteUrl)).catch(() => undefined);
+    }
+    if (modelo.fotoVersoUrl?.startsWith('/uploads/')) {
+      unlink(join(process.cwd(), modelo.fotoVersoUrl)).catch(() => undefined);
+    }
+
+    return this.prisma.modeloCamisa.delete({
+      where: { id: modeloId },
+    });
+  }
+
+  async atualizarFotoModeloCamisa(
+    usuarioId: string,
+    eventoId: string,
+    modeloId: string,
+    campo: 'fotoFrenteUrl' | 'fotoVersoUrl',
+    caminhoRelativo: string,
+  ) {
+    const organizador = await this.getOrganizadorAprovadoOuFalhar(usuarioId);
+    await this.getEventoDoOrganizadorOuFalhar(organizador.id, eventoId);
+
+    const modelo = await this.prisma.modeloCamisa.findFirst({
+      where: { id: modeloId, eventoId },
+    });
+    if (!modelo) throw new NotFoundException('Modelo de camisa não encontrado.');
+
+    const antigo = modelo[campo];
+    if (antigo?.startsWith('/uploads/')) {
+      unlink(join(process.cwd(), antigo)).catch(() => undefined);
+    }
+
+    return this.prisma.modeloCamisa.update({
+      where: { id: modeloId },
       data: { [campo]: caminhoRelativo },
     });
   }
@@ -835,6 +978,7 @@ export class OrganizadorService {
         dependente: true,
         categoria: { include: { modalidade: { include: { evento: true } } } },
         lote: true,
+        modeloCamisa: true,
         pagamentos: { orderBy: { createdAt: 'desc' } },
       },
       orderBy: { dataInscricao: 'desc' },
@@ -1055,6 +1199,7 @@ export class OrganizadorService {
       { header: 'Modalidade', key: 'modalidade', width: 18 },
       { header: 'Categoria', key: 'categoria', width: 16 },
       { header: 'Numero do peito', key: 'numeroPeito', width: 15 },
+      { header: 'Modelo da camisa', key: 'modeloCamisa', width: 22 },
       { header: 'Tamanho da camisa', key: 'tamanhoCamisa', width: 15 },
       { header: 'Status', key: 'status', width: 18 },
       { header: 'Desconto idoso', key: 'descontoIdoso', width: 24 },
@@ -1085,6 +1230,18 @@ export class OrganizadorService {
         '';
       const comprador = inscricao.cliente.pf?.nomeCompleto || inscricao.cliente.usuario.email;
 
+      const semCamisa =
+        inscricao.categoria.modalidade.evento.camisaOpcional &&
+        !inscricao.incluiCamisa;
+
+      const modeloCamisa = semCamisa
+        ? 'Sem camisa'
+        : (inscricao.modeloCamisa?.nome ?? (inscricao.categoria.modalidade.evento.possuiCamisa ? 'Padrão' : 'Sem camisa'));
+
+      const tamanhoCamisa = semCamisa
+        ? 'Sem camisa'
+        : (inscricao.tamanhoCamisa ?? '');
+
       const linha = planilha.addRow({
         nome: nomeAtleta,
         cpf: this.formatarCpfParaExport(cpfAtleta),
@@ -1095,7 +1252,8 @@ export class OrganizadorService {
         modalidade: inscricao.categoria.modalidade.nome,
         categoria: inscricao.categoria.nome,
         numeroPeito: inscricao.numeroPeito ?? '',
-        tamanhoCamisa: inscricao.tamanhoCamisa ?? '',
+        modeloCamisa,
+        tamanhoCamisa,
         status: statusLabel[inscricao.status] ?? inscricao.status,
         descontoIdoso: inscricao.documentoIdosoUrl
           ? documentoIdosoLabel[inscricao.documentoIdosoStatus ?? 'PENDENTE']

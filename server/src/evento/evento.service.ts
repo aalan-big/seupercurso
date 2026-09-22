@@ -16,6 +16,8 @@ const RESUMO_SELECT = {
   regulamentoUrl: true,
   bannerUrl: true,
   possuiCamisa: true,
+  camisaOpcional: true,
+  valorCamisaOpcional: true,
   aceitaPix: true,
   aceitaCartao: true,
   comissaoPagaPeloAtleta: true,
@@ -235,6 +237,18 @@ export class EventoService {
               },
             },
           },
+        },
+        modelosCamisa: {
+          where: { ativo: true },
+          select: {
+            id: true,
+            nome: true,
+            descricao: true,
+            fotoFrenteUrl: true,
+            fotoVersoUrl: true,
+            ordem: true,
+          },
+          orderBy: [{ ordem: 'asc' }, { createdAt: 'asc' }],
         },
       },
     });

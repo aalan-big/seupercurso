@@ -25,11 +25,16 @@ import {
   UserPlus,
   LogIn,
   X,
-  Camera
+  Camera,
+  Eye
 } from 'lucide-vue-next'
+import type { ModeloCamisaEvento } from '../../composables/useEvento'
 
 const route = useRoute()
 const eventoId = route.params.id as string
+
+const config = useRuntimeConfig()
+const apiBase = config.public.apiBase as string
 
 const { token } = useAuth()
 const { eventoSelecionado, fetchEvento } = useEvento()
@@ -75,6 +80,8 @@ interface ItemCarrinho {
   pcd: boolean
   modalidadeId: string | null
   categoriaId: string | null
+  incluiCamisa?: boolean
+  modeloCamisaId?: string | null
   tamanhoCamisa: string
   // Documento com foto de quem leva o desconto do idoso. Fica o caminho no
   // servidor (sobrevive ao sessionStorage) e o nome so pra mostrar na tela.
@@ -85,6 +92,23 @@ interface ItemCarrinho {
   servidorValidando?: boolean
   servidorErro?: string
   servidorNome?: string
+}
+
+// Modal Lightbox de fotos de modelos de camisa
+const modalFotoCamisaAberto = ref(false)
+const modeloVisualizado = ref<ModeloCamisaEvento | null>(null)
+const abaFotoAtiva = ref<'frente' | 'verso'>('frente')
+
+function abrirFotosModelo(modelo: ModeloCamisaEvento) {
+  modeloVisualizado.value = modelo
+  abaFotoAtiva.value = modelo.fotoFrenteUrl ? 'frente' : (modelo.fotoVersoUrl ? 'verso' : 'frente')
+  modalFotoCamisaAberto.value = true
+}
+
+function fotoAtualModelo(modelo: ModeloCamisaEvento | null) {
+  if (!modelo) return null
+  const caminho = abaFotoAtiva.value === 'frente' ? modelo.fotoFrenteUrl : modelo.fotoVersoUrl
+  return urlFoto(caminho, apiBase)
 }
 
 const carrinho = ref<ItemCarrinho[]>([])
@@ -241,10 +265,31 @@ watch([carrinho, step, cupomCodigo], () => {
   salvarEstadoCheckout()
 }, { deep: true })
 
+function normalizarCamisasNoCarrinho() {
+  if (!eventoSelecionado.value) return
+  const temOpcional = !!eventoSelecionado.value.camisaOpcional
+  const primeiroModeloId = eventoSelecionado.value.modelosCamisa?.[0]?.id || null
+
+  for (const item of carrinho.value) {
+    if (item.incluiCamisa === undefined) {
+      item.incluiCamisa = temOpcional ? false : true
+    }
+    if (!item.modeloCamisaId && primeiroModeloId) {
+      item.modeloCamisaId = primeiroModeloId
+    }
+    if (temOpcional && !item.incluiCamisa) {
+      // Sem camisa
+    } else if (!item.tamanhoCamisa && eventoPossuiCamisa.value) {
+      item.tamanhoCamisa = 'M'
+    }
+  }
+}
+
 onMounted(async () => {
   try {
     await fetchEvento(eventoId)
     recuperarEstadoCheckout()
+    normalizarCamisasNoCarrinho()
     if (eventoSelecionado.value) {
       if (eventoSelecionado.value.aceitaPix !== false) {
         metodoPagamentoSelecionado.value = 'PIX'
@@ -268,6 +313,7 @@ onMounted(async () => {
     }
     sincronizarCarrinhoComCadastro()
     inicializarCarrinhoComTitular()
+    normalizarCamisasNoCarrinho()
   }
 })
 
@@ -340,6 +386,8 @@ function inicializarCarrinhoComTitular() {
       return
     }
     const pf = cliente.value.pf
+    const temCamisaOpcional = !!eventoSelecionado.value?.camisaOpcional
+    const primeiroModeloId = eventoSelecionado.value?.modelosCamisa?.[0]?.id || null
     carrinho.value.push({
       uid: 'titular_' + Date.now(),
       tipo: 'EU',
@@ -350,7 +398,9 @@ function inicializarCarrinhoComTitular() {
       pcd: pf.pcd || false,
       modalidadeId: null,
       categoriaId: null,
-      tamanhoCamisa: 'M'
+      incluiCamisa: temCamisaOpcional ? false : true,
+      modeloCamisaId: primeiroModeloId,
+      tamanhoCamisa: temCamisaOpcional ? '' : 'M'
     })
   }
 }
@@ -368,6 +418,9 @@ function abrirModalAdicionarAtleta() {
 
 function confirmarAdicionarAtleta() {
   erroInscricao.value = ''
+  const temCamisaOpcional = !!eventoSelecionado.value?.camisaOpcional
+  const primeiroModeloId = eventoSelecionado.value?.modelosCamisa?.[0]?.id || null
+
   if (tipoNovoAtleta.value === 'DEPENDENTE') {
     if (!dependenteSelecionadoId.value) {
       alert('Selecione um dependente.')
@@ -393,7 +446,9 @@ function confirmarAdicionarAtleta() {
       pcd: dep.pcd || false,
       modalidadeId: null,
       categoriaId: null,
-      tamanhoCamisa: 'M'
+      incluiCamisa: temCamisaOpcional ? false : true,
+      modeloCamisaId: primeiroModeloId,
+      tamanhoCamisa: temCamisaOpcional ? '' : 'M'
     })
   } else {
     if (!formManual.nomeCompleto.trim() || !formManual.cpf.trim() || !formManual.dataNascimento) {
@@ -420,7 +475,9 @@ function confirmarAdicionarAtleta() {
       pcd: formManual.pcd,
       modalidadeId: null,
       categoriaId: null,
-      tamanhoCamisa: 'M'
+      incluiCamisa: temCamisaOpcional ? false : true,
+      modeloCamisaId: primeiroModeloId,
+      tamanhoCamisa: temCamisaOpcional ? '' : 'M'
     })
   }
   modalAdicionarAtletaAberto.value = false
@@ -653,6 +710,11 @@ function calcularPrecoItem(item: ItemCarrinho) {
     valor -= valor * (cupomAplicadoInfo.value.percentualDesconto / 100)
   }
 
+  // Se o evento possui camisa opcional e o atleta optou por incluir camisa
+  if (eventoSelecionado.value?.camisaOpcional && item.incluiCamisa && eventoSelecionado.value.valorCamisaOpcional) {
+    valor += Number(eventoSelecionado.value.valorCamisaOpcional)
+  }
+
   // A comissao nao entra aqui: quando o organizador a repassa, ela vem do
   // servidor como "Taxa de servico" e aparece discriminada no checkout. O 0.10
   // fixo que existia aqui ainda errava para organizador com comissao diferente.
@@ -684,11 +746,15 @@ const podeAvancar = computed(() => {
     return carrinho.value.every((i) => {
       if (!i.modalidadeId || !i.categoriaId) return false
       if (itemIsServidorPublico(i) && !i.servidorValidado) return false
+      if (eventoPossuiCamisa.value && (!eventoSelecionado.value?.camisaOpcional || i.incluiCamisa) && !i.tamanhoCamisa) return false
       return true
     })
   }
   if (step.value === 3) {
-    return !eventoPossuiCamisa.value || carrinho.value.every((i) => !!i.tamanhoCamisa)
+    return !eventoPossuiCamisa.value || carrinho.value.every((i) => {
+      if (eventoSelecionado.value?.camisaOpcional && !i.incluiCamisa) return true
+      return !!i.tamanhoCamisa
+    })
   }
   return true
 })
@@ -763,6 +829,16 @@ function avancar() {
       return
     }
 
+    if (eventoPossuiCamisa.value) {
+      const pendentesCamisa = carrinho.value.filter((i) => (!eventoSelecionado.value?.camisaOpcional || i.incluiCamisa) && !i.tamanhoCamisa)
+      if (pendentesCamisa.length > 0) {
+        const nomes = pendentesCamisa.map((i) => i.nome).join(', ')
+        erroInscricao.value = `Selecione o tamanho da camiseta para: ${nomes}.`
+        rolarParaErro()
+        return
+      }
+    }
+
     // Agora que as categorias foram selecionadas, quem não for servidor público precisa do documento do idoso
     const semDocumento = atletasSemDocumentoIdoso()
     if (semDocumento.length > 0) {
@@ -775,7 +851,7 @@ function avancar() {
 
   if (step.value === 3 && eventoPossuiCamisa.value) {
     // Na Etapa 3, valida o tamanho das camisetas
-    const faltamCamisetas = carrinho.value.filter((i) => !i.tamanhoCamisa)
+    const faltamCamisetas = carrinho.value.filter((i) => (!eventoSelecionado.value?.camisaOpcional || i.incluiCamisa) && !i.tamanhoCamisa)
     if (faltamCamisetas.length > 0) {
       const nomes = faltamCamisetas.map((i) => i.nome).join(', ')
       erroInscricao.value = `Selecione o tamanho da camiseta para: ${nomes}.`
@@ -949,24 +1025,29 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
 
   inscrevendo.value = true
   try {
-    const itemsPayload = carrinho.value.map((item) => ({
-      categoriaId: item.categoriaId!,
-      loteId: loteAtivo.value!.id,
-      tamanhoCamisa: eventoPossuiCamisa.value ? item.tamanhoCamisa : undefined,
-      cupomCodigo: cupomCodigo.value || undefined,
-      dependenteId: item.dependenteId,
-      matriculaServidor: (itemIsServidorPublico(item) || item.servidorValidado) ? item.matriculaServidor?.trim() : undefined,
-      documentoIdosoUrl: item.documentoIdosoUrl || undefined,
-      atleta: item.tipo === 'MANUAL'
-        ? {
-            nomeCompleto: item.nome,
-            cpf: item.cpf,
-            dataNascimento: item.dataNascimento,
-            genero: item.genero,
-            pcd: item.pcd
-          }
-        : undefined
-    }))
+    const itemsPayload = carrinho.value.map((item) => {
+      const comCamisa = eventoPossuiCamisa.value && (!eventoSelecionado.value?.camisaOpcional || item.incluiCamisa)
+      return {
+        categoriaId: item.categoriaId!,
+        loteId: loteAtivo.value!.id,
+        tamanhoCamisa: comCamisa ? item.tamanhoCamisa : undefined,
+        incluiCamisa: eventoSelecionado.value?.camisaOpcional ? !!item.incluiCamisa : undefined,
+        modeloCamisaId: comCamisa ? (item.modeloCamisaId || undefined) : undefined,
+        cupomCodigo: cupomCodigo.value || undefined,
+        dependenteId: item.dependenteId,
+        matriculaServidor: (itemIsServidorPublico(item) || item.servidorValidado) ? item.matriculaServidor?.trim() : undefined,
+        documentoIdosoUrl: item.documentoIdosoUrl || undefined,
+        atleta: item.tipo === 'MANUAL'
+          ? {
+              nomeCompleto: item.nome,
+              cpf: item.cpf,
+              dataNascimento: item.dataNascimento,
+              genero: item.genero,
+              pcd: item.pcd
+            }
+          : undefined
+      }
+    })
 
     const batchRes = await criarBatch(itemsPayload)
 
@@ -1607,6 +1688,171 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                   </div>
                 </div>
 
+                <!-- SEÇÃO DE CAMISETA / MODELO / TAMANHO -->
+                <div v-if="eventoPossuiCamisa" class="space-y-4 pt-4 border-t border-slate-200">
+                  <!-- Caso 1: Camisa Opcional (Escolha entre Sem Camisa vs Com Camisa Oficial) -->
+                  <div v-if="eventoSelecionado?.camisaOpcional" class="space-y-2">
+                    <label class="block text-xs font-black uppercase tracking-wider text-slate-700">
+                      Opção de Camiseta para {{ item.nome.split(' ')[0] }}:
+                    </label>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <!-- Opção Sem Camisa -->
+                      <div
+                        @click="item.incluiCamisa = false; item.tamanhoCamisa = ''"
+                        class="p-4 rounded-xl border transition cursor-pointer flex items-center justify-between"
+                        :class="!item.incluiCamisa ? 'bg-orange-50 border-orange-500 text-slate-900 font-extrabold shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'"
+                      >
+                        <div class="flex items-center gap-3">
+                          <span class="text-2xl">🏃</span>
+                          <div>
+                            <p class="text-sm font-bold">Sem Camiseta</p>
+                            <p class="text-xs text-slate-500 font-normal">Apenas inscrição no evento</p>
+                          </div>
+                        </div>
+                        <Check v-if="!item.incluiCamisa" class="w-5 h-5 text-orange-500 shrink-0" />
+                      </div>
+
+                      <!-- Opção Com Camisa -->
+                      <div
+                        @click="item.incluiCamisa = true; if (!item.tamanhoCamisa) item.tamanhoCamisa = 'M'; if (!item.modeloCamisaId && eventoSelecionado?.modelosCamisa?.length) item.modeloCamisaId = eventoSelecionado.modelosCamisa[0].id"
+                        class="p-4 rounded-xl border transition cursor-pointer flex items-center justify-between"
+                        :class="item.incluiCamisa ? 'bg-orange-50 border-orange-500 text-slate-900 font-extrabold shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'"
+                      >
+                        <div class="flex items-center gap-3">
+                          <span class="text-2xl">🎽</span>
+                          <div>
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                              <p class="text-sm font-bold">Com Camiseta Oficial</p>
+                              <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800">
+                                + {{ formatarPreco(Number(eventoSelecionado?.valorCamisaOpcional || 0)) }}
+                              </span>
+                            </div>
+                            <p class="text-xs text-slate-500 font-normal">Camiseta oficial inclusa no kit</p>
+                          </div>
+                        </div>
+                        <Check v-if="item.incluiCamisa" class="w-5 h-5 text-orange-500 shrink-0" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Configuração da Camiseta (Quando o evento tem camisa obrigatória ou quando optou por incluir camisa) -->
+                  <div v-if="!eventoSelecionado?.camisaOpcional || item.incluiCamisa" class="space-y-4 pt-1">
+                    <!-- Escolha do Modelo (quando houver mais de 1 modelo cadastrado) -->
+                    <div v-if="eventoSelecionado?.modelosCamisa && eventoSelecionado.modelosCamisa.length > 1" class="space-y-2">
+                      <label class="block text-xs font-black uppercase tracking-wider text-slate-700">
+                        Modelo da Camiseta:
+                      </label>
+                      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        <div
+                          v-for="modCamisa in eventoSelecionado.modelosCamisa"
+                          :key="modCamisa.id"
+                          @click="item.modeloCamisaId = modCamisa.id"
+                          class="p-3 rounded-xl border transition cursor-pointer flex flex-col justify-between space-y-2.5"
+                          :class="item.modeloCamisaId === modCamisa.id ? 'bg-orange-50 border-orange-500 text-slate-900 shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'"
+                        >
+                          <div class="flex items-start gap-3">
+                            <!-- Miniatura da Foto -->
+                            <div
+                              v-if="modCamisa.fotoFrenteUrl || modCamisa.fotoVersoUrl"
+                              class="w-14 h-14 rounded-lg bg-white border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center p-0.5"
+                            >
+                              <img
+                                :src="urlFoto(modCamisa.fotoFrenteUrl || modCamisa.fotoVersoUrl, apiBase)!"
+                                :alt="modCamisa.nome"
+                                class="w-full h-full object-contain"
+                              />
+                            </div>
+                            <div
+                              v-else
+                              class="w-14 h-14 rounded-lg bg-orange-100/50 border border-orange-200 text-orange-600 shrink-0 flex items-center justify-center"
+                            >
+                              <Shirt class="w-6 h-6" />
+                            </div>
+
+                            <div class="min-w-0 flex-1">
+                              <div class="flex items-center justify-between gap-1">
+                                <p class="text-xs font-extrabold text-slate-900 leading-tight truncate">{{ modCamisa.nome }}</p>
+                                <Check v-if="item.modeloCamisaId === modCamisa.id" class="w-4 h-4 text-orange-500 shrink-0" />
+                              </div>
+                              <p v-if="modCamisa.descricao" class="text-[11px] text-slate-500 line-clamp-2 mt-0.5">
+                                {{ modCamisa.descricao }}
+                              </p>
+                            </div>
+                          </div>
+
+                          <!-- Botão Ver Fotos -->
+                          <button
+                            v-if="modCamisa.fotoFrenteUrl || modCamisa.fotoVersoUrl"
+                            type="button"
+                            @click.stop="abrirFotosModelo(modCamisa)"
+                            class="w-full py-1 px-2 rounded-lg bg-white border border-slate-200 hover:border-orange-300 hover:bg-orange-50/50 text-[11px] font-bold text-slate-700 flex items-center justify-center gap-1.5 transition"
+                          >
+                            <Eye class="w-3.5 h-3.5 text-orange-500" />
+                            <span>Ver Fotos (Frente e Verso)</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Modelo Único com Fotos -->
+                    <div
+                      v-else-if="eventoSelecionado?.modelosCamisa && eventoSelecionado.modelosCamisa.length === 1"
+                      class="p-3.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between gap-3"
+                    >
+                      <div class="flex items-center gap-3 min-w-0">
+                        <div
+                          v-if="eventoSelecionado.modelosCamisa[0].fotoFrenteUrl || eventoSelecionado.modelosCamisa[0].fotoVersoUrl"
+                          class="w-12 h-12 rounded-lg bg-white border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center p-0.5 cursor-pointer"
+                          @click="abrirFotosModelo(eventoSelecionado.modelosCamisa[0])"
+                        >
+                          <img
+                            :src="urlFoto(eventoSelecionado.modelosCamisa[0].fotoFrenteUrl || eventoSelecionado.modelosCamisa[0].fotoVersoUrl, apiBase)!"
+                            :alt="eventoSelecionado.modelosCamisa[0].nome"
+                            class="w-full h-full object-contain"
+                          />
+                        </div>
+                        <div class="min-w-0">
+                          <p class="text-xs font-bold text-slate-800">
+                            Modelo: {{ eventoSelecionado.modelosCamisa[0].nome }}
+                          </p>
+                          <p v-if="eventoSelecionado.modelosCamisa[0].descricao" class="text-[11px] text-slate-500 truncate">
+                            {{ eventoSelecionado.modelosCamisa[0].descricao }}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        v-if="eventoSelecionado.modelosCamisa[0].fotoFrenteUrl || eventoSelecionado.modelosCamisa[0].fotoVersoUrl"
+                        type="button"
+                        @click="abrirFotosModelo(eventoSelecionado.modelosCamisa[0])"
+                        class="py-1.5 px-3 rounded-lg bg-white border border-slate-200 hover:border-orange-300 hover:bg-orange-50/50 text-xs font-bold text-slate-700 flex items-center gap-1.5 transition shrink-0"
+                      >
+                        <Eye class="w-3.5 h-3.5 text-orange-500" />
+                        <span>Ver Fotos</span>
+                      </button>
+                    </div>
+
+                    <!-- Seleção do Tamanho -->
+                    <div class="space-y-2">
+                      <label class="block text-xs font-black uppercase tracking-wider text-slate-700">
+                        Tamanho da Camiseta:
+                      </label>
+                      <div class="flex flex-wrap gap-1.5">
+                        <button
+                          v-for="tam in tamanhos"
+                          :key="tam"
+                          type="button"
+                          @click="item.tamanhoCamisa = tam"
+                          class="w-11 h-11 rounded-xl border text-xs font-extrabold transition flex items-center justify-center shadow-2xs"
+                          :class="item.tamanhoCamisa === tam ? 'bg-orange-500 border-orange-500 text-white shadow-sm' : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'"
+                        >
+                          {{ tam }}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
               </div>
             </div>
           </div>
@@ -1631,9 +1877,15 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                     {{ modalidadesAtivas.find((m) => m.id === item.modalidadeId)?.nome }} ·
                     {{ modalidadesAtivas.find((m) => m.id === item.modalidadeId)?.categorias?.find((c) => c.id === item.categoriaId)?.nome }}
                   </p>
+                  <p v-if="eventoSelecionado?.camisaOpcional && !item.incluiCamisa" class="text-xs text-slate-500 font-semibold mt-1">
+                    🏃 Sem camiseta oficial (apenas inscrição)
+                  </p>
+                  <p v-else-if="eventoPossuiCamisa && item.modeloCamisaId" class="text-xs text-slate-600 font-semibold mt-1">
+                    🎽 Modelo: {{ eventoSelecionado?.modelosCamisa?.find(m => m.id === item.modeloCamisaId)?.nome || 'Padrão' }}
+                  </p>
                 </div>
 
-                <div v-if="eventoPossuiCamisa" class="flex items-center gap-2">
+                <div v-if="eventoPossuiCamisa && (!eventoSelecionado?.camisaOpcional || item.incluiCamisa)" class="flex items-center gap-2">
                   <span class="text-xs text-slate-700 font-bold">Camiseta:</span>
                   <div class="flex gap-1">
                     <button
@@ -1663,6 +1915,18 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                       class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-100 text-blue-800 border border-blue-200"
                     >
                       🏛️ Servidor Público
+                    </span>
+                    <span
+                      v-else-if="eventoSelecionado?.camisaOpcional && item.incluiCamisa"
+                      class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-orange-100 text-orange-800 border border-orange-200"
+                    >
+                      + Camiseta Oficial (+ {{ formatarPreco(Number(eventoSelecionado?.valorCamisaOpcional || 0)) }})
+                    </span>
+                    <span
+                      v-else-if="eventoSelecionado?.camisaOpcional && !item.incluiCamisa"
+                      class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600"
+                    >
+                      Sem camiseta
                     </span>
                   </div>
                   <span class="font-mono font-bold" :class="calcularPrecoItem(item) === 0 ? 'text-emerald-600' : 'text-slate-900'">
@@ -2080,6 +2344,100 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
         </div>
       </div>
     </div>
+
+    <!-- MODAL LIGHTBOX FOTOS DA CAMISA (FRENTE E VERSO) -->
+    <Teleport to="body">
+      <div
+        v-if="modalFotoCamisaAberto && modeloVisualizado"
+        class="fixed inset-0 z-[400] flex items-center justify-center p-3 sm:p-4"
+        @keydown.window.escape="modalFotoCamisaAberto = false"
+      >
+        <div class="fixed inset-0 bg-slate-950/80 backdrop-blur-xs" @click="modalFotoCamisaAberto = false"></div>
+
+        <div class="relative flex w-full max-w-2xl max-h-[92vh] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl z-[401]">
+          <!-- Topo do Modal -->
+          <div class="flex items-center justify-between border-b border-slate-100 p-4 sm:p-5 bg-white">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="h-10 w-10 shrink-0 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center">
+                <Shirt class="w-5 h-5" />
+              </div>
+              <div class="min-w-0">
+                <h3 class="font-black text-base text-slate-900 truncate">{{ modeloVisualizado.nome }}</h3>
+                <p v-if="modeloVisualizado.descricao" class="text-xs text-slate-500 truncate">
+                  {{ modeloVisualizado.descricao }}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              class="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition cursor-pointer"
+              @click="modalFotoCamisaAberto = false"
+            >
+              <X class="w-5 h-5" />
+            </button>
+          </div>
+
+          <!-- Abas Frente / Verso -->
+          <div class="flex items-center justify-center gap-2 border-b border-slate-100 bg-slate-50/70 p-2.5">
+            <button
+              type="button"
+              @click="abaFotoAtiva = 'frente'"
+              :disabled="!modeloVisualizado.fotoFrenteUrl"
+              class="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer"
+              :class="[
+                abaFotoAtiva === 'frente'
+                  ? 'bg-orange-500 text-white shadow-sm'
+                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200',
+                !modeloVisualizado.fotoFrenteUrl ? 'opacity-40 cursor-not-allowed' : ''
+              ]"
+            >
+              <span>📷 Foto da Frente</span>
+            </button>
+
+            <button
+              type="button"
+              @click="abaFotoAtiva = 'verso'"
+              :disabled="!modeloVisualizado.fotoVersoUrl"
+              class="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer"
+              :class="[
+                abaFotoAtiva === 'verso'
+                  ? 'bg-orange-500 text-white shadow-sm'
+                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200',
+                !modeloVisualizado.fotoVersoUrl ? 'opacity-40 cursor-not-allowed' : ''
+              ]"
+            >
+              <span>📷 Foto do Verso</span>
+            </button>
+          </div>
+
+          <!-- Área da Imagem -->
+          <div class="flex-1 overflow-auto p-4 sm:p-6 flex items-center justify-center bg-slate-900/5 min-h-[300px]">
+            <div v-if="fotoAtualModelo(modeloVisualizado)" class="relative max-h-[60vh] flex items-center justify-center">
+              <img
+                :src="fotoAtualModelo(modeloVisualizado)!"
+                :alt="`${modeloVisualizado.nome} - ${abaFotoAtiva === 'frente' ? 'Frente' : 'Verso'}`"
+                class="max-h-[60vh] max-w-full rounded-2xl object-contain shadow-lg border border-slate-200 bg-white"
+              />
+            </div>
+            <div v-else class="text-center py-12 text-slate-400">
+              <Shirt class="w-12 h-12 mx-auto mb-2 opacity-50" />
+              <p class="text-sm font-semibold">Nenhuma foto disponível para esta visualização.</p>
+            </div>
+          </div>
+
+          <!-- Rodapé -->
+          <div class="border-t border-slate-100 p-4 bg-white flex justify-end">
+            <button
+              type="button"
+              @click="modalFotoCamisaAberto = false"
+              class="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black uppercase tracking-wider rounded-xl transition cursor-pointer"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
   </div>
 </template>

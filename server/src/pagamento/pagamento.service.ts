@@ -218,6 +218,7 @@ export class PagamentoService {
           inscricao.atletaDataNascimento ||
           inscricao.dependente?.dataNascimento ||
           inscricao.cliente.pf?.dataNascimento,
+        incluiCamisa: inscricao.incluiCamisa,
       });
     }
 

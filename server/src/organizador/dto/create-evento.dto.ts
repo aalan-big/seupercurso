@@ -2,6 +2,7 @@ import {
   IsBoolean,
   IsDateString,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   Min,
@@ -40,6 +41,15 @@ export class CreateEventoDto {
   @IsOptional()
   @IsBoolean()
   possuiCamisa?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  camisaOpcional?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  valorCamisaOpcional?: number;
 
   @IsOptional()
   @IsDateString()

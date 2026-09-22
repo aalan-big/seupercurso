@@ -47,6 +47,15 @@ export class UpdateEventoDto {
   possuiCamisa?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  camisaOpcional?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  valorCamisaOpcional?: number;
+
+  @IsOptional()
   @IsDateString()
   limiteTrocaCamisaAté?: string;
 

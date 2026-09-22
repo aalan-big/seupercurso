@@ -93,6 +93,15 @@ export interface InscricaoComEvento {
   id: string
   numeroPeito: string | null
   tamanhoCamisa: string | null
+  incluiCamisa?: boolean
+  valorCamisa?: number | string | null
+  modeloCamisa?: {
+    id: string
+    nome: string
+    descricao?: string | null
+    fotoFrenteUrl?: string | null
+    fotoVersoUrl?: string | null
+  } | null
   atletaNome?: string | null
   atletaCpf?: string | null
   dependente?: {
@@ -128,6 +137,8 @@ export interface CreateInscricaoInput {
   categoriaId: string
   loteId: string
   tamanhoCamisa?: string
+  incluiCamisa?: boolean
+  modeloCamisaId?: string
   cupomCodigo?: string
 }
 
@@ -135,6 +146,8 @@ export interface InscricaoItemInput {
   categoriaId: string
   loteId: string
   tamanhoCamisa?: string
+  incluiCamisa?: boolean
+  modeloCamisaId?: string
   cupomCodigo?: string
   dependenteId?: string
   matriculaServidor?: string

@@ -79,6 +79,8 @@ const form = reactive({
   retiradaKitInicio: props.evento?.retiradaKitInicio?.slice(0, 16) ?? '',
   retiradaKitFim: props.evento?.retiradaKitFim?.slice(0, 16) ?? '',
   possuiCamisa: props.evento?.possuiCamisa ?? true,
+  camisaOpcional: props.evento?.camisaOpcional ?? false,
+  valorCamisaOpcional: props.evento?.valorCamisaOpcional ? String(props.evento.valorCamisaOpcional) : '',
   limiteTrocaCamisaAté: props.evento?.limiteTrocaCamisaAté?.slice(0, 16) ?? '',
   camisasBloqueadas: props.evento?.camisasBloqueadas ?? false,
   permiteTransferencia: props.evento?.permiteTransferencia ?? true,
@@ -256,6 +258,8 @@ const temAlteracoes = computed(() => {
     form.retiradaKitInicio !== (props.evento.retiradaKitInicio?.slice(0, 16) ?? '') ||
     form.retiradaKitFim !== (props.evento.retiradaKitFim?.slice(0, 16) ?? '') ||
     form.possuiCamisa !== (props.evento.possuiCamisa ?? true) ||
+    form.camisaOpcional !== (props.evento.camisaOpcional ?? false) ||
+    form.valorCamisaOpcional !== (props.evento.valorCamisaOpcional ? String(props.evento.valorCamisaOpcional) : '') ||
     form.limiteTrocaCamisaAté !== (props.evento.limiteTrocaCamisaAté?.slice(0, 16) ?? '') ||
     form.camisasBloqueadas !== (props.evento.camisasBloqueadas ?? false) ||
     form.permiteTransferencia !== (props.evento.permiteTransferencia ?? true) ||
@@ -287,6 +291,8 @@ watch(
       form.retiradaKitInicio = ev.retiradaKitInicio?.slice(0, 16) ?? ''
       form.retiradaKitFim = ev.retiradaKitFim?.slice(0, 16) ?? ''
       form.possuiCamisa = ev.possuiCamisa ?? true
+      form.camisaOpcional = ev.camisaOpcional ?? false
+      form.valorCamisaOpcional = ev.valorCamisaOpcional ? String(ev.valorCamisaOpcional) : ''
       form.limiteTrocaCamisaAté = ev.limiteTrocaCamisaAté?.slice(0, 16) ?? ''
       retiradaKitInicioDisplay.value = converterIsoDatetimeParaDisplay(form.retiradaKitInicio)
       retiradaKitFimDisplay.value = converterIsoDatetimeParaDisplay(form.retiradaKitFim)
@@ -332,6 +338,11 @@ function onSubmit() {
     retiradaKitInicio: form.retiradaKitInicio || undefined,
     retiradaKitFim: form.retiradaKitFim || undefined,
     possuiCamisa: form.possuiCamisa,
+    camisaOpcional: form.possuiCamisa ? form.camisaOpcional : false,
+    valorCamisaOpcional:
+      form.possuiCamisa && form.camisaOpcional && form.valorCamisaOpcional
+        ? Number(form.valorCamisaOpcional.replace(',', '.'))
+        : undefined,
     limiteTrocaCamisaAté: form.limiteTrocaCamisaAté || undefined,
     camisasBloqueadas: form.camisasBloqueadas,
     permiteTransferencia: form.permiteTransferencia,
@@ -723,6 +734,36 @@ function onSubmit() {
           </p>
         </div>
       </label>
+
+      <!-- Opção de Camisa Opcional / Venda Avulsa -->
+      <div v-if="form.possuiCamisa" class="space-y-3 pl-1">
+        <label class="flex items-center gap-2.5 rounded-xl border border-orange-200 bg-white p-3 cursor-pointer">
+          <input v-model="form.camisaOpcional" type="checkbox" class="h-4 w-4 text-orange-600 accent-orange-500" />
+          <div class="text-xs">
+            <p class="font-bold text-slate-800">Camisa Opcional (acréscimo pago pelo atleta)</p>
+            <p class="text-[11px] text-slate-500 font-normal">
+              Ideal para eventos de desafio ou provas onde a camisa não vem inclusa no preço base. O atleta escolhe se quer adicionar a camisa.
+            </p>
+          </div>
+        </label>
+
+        <div v-if="form.camisaOpcional" class="rounded-xl border border-orange-200 bg-white p-3.5 space-y-2">
+          <label class="block text-xs font-bold text-slate-700">Valor adicional da camisa (R$)</label>
+          <div class="relative max-w-xs">
+            <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">R$</span>
+            <input
+              v-model="form.valorCamisaOpcional"
+              type="text"
+              inputmode="decimal"
+              placeholder="40,00"
+              class="w-full rounded-xl border border-slate-300 py-2.5 pl-10 pr-3 text-sm font-semibold focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30"
+            />
+          </div>
+          <p class="text-[11px] text-slate-500">
+            Exemplo: Se a inscrição custa R$ 40,00 e o adicional da camisa é R$ 40,00, quem optar pela camisa pagará R$ 80,00.
+          </p>
+        </div>
+      </div>
 
       <p class="text-xs text-slate-600">
         Data em que você fecha o pedido com a gráfica. É diferente da retirada do kit — normalmente é bem antes. A partir dela, ninguém troca

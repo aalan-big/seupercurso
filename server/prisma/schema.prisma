@@ -258,6 +258,8 @@ model Evento {
   /// na inscricao e nada de camisa aparece pra ele nem pro organizador. Padrao
   /// verdadeiro para nao mexer nos eventos que ja existem.
   possuiCamisa            Boolean      @default(true)
+  camisaOpcional          Boolean      @default(false)
+  valorCamisaOpcional     Decimal?     @db.Decimal(10, 2)
   limiteTrocaCamisaAté   DateTime?
   camisasBloqueadas       Boolean      @default(false)
   permiteTransferencia    Boolean      @default(true)
@@ -296,8 +298,26 @@ model Evento {
   cupons             Cupom[]
   solicitacoesArte   SolicitacaoArte[]
   servidoresPublicos ServidorPublico[]
+  modelosCamisa      ModeloCamisa[]
 
   @@index([status, dataInicio])
+}
+
+model ModeloCamisa {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventoId      String      @db.Uuid
+  evento        Evento      @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+  nome          String
+  descricao     String?
+  fotoFrenteUrl String?
+  fotoVersoUrl  String?
+  ordem         Int         @default(0)
+  ativo         Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  inscricoes    Inscricao[]
+
+  @@index([eventoId])
 }
 
 model Patrocinador {
@@ -475,6 +495,9 @@ model Inscricao {
 
   numeroPeito       String?
   tamanhoCamisa     String?
+  incluiCamisa      Boolean         @default(false)
+  valorCamisa       Decimal?        @db.Decimal(10, 2)
+  modeloCamisaId    String?         @db.Uuid
   kitEntregueEm     DateTime?
   isServidorPublico Boolean         @default(false)
   matriculaServidor String?
@@ -487,6 +510,7 @@ model Inscricao {
   categoria       Categoria        @relation(fields: [categoriaId], references: [id])
   lote            Lote             @relation(fields: [loteId], references: [id])
   cupom           Cupom?           @relation(fields: [cupomId], references: [id])
+  modeloCamisa    ModeloCamisa?    @relation(fields: [modeloCamisaId], references: [id])
   pagamentos      Pagamento[]
   certificado     Certificado?
   resultado       Resultado?
