@@ -74,7 +74,7 @@ export function useInscritosOrganizador() {
 
   async function atualizarInscricao(
     id: string,
-    payload: { numeroPeito?: string; tamanhoCamisa?: string; categoriaId?: string; status?: string }
+    payload: { numeroPeito?: string; tamanhoCamisa?: string; modeloCamisaId?: string; categoriaId?: string; status?: string }
   ) {
     const res = await api<InscritoOrganizador>(`/organizadores/me/inscritos/${id}`, {
       method: 'PATCH',

@@ -632,7 +632,7 @@ export class OrganizadorController {
   atualizarInscricao(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
-    @Body() dto: { numeroPeito?: string; tamanhoCamisa?: string; categoriaId?: string; status?: any },
+    @Body() dto: { numeroPeito?: string; tamanhoCamisa?: string; modeloCamisaId?: string; categoriaId?: string; status?: any },
   ) {
     return this.organizadorService.atualizarInscricao(user.userId, id, dto);
   }

@@ -25,8 +25,19 @@ const categoriasDisponiveis = ref<{ id: string; nomeFormatado: string }[]>([])
 const formInscrito = ref({
   numeroPeito: '',
   tamanhoCamisa: '',
+  modeloCamisaId: '',
   categoriaId: '',
   status: 'CONFIRMADA'
+})
+const modelosDisponiveis = ref<{ id: string; nome: string; descricao?: string | null; fotoFrenteUrl?: string | null; fotoVersoUrl?: string | null }[]>([])
+const fotoModalAmpliada = ref<string | null>(null)
+
+const modeloSelecionadoNoModal = computed(() => {
+  if (!formInscrito.value.modeloCamisaId) {
+    if (atletaSelecionado.value?.modeloCamisa) return atletaSelecionado.value.modeloCamisa as any
+    return null
+  }
+  return modelosDisponiveis.value.find((m) => m.id === formInscrito.value.modeloCamisaId) || atletaSelecionado.value?.modeloCamisa || null
 })
 
 const statusOpcoes = [
@@ -42,13 +53,15 @@ const abaCategoriaAtiva = ref('')
 
 // Eventos sem camisa nao tem tamanho pra mostrar nem editar. A lista pode
 // misturar varios eventos, entao a coluna so some quando nenhum deles usa camisa.
-function eventoPossuiCamisa(inscrito: { categoria: { modalidade: { evento: { id: string } } } }) {
-  const evento = eventos.value.find((e) => e.id === inscrito.categoria.modalidade.evento.id)
+function eventoPossuiCamisa(inscrito: any) {
+  const evInscrito = inscrito.categoria?.modalidade?.evento
+  const evento = eventos.value.find((e) => e.id === evInscrito?.id) || evInscrito
   return evento?.possuiCamisa !== false
 }
 
-function formatarCamisa(inscrito: (typeof inscritos.value)[number]) {
-  const evento = eventos.value.find((e) => e.id === inscrito.categoria.modalidade.evento.id)
+function formatarCamisa(inscrito: any) {
+  const evInscrito = inscrito.categoria?.modalidade?.evento
+  const evento = eventos.value.find((e) => e.id === evInscrito?.id) || evInscrito
   if (evento?.possuiCamisa === false) return 'Sem camisa'
   if (evento?.camisaOpcional && inscrito.incluiCamisa === false) return 'Sem camisa'
   if (!inscrito.tamanhoCamisa) return '—'
@@ -62,7 +75,8 @@ const mostrarColunaCamisa = computed(() => inscritos.value.some((i) => eventoPos
 
 const atletaSelecionadoPossuiCamisa = computed(() => {
   if (!atletaSelecionado.value) return true
-  const evento = eventos.value.find((e) => e.id === atletaSelecionado.value?.categoria.modalidade.evento.id)
+  const evInscrito = atletaSelecionado.value.categoria?.modalidade?.evento as any
+  const evento = eventos.value.find((e) => e.id === evInscrito?.id) || evInscrito
   if (evento?.possuiCamisa === false) return false
   if (evento?.camisaOpcional && atletaSelecionado.value.incluiCamisa === false) return false
   return true
@@ -161,12 +175,14 @@ async function abrirModal360(inscrito: (typeof inscritos.value)[number]) {
   formInscrito.value = {
     numeroPeito: inscrito.numeroPeito || '',
     tamanhoCamisa: inscrito.tamanhoCamisa || 'M',
+    modeloCamisaId: inscrito.modeloCamisa?.id || (inscrito as any).modeloCamisaId || '',
     categoriaId: (inscrito.categoria as any).id || '',
     status: inscrito.status
   }
   sucessoModal.value = ''
   mostrarRecusaIdoso.value = false
   motivoRecusaIdoso.value = ''
+  fotoModalAmpliada.value = null
   modalAberto.value = true
   carregandoCategorias.value = true
 
@@ -182,8 +198,10 @@ async function abrirModal360(inscrito: (typeof inscritos.value)[number]) {
       })
     })
     categoriasDisponiveis.value = lista
+    modelosDisponiveis.value = (eventoCompleto.modelosCamisa as any) || []
   } catch {
     categoriasDisponiveis.value = []
+    modelosDisponiveis.value = []
   } finally {
     carregandoCategorias.value = false
   }
@@ -198,6 +216,9 @@ async function salvarEdicao360() {
       numeroPeito: formInscrito.value.numeroPeito.trim() || undefined,
       tamanhoCamisa: atletaSelecionadoPossuiCamisa.value
         ? formInscrito.value.tamanhoCamisa
+        : undefined,
+      modeloCamisaId: atletaSelecionadoPossuiCamisa.value
+        ? formInscrito.value.modeloCamisaId || undefined
         : undefined,
       categoriaId: formInscrito.value.categoriaId || undefined,
       status: formInscrito.value.status
@@ -622,6 +643,81 @@ function formatarData(iso: string) {
                 </select>
               </div>
 
+              <!-- Modelo da Camisa Escolhido -->
+              <div v-if="atletaSelecionadoPossuiCamisa" class="sm:col-span-2 space-y-2">
+                <label class="font-black text-slate-700 flex items-center justify-between">
+                  <span class="flex items-center gap-1.5">
+                    <Shirt :size="14" class="text-orange-500" /> Modelo da Camiseta Escolhido
+                  </span>
+                  <span v-if="modeloSelecionadoNoModal" class="text-[11px] font-black text-orange-600">
+                    {{ modeloSelecionadoNoModal.nome }}
+                  </span>
+                </label>
+
+                <!-- Se o evento tiver modelos cadastrados, permite visualizar e alterar -->
+                <div v-if="modelosDisponiveis.length > 0" class="space-y-2.5">
+                  <select
+                    v-model="formInscrito.modeloCamisaId"
+                    class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+                  >
+                    <option value="">Selecione o modelo...</option>
+                    <option v-for="mod in modelosDisponiveis" :key="mod.id" :value="mod.id">
+                      {{ mod.nome }}
+                    </option>
+                  </select>
+
+                  <!-- Preview do Modelo Selecionado (com Foto, Nome e Descrição) -->
+                  <div
+                    v-if="modeloSelecionadoNoModal"
+                    class="p-3 rounded-xl border border-orange-200 bg-orange-50/50 flex items-center gap-3"
+                  >
+                    <div
+                      v-if="modeloSelecionadoNoModal.fotoFrenteUrl || modeloSelecionadoNoModal.fotoVersoUrl"
+                      class="w-14 h-14 rounded-lg bg-white border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center p-0.5 cursor-pointer shadow-2xs hover:scale-105 transition"
+                      title="Clique para ampliar"
+                      @click="fotoModalAmpliada = urlFoto(modeloSelecionadoNoModal.fotoFrenteUrl || modeloSelecionadoNoModal.fotoVersoUrl, config.public.apiBase as string)"
+                    >
+                      <img
+                        :src="urlFoto(modeloSelecionadoNoModal.fotoFrenteUrl || modeloSelecionadoNoModal.fotoVersoUrl, config.public.apiBase as string)!"
+                        :alt="modeloSelecionadoNoModal.nome"
+                        class="w-full h-full object-contain"
+                      />
+                    </div>
+                    <div
+                      v-else
+                      class="w-14 h-14 rounded-lg bg-orange-100/60 border border-orange-200 text-orange-600 shrink-0 flex items-center justify-center"
+                    >
+                      <Shirt :size="24" />
+                    </div>
+
+                    <div class="min-w-0 flex-1">
+                      <div class="flex items-center gap-1.5 flex-wrap">
+                        <span class="text-xs font-black text-slate-900">{{ modeloSelecionadoNoModal.nome }}</span>
+                        <span class="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-bold text-orange-700">Modelo Selecionado</span>
+                      </div>
+                      <p v-if="modeloSelecionadoNoModal.descricao" class="text-[11px] text-slate-500 mt-0.5 line-clamp-2">
+                        {{ modeloSelecionadoNoModal.descricao }}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Caso o evento tenha modelo único gravado ou padrão -->
+                <div v-else class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <Shirt :size="16" class="text-slate-500" />
+                    <span class="font-bold text-slate-800">{{ atletaSelecionado.modeloCamisa?.nome || 'Modelo Único / Padrão' }}</span>
+                  </div>
+                  <span class="text-[11px] text-slate-400">Modelo padrão do evento</span>
+                </div>
+              </div>
+
+              <!-- Se a prova tem camisa opcional e o atleta escolheu NÃO incluir camisa -->
+              <div v-else class="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500 flex items-center gap-2">
+                <Shirt :size="16" class="text-slate-400 shrink-0" />
+                <span>Inscrição realizada <strong>sem camiseta oficial</strong> (opção sem camisa ou evento sem camisa).</span>
+              </div>
+
               <!-- Editar Status da Inscrição -->
               <div class="sm:col-span-2">
                 <label class="font-black text-slate-700 mb-1 flex items-center gap-1"><CreditCard :size="14" /> Status da Inscrição</label>
@@ -765,6 +861,31 @@ function formatarData(iso: string) {
               </div>
             </div>
           </template>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- MODAL FOTO AMPLIADA -->
+    <Teleport to="body">
+      <div
+        v-if="fotoModalAmpliada"
+        class="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs"
+        @click="fotoModalAmpliada = null"
+      >
+        <div class="relative max-w-lg w-full bg-white rounded-3xl p-4 shadow-2xl space-y-3" @click.stop>
+          <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+            <span class="text-xs font-bold text-slate-700">Foto do Modelo</span>
+            <button
+              type="button"
+              class="rounded-xl bg-slate-100 p-1.5 text-xs text-slate-500 hover:bg-slate-200 transition"
+              @click="fotoModalAmpliada = null"
+            >
+              <X :size="14" />
+            </button>
+          </div>
+          <div class="h-80 w-full rounded-2xl overflow-hidden bg-slate-50 flex items-center justify-center">
+            <img :src="fotoModalAmpliada" alt="Foto Ampliada" class="max-h-full max-w-full object-contain" />
+          </div>
         </div>
       </div>
     </Teleport>

@@ -991,6 +991,7 @@ export class OrganizadorService {
     dto: {
       numeroPeito?: string;
       tamanhoCamisa?: string;
+      modeloCamisaId?: string;
       categoriaId?: string;
       status?: StatusInscricao;
     },
@@ -1029,6 +1030,7 @@ export class OrganizadorService {
       data: {
         ...(dto.numeroPeito !== undefined ? { numeroPeito: dto.numeroPeito } : {}),
         ...(dto.tamanhoCamisa !== undefined ? { tamanhoCamisa: dto.tamanhoCamisa } : {}),
+        ...(dto.modeloCamisaId !== undefined ? { modeloCamisaId: dto.modeloCamisaId || null } : {}),
         ...(dto.categoriaId !== undefined ? { categoriaId: dto.categoriaId } : {}),
         ...(dto.status !== undefined ? { status: dto.status } : {}),
       },
@@ -1042,6 +1044,7 @@ export class OrganizadorService {
         },
         categoria: { include: { modalidade: { include: { evento: true } } } },
         lote: true,
+        modeloCamisa: true,
       },
     });
 
