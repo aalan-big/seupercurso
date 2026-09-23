@@ -484,6 +484,13 @@ export class OrganizadorService {
           'Só a equipe da plataforma pode aprovar e publicar um novo evento pela primeira vez. Envie pra revisão (status "Aguardando aprovação") e aguarde.',
         );
       }
+      if (dto.status === StatusEvento.AGUARDANDO_APROVACAO) {
+        if (!organizador.mpUserId) {
+          throw new BadRequestException(
+            'Você precisa conectar sua conta do Mercado Pago antes de enviar o evento para aprovação. Acesse o menu lateral "Mercado Pago" e conecte sua conta para poder receber os pagamentos das inscrições.',
+          );
+        }
+      }
     }
 
     this.validarPeriodo(

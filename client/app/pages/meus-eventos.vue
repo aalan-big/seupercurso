@@ -561,8 +561,10 @@ async function confirmarCancelamento(id: string) {
                   <span class="flex items-center gap-1 rounded-xl bg-slate-100 border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-800">
                     <Users :size="14" /> {{ inscricao.categoria.nome }}
                   </span>
-                  <span v-if="inscricao.tamanhoCamisa" class="flex items-center gap-1 rounded-xl bg-slate-100 border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-800">
-                    <Shirt :size="14" /> Camisa: <strong>{{ inscricao.tamanhoCamisa }}</strong>
+                  <span v-if="inscricao.tamanhoCamisa || inscricao.modeloCamisa" class="flex items-center gap-1 rounded-xl bg-slate-100 border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-800">
+                    <Shirt :size="14" /> Camisa: 
+                    <strong v-if="inscricao.modeloCamisa">{{ inscricao.modeloCamisa.nome }} ({{ inscricao.tamanhoCamisa || 'Tam Padrão' }})</strong>
+                    <strong v-else>{{ inscricao.tamanhoCamisa }}</strong>
                   </span>
                   <span v-if="inscricao.lote" class="flex items-center gap-1 rounded-xl bg-slate-100 border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-800">
                     <Tag :size="14" /> Lote: {{ inscricao.lote.nome }}

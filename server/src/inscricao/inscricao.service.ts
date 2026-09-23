@@ -614,6 +614,7 @@ export class InscricaoService {
           },
         },
         lote: true,
+        modeloCamisa: true,
         pagamentos: { orderBy: { createdAt: 'desc' } },
         resultado: true,
         certificado: true,

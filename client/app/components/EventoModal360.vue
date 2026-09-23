@@ -396,7 +396,10 @@ async function submeterTransferencia() {
               <!-- Card Camisa com Formulário de Edição -->
               <div v-if="eventoPossuiCamisa" class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center flex flex-col justify-between">
                 <div>
-                  <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Tamanho da Camisa</p>
+                  <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Camisa do Atleta</p>
+                  <p v-if="inscricao.modeloCamisa" class="text-xs font-bold text-orange-600 truncate mt-0.5">
+                    {{ inscricao.modeloCamisa.nome }}
+                  </p>
                   <p class="mt-1 flex items-center justify-center gap-1.5 text-xl font-black text-slate-800">
                     <Shirt :size="18" /> {{ inscricao.tamanhoCamisa || 'Não informada' }}
                   </p>

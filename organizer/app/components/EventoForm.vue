@@ -26,6 +26,14 @@ const emit = defineEmits<{
   limparErro: []
 }>()
 
+const { organizador, fetchMe } = useOrganizador()
+
+onMounted(() => {
+  if (!organizador.value) {
+    fetchMe().catch(() => {})
+  }
+})
+
 const arquivoRegulamento = ref<File | null>(null)
 
 function onArquivoRegulamento(e: Event) {
@@ -357,6 +365,16 @@ function validarPendencias(): ItemPendente[] {
     }
   }
 
+  // 9. Mercado Pago conectado (obrigatório para enviar para aprovação)
+  if (form.status === 'AGUARDANDO_APROVACAO' && !organizador.value?.mpUserId) {
+    lista.push({
+      campo: 'mercadopago',
+      titulo: 'Conectar Mercado Pago',
+      descricao: 'Você precisa conectar sua conta do Mercado Pago para receber os pagamentos antes de enviar o evento para aprovação.',
+      idElemento: 'alerta-mercadopago-conexao'
+    })
+  }
+
   return lista
 }
 
@@ -414,7 +432,8 @@ watch(
     form.aceitaCartao,
     form.possuiCamisa,
     form.camisaOpcional,
-    form.valorCamisaOpcional
+    form.valorCamisaOpcional,
+    form.status
   ],
   () => {
     if (tentouEnviar.value) {
@@ -848,6 +867,31 @@ function onSubmit() {
         >
           <option v-for="opcao in statusOpcoes" :key="opcao.valor" :value="opcao.valor">{{ opcao.label }}</option>
         </select>
+
+        <div
+          v-if="!organizador?.mpUserId && props.evento?.status !== 'PUBLICADO'"
+          id="alerta-mercadopago-conexao"
+          tabindex="-1"
+          class="mt-2 rounded-xl border p-3 text-xs transition focus:outline-none"
+          :class="invalido('mercadopago') ? 'border-red-400 bg-red-50 text-red-950 ring-2 ring-red-400/20' : 'border-amber-300 bg-amber-50 text-amber-900'"
+        >
+          <div class="flex items-start gap-2.5">
+            <AlertCircle :size="18" class="shrink-0 mt-0.5 text-amber-600" />
+            <div class="space-y-1">
+              <p class="font-extrabold text-[12px]">Conexão com Mercado Pago obrigatória</p>
+              <p class="text-[11px] leading-relaxed text-slate-600">
+                Para enviar seu evento para aprovação e começar a receber o dinheiro das inscrições, conecte a sua conta do Mercado Pago.
+              </p>
+              <NuxtLink
+                to="/mercadopago"
+                target="_blank"
+                class="inline-flex items-center gap-1 font-bold text-amber-950 underline hover:text-black text-xs pt-0.5 cursor-pointer"
+              >
+                Conectar conta Mercado Pago agora →
+              </NuxtLink>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 

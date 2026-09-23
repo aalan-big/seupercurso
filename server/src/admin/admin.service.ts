@@ -141,7 +141,17 @@ export class AdminService {
   }
 
   async aprovarEvento(id: string) {
-    await this.getEventoOuFalhar(id);
+    const evento = await this.getEventoOuFalhar(id);
+
+    const organizador = await this.prisma.organizador.findUnique({
+      where: { id: evento.organizadorId },
+    });
+
+    if (!organizador?.mpUserId) {
+      throw new BadRequestException(
+        'Este organizador ainda não conectou a conta do Mercado Pago. O evento não pode ser publicado sem conta de recebimento conectada.',
+      );
+    }
 
     return this.prisma.evento.update({
       where: { id },
