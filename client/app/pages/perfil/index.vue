@@ -380,7 +380,7 @@ async function salvarEmail() {
               <Trophy :size="18" /> Quer organizar seus próprios eventos esportivos?
             </p>
             <p class="text-xs text-amber-800 mt-1">
-              Crie corridas e campeonatos, gerencie inscrições e receba via PIX e Cartão com repasses automáticos Asaas.
+              Crie corridas e campeonatos, gerencie inscrições e receba via PIX e Cartão direto na sua conta do Mercado Pago.
             </p>
           </div>
           <a

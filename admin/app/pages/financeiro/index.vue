@@ -97,7 +97,7 @@ async function testarPushBloqueio() {
         <div class="flex flex-wrap items-center gap-2">
           <h1 class="text-2xl font-black uppercase tracking-tight text-primary">Gestão Financeira & Conta Master CNPJ</h1>
           <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-0.5 text-xs font-bold text-emerald-800 border border-emerald-200">
-            <Crown :size="14" /> Conta Master Asaas Conectada
+            <Crown :size="14" /> Recebimentos via Mercado Pago
           </span>
         </div>
         <p class="mt-1 text-xs text-slate-500">
@@ -181,12 +181,12 @@ async function testarPushBloqueio() {
         <div class="min-w-0">
           <p class="font-bold text-sm text-blue-950">Conta Master CNPJ — SeuPercurso Plataforma</p>
           <p class="text-[11px] text-blue-800 mt-0.5">
-            Sua conta principal gerencia a chave de API Master. Todas as comissões de intermediação (ex: 10%) caem automaticamente no seu saldo Master via Split Asaas.
+            Cada inscrição é cobrada na conta do Mercado Pago do organizador, e a comissão da plataforma é retida automaticamente na mesma transação.
           </p>
         </div>
       </div>
       <div class="flex items-center gap-2 bg-white/90 px-3.5 py-2 rounded-xl border border-blue-200 text-blue-900 font-bold">
-        <span class="inline-flex items-center gap-1"><Zap :size="14" class="text-amber-500" /> Asaas Split Engine Active</span>
+        <span class="inline-flex items-center gap-1"><Zap :size="14" class="text-amber-500" /> Comissão retida automaticamente</span>
       </div>
     </div>
 

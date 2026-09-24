@@ -51,7 +51,7 @@ function linkDocumento(caminho: string) {
 async function onAprovar(s: AlteracaoDocumentoAdmin) {
   if (
     !confirm(
-      `Confirmar a troca de ${s.tipo} de ${formatarDocumento(s.documentoAtual)} para ${formatarDocumento(s.documentoNovo)}?\n\nA conta de recebimento no Asaas será invalidada e precisará ser recriada pelo organizador.`
+      `Confirmar a troca de ${s.tipo} de ${formatarDocumento(s.documentoAtual)} para ${formatarDocumento(s.documentoNovo)}?\n\nO CPF/CNPJ do cadastro será substituído pelo novo.`
     )
   ) {
     return

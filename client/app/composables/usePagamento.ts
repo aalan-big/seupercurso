@@ -19,7 +19,7 @@ export function usePagamento() {
   }
 
   /**
-   * Consulta o status da cobranca. O backend reconcilia com o Asaas quando o
+   * Consulta o status da cobranca. O backend reconcilia com o Mercado Pago quando o
    * pagamento ainda esta pendente, entao serve para acompanhar o PIX em tempo real.
    */
   async function consultarStatus(pagamentoId: string) {

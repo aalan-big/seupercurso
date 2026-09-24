@@ -98,7 +98,7 @@ export class PagamentoController {
 
   /**
    * Acompanhamento da cobrança pelo comprador (usado no polling da tela de PIX).
-   * Reconcilia com o Asaas quando o webhook atrasa ou falha.
+   * Reconcilia com o Mercado Pago quando o webhook atrasa ou falha.
    */
   @Get(':id/status')
   obterStatus(

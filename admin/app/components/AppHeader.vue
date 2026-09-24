@@ -7,12 +7,46 @@ const notificacoesAbertas = ref(false)
 const configuracoesAbertas = ref(false)
 const perfilAberto = ref(false)
 
-const notificacoes = ref([
-  { id: '1', tipo: 'kyc', titulo: 'Novo Cadastro de Organizador', descricao: 'Selfie e RG enviados para análise KYC', hora: 'Há 5 min', lida: false },
-  { id: '2', tipo: 'saque', titulo: 'Solicitação de Saque PIX', descricao: 'Organizador solicitou R$ 54,00 com trava de titularidade', hora: 'Há 18 min', lida: false }
-])
+// Comissoes recebidas, as mesmas que disparam o alerta sonoro e o push.
+// Antes a lista era fixa no codigo ("Novo Cadastro de Organizador - Ha 5 min",
+// "Saque PIX R$ 54,00") e aparecia sempre, para todo admin.
+interface NotificacaoComissao {
+  id: string
+  valorTaxa: number
+  valorTotal: number
+  criadoEm: string
+}
 
-const naoLidas = computed(() => notificacoes.value.filter(n => !n.lida).length)
+const api = useApi()
+const notificacoes = ref<NotificacaoComissao[]>([])
+// "Lida" e por aparelho: guarda ate quando a pessoa ja viu.
+const CHAVE_VISTAS = 'admin_notificacoes_vistas_ate'
+const vistasAte = ref(0)
+
+const naoLidas = computed(
+  () => notificacoes.value.filter((n) => new Date(n.criadoEm).getTime() > vistasAte.value).length
+)
+
+async function carregarNotificacoes() {
+  try {
+    notificacoes.value = await api<NotificacaoComissao[]>('/admin/notificacoes-historico')
+  } catch {
+    // Sem rede ou sessao expirada: o sininho so fica como estava.
+  }
+}
+
+function formatarMoeda(v: number) {
+  return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+function tempoRelativo(iso: string) {
+  const minutos = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
+  if (minutos < 1) return 'agora'
+  if (minutos < 60) return `há ${minutos} min`
+  const horas = Math.floor(minutos / 60)
+  if (horas < 24) return `há ${horas} h`
+  return new Date(iso).toLocaleDateString('pt-BR')
+}
 
 const iniciais = computed(() => {
   if (!user.value?.nome && !user.value?.email) return 'AD'
@@ -25,11 +59,17 @@ const iniciais = computed(() => {
 })
 
 function marcarTodasLidas() {
-  notificacoes.value = []
+  vistasAte.value = Date.now()
+  try {
+    localStorage.setItem(CHAVE_VISTAS, String(vistasAte.value))
+  } catch {}
 }
 
-function removerNotificacao(id: string) {
-  notificacoes.value = notificacoes.value.filter(n => n.id !== id)
+function alternarNotificacoes() {
+  notificacoesAbertas.value = !notificacoesAbertas.value
+  configuracoesAbertas.value = false
+  perfilAberto.value = false
+  if (notificacoesAbertas.value) carregarNotificacoes()
 }
 
 function fecharTodos() {
@@ -42,8 +82,16 @@ function escHandler(e: KeyboardEvent) {
   if (e.key === 'Escape') fecharTodos()
 }
 
+let temporizadorNotificacoes: ReturnType<typeof setInterval> | null = null
+
 onMounted(() => {
   window.addEventListener('keydown', escHandler)
+  try {
+    vistasAte.value = Number(localStorage.getItem(CHAVE_VISTAS)) || 0
+  } catch {}
+  carregarNotificacoes()
+  // O alerta em tempo real vem do plugin; aqui so mantem o numero do sininho.
+  temporizadorNotificacoes = setInterval(carregarNotificacoes, 30_000)
   const { $notificacoes } = useNuxtApp() as any
   if ($notificacoes) {
     $notificacoes.solicitarPermissao()
@@ -51,6 +99,7 @@ onMounted(() => {
   }
 })
 
+// So neste aparelho: toca o som e mostra o alerta, sem avisar os outros admins.
 function dispararTesteNotificacao() {
   const { $notificacoes } = useNuxtApp() as any
   if ($notificacoes) {
@@ -60,6 +109,7 @@ function dispararTesteNotificacao() {
 
 onUnmounted(() => {
   window.removeEventListener('keydown', escHandler)
+  if (temporizadorNotificacoes) clearInterval(temporizadorNotificacoes)
 })
 
 async function onSair() {
@@ -104,7 +154,7 @@ async function onSair() {
           type="button"
           class="relative flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition"
           title="Notificações"
-          @click="notificacoesAbertas = !notificacoesAbertas; configuracoesAbertas = false; perfilAberto = false"
+          @click="alternarNotificacoes"
         >
           <AppIcon name="bell" size="18" />
           <span v-if="naoLidas > 0" class="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-black text-white shadow-xs">
@@ -116,49 +166,59 @@ async function onSair() {
         <div v-if="notificacoesAbertas" class="absolute right-0 mt-3 w-[calc(100vw-1.5rem)] max-w-80 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl z-50">
           <div class="flex items-center justify-between border-b border-slate-100 p-4 bg-slate-50">
             <div class="flex items-center gap-2">
-              <span class="flex items-center gap-1.5 font-black text-xs text-slate-900"><AppIcon name="bell" size="14" /> Notificações Master</span>
+              <span class="flex items-center gap-1.5 font-black text-xs text-slate-900"><AppIcon name="bell" size="14" /> Notificações</span>
               <span v-if="naoLidas > 0" class="rounded-full bg-red-100 text-red-800 text-[10px] font-bold px-2 py-0.5">
-                {{ naoLidas }} novas
+                {{ naoLidas }} {{ naoLidas === 1 ? 'nova' : 'novas' }}
               </span>
             </div>
-            <div class="flex items-center gap-2">
-              <button
-                type="button"
-                class="text-[11px] font-bold text-orange-600 bg-orange-50 hover:bg-orange-100 px-2.5 py-1 rounded-lg transition border border-orange-200"
-                @click="dispararTesteNotificacao"
-              >
-                ⚡ Testar Notificação
-              </button>
-              <button
-                type="button"
-                class="text-[11px] font-bold text-blue-600 hover:underline"
-                @click="marcarTodasLidas"
-              >
-                Marcar como lidas
-              </button>
-            </div>
+            <button
+              v-if="naoLidas > 0"
+              type="button"
+              class="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer"
+              @click="marcarTodasLidas"
+            >
+              Marcar como lidas
+            </button>
           </div>
 
           <div v-if="notificacoes.length === 0" class="p-8 text-center text-xs text-slate-400 space-y-1">
-            <span class="text-3xl block">🎉</span>
-            <p class="font-bold text-slate-700">Nenhuma notificação pendente!</p>
-            <p class="text-[11px] text-slate-400">Tudo em dia com a plataforma.</p>
+            <AppIcon name="bell" size="28" class="mx-auto text-slate-300" />
+            <p class="font-bold text-slate-700">Nenhuma comissão recebida ainda</p>
+            <p class="text-[11px] text-slate-400">Cada pagamento aprovado aparece aqui na hora.</p>
           </div>
 
           <div v-else class="divide-y divide-slate-100 max-h-80 overflow-y-auto">
             <div
               v-for="n in notificacoes"
               :key="n.id"
-              class="p-4 transition hover:bg-slate-50 cursor-pointer group"
-              @click="removerNotificacao(n.id)"
+              class="flex items-start gap-3 p-4"
+              :class="new Date(n.criadoEm).getTime() > vistasAte ? 'bg-emerald-50/50' : ''"
             >
-              <div class="flex items-start justify-between gap-2">
-                <p class="text-xs font-black text-slate-900 group-hover:text-blue-600 transition">{{ n.titulo }}</p>
-                <span class="text-[10px] font-semibold text-slate-400 whitespace-nowrap">{{ n.hora }}</span>
+              <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+                <AppIcon name="card" size="16" />
               </div>
-              <p class="mt-1 text-[11px] text-slate-600 leading-relaxed">{{ n.descricao }}</p>
-              <span class="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-slate-400 group-hover:text-blue-600 transition">Clique para marcar como lida <AppIcon name="check" size="10" /></span>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-start justify-between gap-2">
+                  <p class="text-xs font-black text-slate-900">Comissão recebida: {{ formatarMoeda(n.valorTaxa) }}</p>
+                  <span class="text-[10px] font-semibold text-slate-400 whitespace-nowrap">{{ tempoRelativo(n.criadoEm) }}</span>
+                </div>
+                <p class="mt-0.5 text-[11px] text-slate-500">Pagamento de {{ formatarMoeda(n.valorTotal) }} aprovado</p>
+              </div>
             </div>
+          </div>
+
+          <div class="flex items-center justify-between gap-2 border-t border-slate-100 bg-slate-50 px-4 py-2.5">
+            <NuxtLink to="/logs" class="text-[11px] font-bold text-slate-600 hover:text-slate-900" @click="notificacoesAbertas = false">
+              Ver logs do sistema
+            </NuxtLink>
+            <button
+              type="button"
+              class="text-[11px] font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
+              title="Toca o som e mostra o alerta só neste aparelho"
+              @click="dispararTesteNotificacao"
+            >
+              Testar alerta neste aparelho
+            </button>
           </div>
         </div>
       </div>
@@ -186,17 +246,14 @@ async function onSair() {
               <AppIcon name="users" size="16" class="text-blue-600" /> Gerenciar Administradores
             </NuxtLink>
             <NuxtLink to="/financeiro" class="flex items-center gap-3 p-2 rounded-xl hover:bg-slate-100 transition text-slate-800 font-bold" @click="configuracoesAbertas = false">
-              <AppIcon name="card" size="16" class="text-slate-500" /> Taxa de Comissão Asaas (10%)
+              <AppIcon name="card" size="16" class="text-slate-500" /> Financeiro e comissões
             </NuxtLink>
             <NuxtLink to="/organizadores" class="flex items-center gap-3 p-2 rounded-xl hover:bg-slate-100 transition text-slate-800 font-bold" @click="configuracoesAbertas = false">
-              <AppIcon name="shield" size="16" class="text-slate-500" /> Regras de Verificação KYC
+              <AppIcon name="shield" size="16" class="text-slate-500" /> Aprovação de organizadores
             </NuxtLink>
-            <div class="p-3 rounded-xl bg-slate-50 border border-slate-100 text-[11px] text-slate-600">
-              <span class="font-bold block text-slate-800">API Asaas Status:</span>
-              <span class="flex items-center gap-1.5 text-emerald-700 font-bold">
-                <span class="h-2 w-2 rounded-full bg-emerald-500 inline-block"></span> Subconta Master Operacional
-              </span>
-            </div>
+            <NuxtLink to="/logs" class="flex items-center gap-3 p-2 rounded-xl hover:bg-slate-100 transition text-slate-800 font-bold" @click="configuracoesAbertas = false">
+              <AppIcon name="logs" size="16" class="text-slate-500" /> Logs do sistema
+            </NuxtLink>
           </div>
         </div>
       </div>
