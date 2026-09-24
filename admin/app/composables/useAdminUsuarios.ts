@@ -101,8 +101,8 @@ export function useAdminUsuarios() {
     email: string
     cpf: string
     celular?: string
-    dataNascimento?: string
-    genero?: 'MASCULINO' | 'FEMININO' | 'OUTRO'
+    dataNascimento: string
+    genero: 'MASCULINO' | 'FEMININO' | 'OUTRO'
     password?: string
   }) {
     const res = await api<{ usuario: UsuarioAdmin; senhaDefinida: string }>(

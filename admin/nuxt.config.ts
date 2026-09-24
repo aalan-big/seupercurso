@@ -21,6 +21,21 @@ export default defineNuxtConfig({
       ]
     }
   },
+  // Igual ao organizador: sem isso, depois de um deploy o navegador mostrava a
+  // versao antiga do painel ate apertar F5. Os arquivos de /_nuxt tem hash no
+  // nome, entao podem ficar guardados para sempre.
+  routeRules: {
+    '/**': {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate'
+      }
+    },
+    '/_nuxt/**': {
+      headers: {
+        'Cache-Control': 'public, max-age=31536000, immutable'
+      }
+    }
+  },
   runtimeConfig: {
     public: {
       apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:3000'

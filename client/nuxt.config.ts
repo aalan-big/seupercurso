@@ -11,6 +11,23 @@ export default defineNuxtConfig({
     }
   },
 
+  // Depois de um deploy, o navegador do atleta podia seguir com a pagina
+  // antiga apontando para arquivos que nao existem mais. "no-cache" (e nao
+  // "no-store", como no organizador) deixa guardar, mas confere com o servidor
+  // antes de usar: imagens iguais voltam como "nao mudou", sem baixar de novo.
+  routeRules: {
+    '/**': {
+      headers: {
+        'Cache-Control': 'no-cache'
+      }
+    },
+    '/_nuxt/**': {
+      headers: {
+        'Cache-Control': 'public, max-age=31536000, immutable'
+      }
+    }
+  },
+
   runtimeConfig: {
     public: {
       apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:3000',

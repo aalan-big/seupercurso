@@ -37,7 +37,9 @@ const formCriar = reactive({
   cpf: '',
   celular: '',
   dataNascimento: '',
-  genero: 'MASCULINO' as 'MASCULINO' | 'FEMININO' | 'OUTRO',
+  // Comeca vazio: vir marcado como Masculino cadastrava atleta no genero
+  // errado quando o admin nao reparava.
+  genero: '' as '' | 'MASCULINO' | 'FEMININO' | 'OUTRO',
   password: ''
 })
 
@@ -181,7 +183,7 @@ function abrirModalCriar() {
   formCriar.cpf = ''
   formCriar.celular = ''
   formCriar.dataNascimento = ''
-  formCriar.genero = 'MASCULINO'
+  formCriar.genero = ''
   formCriar.password = ''
   erroCriarModal.value = ''
   modalCriarAberto.value = true
@@ -206,6 +208,14 @@ async function onSalvarNovoUsuario() {
     erroCriarModal.value = 'O CPF deve ter exatamente 11 dígitos numéricos.'
     return
   }
+  if (!formCriar.dataNascimento) {
+    erroCriarModal.value = 'Informe a data de nascimento: ela define a categoria e o desconto de idoso.'
+    return
+  }
+  if (!formCriar.genero) {
+    erroCriarModal.value = 'Selecione o gênero: ele define a categoria do atleta.'
+    return
+  }
 
   criandoUsuario.value = true
   erroCriarModal.value = ''
@@ -215,14 +225,16 @@ async function onSalvarNovoUsuario() {
       email: formCriar.email.trim().toLowerCase(),
       cpf: cpfLimpo,
       celular: formCriar.celular.trim() || undefined,
-      dataNascimento: formCriar.dataNascimento || undefined,
-      genero: formCriar.genero,
+      dataNascimento: formCriar.dataNascimento,
+      // Ja conferido acima: nao chega aqui vazio.
+      genero: formCriar.genero as 'MASCULINO' | 'FEMININO' | 'OUTRO',
       password: formCriar.password.trim() || undefined
     })
     sucessoMsg.value = `Atleta "${formCriar.nomeCompleto}" cadastrado com sucesso! Senha de acesso definida: ${res.senhaDefinida}`
     fecharModalCriar()
   } catch (e: any) {
-    erroCriarModal.value = e?.data?.message || 'Erro ao cadastrar usuário.'
+    const msg = e?.data?.message
+    erroCriarModal.value = (Array.isArray(msg) ? msg[0] : msg) || 'Erro ao cadastrar usuário.'
   } finally {
     criandoUsuario.value = false
   }
@@ -661,7 +673,7 @@ onMounted(() => {
             </div>
 
             <div>
-              <label class="block text-xs font-bold uppercase text-slate-700">Nascimento</label>
+              <label class="block text-xs font-bold uppercase text-slate-700">Nascimento *</label>
               <input
                 v-model="formCriar.dataNascimento"
                 type="date"
@@ -670,11 +682,12 @@ onMounted(() => {
             </div>
 
             <div>
-              <label class="block text-xs font-bold uppercase text-slate-700">Gênero</label>
+              <label class="block text-xs font-bold uppercase text-slate-700">Gênero *</label>
               <select
                 v-model="formCriar.genero"
                 class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               >
+                <option value="" disabled>Selecione</option>
                 <option value="MASCULINO">Masculino</option>
                 <option value="FEMININO">Feminino</option>
                 <option value="OUTRO">Outro</option>

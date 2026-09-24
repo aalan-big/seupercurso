@@ -7,7 +7,6 @@ import { OrganizadorService } from '../organizador/organizador.service';
 import { Prisma } from '../generated/prisma/client';
 import {
   CategoriaAuditLog,
-  Genero,
   NivelAuditLog,
   StatusEvento,
   StatusInscricao,
@@ -720,9 +719,7 @@ export class AdminService {
     const senha = dto.password?.trim() || gerarSenhaAleatoria();
     const passwordHash = await bcrypt.hash(senha, 10);
 
-    const dataNasc = dto.dataNascimento
-      ? new Date(dto.dataNascimento)
-      : new Date('2000-01-01');
+    const dataNasc = new Date(dto.dataNascimento);
 
     const usuario = await this.prisma.usuario.create({
       data: {
@@ -736,7 +733,7 @@ export class AdminService {
                 nomeCompleto: dto.nomeCompleto.trim(),
                 cpf: cpfLimpo,
                 dataNascimento: dataNasc,
-                genero: dto.genero || Genero.OUTRO,
+                genero: dto.genero,
                 celular: dto.celular?.trim() || '',
                 nacionalidade: 'Brasileira',
               },
