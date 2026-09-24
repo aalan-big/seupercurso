@@ -630,7 +630,7 @@ async function salvarEmail() {
             {{ erroEmail }}
           </p>
           <p class="text-xs text-slate-500">
-            Você vai precisar confirmar o e-mail novo antes de se inscrever em eventos. Seu login passa a ser o e-mail novo.
+            Enviaremos um link de confirmação para o e-mail novo. Seu login passa a ser o e-mail novo.
           </p>
           <div>
             <label class="mb-1 block text-sm font-semibold text-slate-700">Novo e-mail</label>

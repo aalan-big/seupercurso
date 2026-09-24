@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -37,7 +36,6 @@ export class InscricaoService {
   ) {}
 
   async create(usuarioId: string, dto: CreateInscricaoDto) {
-    await this.garantirEmailVerificado(usuarioId);
     const cliente = await this.getClienteComPfOuFalhar(usuarioId);
     const clienteId = cliente.id;
 
@@ -243,8 +241,11 @@ export class InscricaoService {
     };
   }
 
+  // Nao exige mais e-mail confirmado: em 24/09 metade das tentativas de compra
+  // parava nessa trava (189 contas sem confirmar em 3 dias). O pagamento passa
+  // pelo Mercado Pago de qualquer jeito; o e-mail certo e conferido na tela de
+  // pagamento, e o voucher fica sempre em "Meus Eventos".
   async createBatch(usuarioId: string, dto: CreateInscricaoBatchDto) {
-    await this.garantirEmailVerificado(usuarioId);
     const cliente = await this.getClienteComPfOuFalhar(usuarioId);
     const clienteId = cliente.id;
 
@@ -1150,18 +1151,6 @@ export class InscricaoService {
     }
 
     return cupom.id;
-  }
-
-  private async garantirEmailVerificado(usuarioId: string) {
-    const usuario = await this.prisma.usuario.findUnique({
-      where: { id: usuarioId },
-      select: { emailVerificado: true },
-    });
-    if (!usuario?.emailVerificado) {
-      throw new ForbiddenException(
-        'Confirme seu e-mail antes de se inscrever em um evento. Verifique sua caixa de entrada.',
-      );
-    }
   }
 
   private async getClienteComPfOuFalhar(usuarioId: string) {

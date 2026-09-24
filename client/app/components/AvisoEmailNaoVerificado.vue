@@ -28,7 +28,7 @@ async function onReenviar() {
     <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-2 text-center text-xs font-semibold text-amber-800 sm:justify-between sm:text-left">
       <span class="flex items-center gap-2">
         <MailWarning :size="16" class="shrink-0" />
-        {{ reenviado ? 'E-mail reenviado! Confira sua caixa de entrada.' : 'Confirme seu e-mail pra poder se inscrever em eventos.' }}
+        {{ reenviado ? 'E-mail reenviado! Confira sua caixa de entrada e o spam.' : 'Confirme seu e-mail para receber seus vouchers e poder recuperar a senha.' }}
         <span v-if="erro" class="text-red-600">{{ erro }}</span>
         <NuxtLink to="/perfil#email" class="underline underline-offset-2 hover:text-amber-900">
           E-mail errado? Altere no perfil

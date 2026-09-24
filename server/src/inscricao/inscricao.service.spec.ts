@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -130,14 +129,14 @@ describe('InscricaoService', () => {
   });
 
   describe('create', () => {
-    it('exige e-mail verificado antes de qualquer outra coisa', async () => {
+    it('inscreve mesmo com e-mail ainda nao confirmado', async () => {
+      // A trava barrava metade das compras; o e-mail agora e conferido na
+      // tela de pagamento em vez de bloquear a inscricao.
       prisma.usuario.findUnique.mockResolvedValue({ emailVerificado: false });
 
-      await expect(service.create(usuarioId, dto)).rejects.toThrow(
-        ForbiddenException,
-      );
-      // Barra antes de tocar no cadastro: conta nao confirmada nao inscreve.
-      expect(prisma.cliente.findUnique).not.toHaveBeenCalled();
+      const resultado = await service.create(usuarioId, dto);
+
+      expect(resultado).toEqual(expect.objectContaining({ id: 'inscricao-1' }));
     });
 
     it('lanca NotFoundException se o cliente ainda nao completou o perfil', async () => {

@@ -22,6 +22,7 @@ import {
   Plus,
   Trash2,
   UserCheck,
+  Mail,
   UserPlus,
   LogIn,
   X,
@@ -38,7 +39,7 @@ const eventoId = route.params.id as string
 const config = useRuntimeConfig()
 const apiBase = config.public.apiBase as string
 
-const { token } = useAuth()
+const { token, user } = useAuth()
 const { eventoSelecionado, fetchEvento } = useEvento()
 const { minhasInscricoes, fetchMinhas, criarBatch, uploadDocumentoIdoso, validarServidorPublico, pagarInscricao } = useInscricao()
 const { cliente, fetchMe: fetchClienteMe } = useCliente()
@@ -1932,6 +1933,31 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
               <CreditCard class="w-5 h-5 text-orange-500" />
               4. Checkout & Confirmação
             </h2>
+
+            <!--
+              A compra nao exige mais e-mail confirmado. Em troca, o e-mail de
+              destino aparece aqui: um erro de digitacao e pego antes de pagar,
+              e o voucher fica de qualquer jeito em "Meus Eventos".
+            -->
+            <div
+              v-if="user?.email"
+              class="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div class="flex items-start gap-3 min-w-0">
+                <Mail class="w-5 h-5 shrink-0 text-orange-500 mt-0.5" />
+                <div class="min-w-0">
+                  <p class="text-xs text-slate-500">Os comprovantes e vouchers serão enviados para:</p>
+                  <p class="text-sm font-bold text-slate-900 break-all">{{ user.email }}</p>
+                  <p class="text-[11px] text-slate-400 mt-0.5">Eles também ficam sempre disponíveis em "Meus Eventos".</p>
+                </div>
+              </div>
+              <NuxtLink
+                to="/perfil#email"
+                class="shrink-0 self-start rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition sm:self-center"
+              >
+                E-mail errado? Corrigir
+              </NuxtLink>
+            </div>
 
             <!-- Caso 100% Gratuito (servidores isentos, cupom de 100%...) -->
             <div v-if="valorTotalCalculado === 0" class="bg-white border border-emerald-200 rounded-2xl p-6 sm:p-8 shadow-sm text-center space-y-4">
