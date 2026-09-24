@@ -33,6 +33,7 @@ export interface UsuarioAdmin {
     id: string
     pf: UsuarioClientePf | null
     pj: UsuarioClientePj | null
+    organizador?: { id: string } | null
     _count: {
       inscricoes: number
     }
@@ -80,6 +81,21 @@ export function useAdminUsuarios() {
     return res
   }
 
+  async function alterarCpf(id: string, novoCpf: string) {
+    const res = await api<{ cpf: string; inscricoesAtualizadas: number }>(
+      `/admin/usuarios/${id}/cpf`,
+      {
+        method: 'PATCH',
+        body: { cpf: novoCpf }
+      }
+    )
+    const usuario = usuarios.value.find((u) => u.id === id)
+    if (usuario?.cliente?.pf) {
+      usuario.cliente.pf.cpf = res.cpf
+    }
+    return res
+  }
+
   async function criarUsuario(dados: {
     nomeCompleto: string
     email: string
@@ -107,6 +123,7 @@ export function useAdminUsuarios() {
     buscarUsuarios,
     verificarEmail,
     alterarEmail,
+    alterarCpf,
     criarUsuario
   }
 }

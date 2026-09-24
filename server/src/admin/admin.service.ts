@@ -2,10 +2,13 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import * as bcrypt from 'bcrypt';
 import { randomInt } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 import { OrganizadorService } from '../organizador/organizador.service';
 import { Prisma } from '../generated/prisma/client';
 import {
+  CategoriaAuditLog,
   Genero,
+  NivelAuditLog,
   StatusEvento,
   StatusInscricao,
   StatusOrganizador,
@@ -48,6 +51,7 @@ export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly organizadorService: OrganizadorService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   async listarOrganizadores(status?: string) {
@@ -518,6 +522,9 @@ export class AdminService {
                 celularComercial: true,
               },
             },
+            // A tela esconde "Corrigir CPF" de organizador: o CPF dele define
+            // a conta de saque e muda pelo fluxo com foto do documento.
+            organizador: { select: { id: true } },
             _count: {
               select: {
                 inscricoes: true,
@@ -570,6 +577,86 @@ export class AdminService {
         emailVerificado: true,
       },
     });
+  }
+
+  /**
+   * Corrige o CPF de um atleta (erro de digitacao no cadastro). Junto troca a
+   * copia do CPF gravada nas inscricoes dele mesmo: e ela que sai na planilha
+   * do organizador, na busca de inscritos e no voucher. Inscricoes de
+   * dependentes e as recebidas por transferencia tem outro CPF e ficam como
+   * estao.
+   */
+  async alterarCpfUsuario(adminId: string, id: string, cpfNovo: string) {
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        cliente: {
+          select: {
+            id: true,
+            pf: { select: { cpf: true, nomeCompleto: true } },
+            organizador: { select: { id: true } },
+          },
+        },
+      },
+    });
+    if (!usuario) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    const cliente = usuario.cliente;
+    if (!cliente?.pf) {
+      throw new BadRequestException(
+        'Esta conta não tem cadastro de pessoa física para corrigir o CPF.',
+      );
+    }
+    if (cliente.organizador) {
+      throw new BadRequestException(
+        'Esta conta é de organizador: o CPF define a conta de recebimento. Use a tela "Alteração de CPF/CNPJ", que confere a foto do documento.',
+      );
+    }
+
+    const cpfAnterior = cliente.pf.cpf;
+    if (cpfAnterior === cpfNovo) {
+      return { cpf: cpfNovo, inscricoesAtualizadas: 0 };
+    }
+
+    const jaExiste = await this.prisma.clientePf.findUnique({
+      where: { cpf: cpfNovo },
+      select: { id: true },
+    });
+    if (jaExiste) {
+      throw new ConflictException('Este CPF já está cadastrado em outra conta.');
+    }
+
+    const inscricoesAtualizadas = await this.prisma.$transaction(async (tx) => {
+      await tx.clientePf.update({
+        where: { clienteId: cliente.id },
+        data: { cpf: cpfNovo },
+      });
+      const { count } = await tx.inscricao.updateMany({
+        where: { clienteId: cliente.id, dependenteId: null, atletaCpf: cpfAnterior },
+        data: { atletaCpf: cpfNovo },
+      });
+      return count;
+    });
+
+    this.auditLogService.log({
+      categoria: CategoriaAuditLog.SEGURANCA,
+      nivel: NivelAuditLog.WARN,
+      mensagem: `CPF de ${cliente.pf.nomeCompleto} corrigido pelo admin`,
+      detalhes: {
+        usuarioId: usuario.id,
+        email: usuario.email,
+        cpfAnterior,
+        cpfNovo,
+        inscricoesAtualizadas,
+        adminId,
+      },
+    });
+
+    return { cpf: cpfNovo, inscricoesAtualizadas };
   }
 
   async alterarEmailUsuario(id: string, novoEmail: string) {

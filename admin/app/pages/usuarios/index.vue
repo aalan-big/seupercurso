@@ -2,7 +2,7 @@
 import { Check, X, AlertTriangle } from 'lucide-vue-next'
 import type { UsuarioAdmin } from '../../composables/useAdminUsuarios'
 
-const { usuarios, buscarUsuarios, verificarEmail, alterarEmail, criarUsuario } = useAdminUsuarios()
+const { usuarios, buscarUsuarios, verificarEmail, alterarEmail, alterarCpf, criarUsuario } = useAdminUsuarios()
 
 const termoBusca = ref('')
 const carregando = ref(false)
@@ -19,6 +19,13 @@ const usuarioSelecionado = ref<UsuarioAdmin | null>(null)
 const novoEmailInput = ref('')
 const salvandoEmail = ref(false)
 const erroModal = ref('')
+
+// Controle do modal de correção de CPF
+const modalCpfAberto = ref(false)
+const usuarioCpf = ref<UsuarioAdmin | null>(null)
+const novoCpfInput = ref('')
+const salvandoCpf = ref(false)
+const erroModalCpf = ref('')
 
 // Controle do modal de criação manual de usuário
 const modalCriarAberto = ref(false)
@@ -111,6 +118,60 @@ async function onSalvarNovoEmail() {
     erroModal.value = e?.data?.message || 'Erro ao alterar e-mail.'
   } finally {
     salvandoEmail.value = false
+  }
+}
+
+// Organizador fica de fora: o CPF dele define a conta de saque e muda pela
+// tela "Alteração de CPF/CNPJ", que confere a foto do documento.
+function podeCorrigirCpf(usuario: UsuarioAdmin) {
+  return !!usuario.cliente?.pf && !usuario.cliente?.organizador
+}
+
+function mascararCpf(valor: string) {
+  const d = valor.replace(/\D/g, '').slice(0, 11)
+  return d
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+}
+
+function abrirModalCpf(usuario: UsuarioAdmin) {
+  usuarioCpf.value = usuario
+  novoCpfInput.value = mascararCpf(usuario.cliente?.pf?.cpf || '')
+  erroModalCpf.value = ''
+  modalCpfAberto.value = true
+}
+
+function fecharModalCpf() {
+  modalCpfAberto.value = false
+  usuarioCpf.value = null
+  novoCpfInput.value = ''
+  erroModalCpf.value = ''
+}
+
+async function onSalvarNovoCpf() {
+  if (!usuarioCpf.value) return
+  const cpfLimpo = novoCpfInput.value.replace(/\D/g, '')
+  if (cpfLimpo.length !== 11) {
+    erroModalCpf.value = 'O CPF precisa ter 11 números.'
+    return
+  }
+
+  salvandoCpf.value = true
+  erroModalCpf.value = ''
+  try {
+    const nome = nomeExibicao(usuarioCpf.value)
+    const res = await alterarCpf(usuarioCpf.value.id, cpfLimpo)
+    sucessoMsg.value =
+      res.inscricoesAtualizadas > 0
+        ? `CPF de ${nome} corrigido para ${formatarCpf(res.cpf)} (e em ${res.inscricoesAtualizadas} inscrição(ões) dele).`
+        : `CPF de ${nome} corrigido para ${formatarCpf(res.cpf)}.`
+    fecharModalCpf()
+  } catch (e: any) {
+    const msg = e?.data?.message
+    erroModalCpf.value = (Array.isArray(msg) ? msg[0] : msg) || 'Erro ao corrigir o CPF.'
+  } finally {
+    salvandoCpf.value = false
   }
 }
 
@@ -357,6 +418,18 @@ onMounted(() => {
               Corrigir E-mail
             </button>
 
+            <!-- Botão Corrigir CPF (atletas; organizador usa Alteração de CPF/CNPJ) -->
+            <button
+              v-if="podeCorrigirCpf(u)"
+              type="button"
+              class="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+              title="Corrigir CPF digitado errado"
+              @click="abrirModalCpf(u)"
+            >
+              <AppIcon name="pencil" size="14" class="text-slate-500" />
+              Corrigir CPF
+            </button>
+
             <!-- Botão Aprovar E-mail (Se não verificado) -->
             <button
               v-if="!u.emailVerificado"
@@ -452,6 +525,72 @@ onMounted(() => {
             @click="onSalvarNovoEmail"
           >
             {{ salvandoEmail ? 'Salvando...' : 'Salvar e Liberar Conta' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal para Corrigir CPF -->
+    <div
+      v-if="modalCpfAberto"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      @click.self="fecharModalCpf"
+    >
+      <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <h2 class="text-base font-extrabold uppercase tracking-tight text-primary">
+            Corrigir CPF do Atleta
+          </h2>
+          <button type="button" class="text-slate-400 hover:text-slate-600" @click="fecharModalCpf">
+            <AppIcon name="close" size="18" />
+          </button>
+        </div>
+
+        <div class="mt-4 space-y-3">
+          <p class="text-xs text-slate-600">
+            <strong>Atleta:</strong> {{ usuarioCpf ? nomeExibicao(usuarioCpf) : '' }}
+          </p>
+          <p class="text-xs text-slate-600">
+            <strong>CPF atual:</strong> {{ formatarCpf(usuarioCpf?.cliente?.pf?.cpf) }}
+          </p>
+          <p class="text-xs text-slate-500">
+            Use para corrigir CPF digitado errado. O CPF também é corrigido nas inscrições deste atleta
+            (as de dependentes não mudam). A alteração fica registrada nos Logs do Sistema.
+          </p>
+
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-700">CPF correto</label>
+            <input
+              :value="novoCpfInput"
+              type="text"
+              inputmode="numeric"
+              placeholder="000.000.000-00"
+              class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 font-mono text-sm text-slate-800 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              @input="novoCpfInput = mascararCpf(($event.target as HTMLInputElement).value)"
+              @keydown.enter.prevent="onSalvarNovoCpf"
+            />
+          </div>
+
+          <p v-if="erroModalCpf" class="rounded-lg bg-red-50 p-2 text-xs font-semibold text-red-600">
+            {{ erroModalCpf }}
+          </p>
+        </div>
+
+        <div class="mt-6 flex justify-end gap-2">
+          <button
+            type="button"
+            class="rounded-xl border border-slate-300 px-4 py-2 text-xs font-bold uppercase text-slate-600 hover:bg-slate-50"
+            @click="fecharModalCpf"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            :disabled="salvandoCpf"
+            class="rounded-xl bg-primary px-4 py-2 text-xs font-bold uppercase text-white hover:bg-primary/90 disabled:opacity-50"
+            @click="onSalvarNovoCpf"
+          >
+            {{ salvandoCpf ? 'Salvando...' : 'Salvar CPF' }}
           </button>
         </div>
       </div>

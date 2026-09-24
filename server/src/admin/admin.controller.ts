@@ -20,6 +20,7 @@ import { MotivoDto } from './dto/motivo.dto';
 import { ComissaoDto } from './dto/comissao.dto';
 import { ServidorPublicoConfigDto } from './dto/servidor-publico-config.dto';
 import { AlterarEmailDto } from './dto/alterar-email.dto';
+import { AlterarCpfDto } from './dto/alterar-cpf.dto';
 import { CriarUsuarioAdminDto } from './dto/criar-usuario.dto';
 import { CriarAdminDto } from './dto/criar-admin.dto';
 import { AlteracaoDocumentoService } from '../cliente/alteracao-documento.service';
@@ -202,6 +203,16 @@ export class AdminController {
     @Body() dto: AlterarEmailDto,
   ) {
     return this.adminService.alterarEmailUsuario(id, dto.email);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Patch('usuarios/:id/cpf')
+  alterarCpfUsuario(
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+    @Param('id') id: string,
+    @Body() dto: AlterarCpfDto,
+  ) {
+    return this.adminService.alterarCpfUsuario(admin.adminId, id, dto.cpf);
   }
 
   @HttpCode(HttpStatus.CREATED)
