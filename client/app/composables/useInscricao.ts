@@ -258,7 +258,7 @@ export function useInscricao() {
   }
 
   async function validarServidorPublico(eventoId: string, cpf: string, matricula: string) {
-    return await api<{ valido: boolean; nome?: string; matricula?: string; cpf?: string; mensagem: string }>(
+    return await api<{ valido: boolean; matricula?: string; mensagem: string }>(
       '/inscricoes/validar-servidor',
       {
         method: 'POST',

@@ -185,6 +185,31 @@ describe('PagamentoService', () => {
       expect(resultado).toEqual(expect.objectContaining({ id: 'pagamento-1' }));
     });
 
+    it('não cobra o servidor público isento num pedido misto', async () => {
+      prisma.inscricao.findMany.mockResolvedValue([
+        inscricaoPadrao,
+        { ...inscricaoPadrao, id: 'inscricao-servidor', isServidorPublico: true },
+      ]);
+
+      await service.create(usuarioId, { pedidoId: 'pedido-1', metodo: 'PIX' as const });
+
+      // So a inscricao pagante (60) entra; o servidor nao soma mais 60.
+      expect(gateway.gerarCobrancaPix).toHaveBeenCalledWith(
+        expect.objectContaining({ valor: 60.6 }),
+      );
+    });
+
+    it('recusa gerar cobrança quando o pedido não tem valor a pagar', async () => {
+      prisma.inscricao.findMany.mockResolvedValue([
+        { ...inscricaoPadrao, isServidorPublico: true },
+      ]);
+
+      await expect(service.create(usuarioId, dto)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(gateway.gerarCobrancaPix).not.toHaveBeenCalled();
+    });
+
     it('recusa PIX quando o evento não aceita PIX', async () => {
       prisma.inscricao.findMany.mockResolvedValue([
         {

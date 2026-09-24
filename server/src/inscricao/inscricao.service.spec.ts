@@ -273,7 +273,7 @@ describe('InscricaoService', () => {
 
       tx.pedido = { create: jest.fn().mockResolvedValue({ id: 'pedido-1' }) };
       tx.inscricao = { create: jest.fn().mockResolvedValue({ id: 'inscricao-servidor' }) };
-      tx.servidorPublico = { update: jest.fn().mockResolvedValue({}) };
+      tx.servidorPublico = { updateMany: jest.fn().mockResolvedValue({ count: 1 }) };
       tx.pagamento = { create: jest.fn().mockResolvedValue({ id: 'pag-1' }) };
 
       const batchDto = {
@@ -344,6 +344,237 @@ describe('InscricaoService', () => {
       await expect(service.createBatch(usuarioId, batchDto)).rejects.toThrow(
         BadRequestException,
       );
+    });
+  });
+
+  describe('reuso da isencao do servidor publico', () => {
+    const categoriaServidor = {
+      ...categoriaPadrao,
+      servidorPublico: true,
+      modalidade: {
+        ...categoriaPadrao.modalidade,
+        evento: {
+          ...categoriaPadrao.modalidade.evento,
+          permiteServidorPublico: true,
+          vagasServidorPublico: null as number | null,
+        },
+      },
+    };
+
+    const atletaServidor = (cpf: string) => ({
+      categoriaId: 'categoria-1',
+      loteId: 'lote-1',
+      matriculaServidor: '12345',
+      atleta: {
+        nomeCompleto: `Servidor ${cpf}`,
+        cpf,
+        dataNascimento: '1990-01-01',
+        genero: 'FEMININO' as const,
+        pcd: false,
+      },
+    });
+
+    beforeEach(() => {
+      prisma.categoria.findUnique.mockResolvedValue(categoriaServidor);
+      tx.pedido = { create: jest.fn().mockResolvedValue({ id: 'pedido-1' }) };
+      tx.inscricao = {
+        create: jest.fn().mockResolvedValue({ id: 'inscricao-nova' }),
+      };
+      tx.servidorPublico = {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      };
+      tx.pagamento = { create: jest.fn().mockResolvedValue({ id: 'pag-1' }) };
+    });
+
+    it('libera a isencao quando a inscricao anterior foi cancelada', async () => {
+      prisma.servidorPublico.findFirst.mockResolvedValue({
+        id: 'servidor-1',
+        matricula: '12345',
+        inscricaoId: 'inscricao-cancelada',
+        utilizadoEm: new Date(),
+        inscricao: { status: StatusInscricao.CANCELADA },
+      });
+
+      const res = await service.createBatch(usuarioId, {
+        items: [atletaServidor('11111111111')],
+      });
+
+      expect(res.valorTotal).toBe(0);
+      expect(tx.servidorPublico.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ inscricaoId: 'inscricao-nova' }),
+        }),
+      );
+    });
+
+    it('continua bloqueando quando a inscricao anterior ainda esta pendente', async () => {
+      prisma.servidorPublico.findFirst.mockResolvedValue({
+        id: 'servidor-1',
+        matricula: '12345',
+        inscricaoId: 'inscricao-pendente',
+        utilizadoEm: new Date(),
+        inscricao: { status: StatusInscricao.PENDENTE_PAGAMENTO },
+      });
+
+      await expect(
+        service.createBatch(usuarioId, { items: [atletaServidor('11111111111')] }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('desfaz o pedido se outra compra amarrou o servidor no meio do caminho', async () => {
+      prisma.servidorPublico.findFirst.mockResolvedValue({
+        id: 'servidor-1',
+        matricula: '12345',
+        inscricaoId: null,
+        utilizadoEm: null,
+        inscricao: null,
+      });
+      tx.servidorPublico.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(
+        service.createBatch(usuarioId, { items: [atletaServidor('11111111111')] }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('servidor da lista disputa categoria comum de graca', async () => {
+      prisma.categoria.findUnique.mockResolvedValue({
+        ...categoriaServidor,
+        servidorPublico: false,
+      });
+      prisma.servidorPublico.findFirst.mockResolvedValue({
+        id: 'servidor-1',
+        matricula: '12345',
+        inscricaoId: null,
+        utilizadoEm: null,
+        inscricao: null,
+      });
+
+      const res = await service.createBatch(usuarioId, {
+        items: [atletaServidor('11111111111')],
+      });
+
+      expect(res.valorTotal).toBe(0);
+      expect(tx.inscricao.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ isServidorPublico: true }),
+      });
+    });
+
+    it('pedido gratuito so de servidores leva o rotulo de isencao de servidor', async () => {
+      prisma.servidorPublico.findFirst.mockResolvedValue({
+        id: 'servidor-1',
+        matricula: '12345',
+        inscricaoId: null,
+        utilizadoEm: null,
+        inscricao: null,
+      });
+
+      await service.createBatch(usuarioId, { items: [atletaServidor('11111111111')] });
+
+      expect(tx.pagamento.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ gateway: 'ISENCAO_SERVIDOR_PUBLICO' }),
+      });
+    });
+
+    it('recusa modelo de camisa que nao e do evento', async () => {
+      prisma.categoria.findUnique.mockResolvedValue({
+        ...categoriaPadrao,
+        servidorPublico: false,
+        modalidade: {
+          ...categoriaPadrao.modalidade,
+          evento: { ...categoriaPadrao.modalidade.evento, possuiCamisa: true },
+        },
+      });
+      prisma.modeloCamisa = { findFirst: jest.fn().mockResolvedValue(null) };
+
+      await expect(
+        service.createBatch(usuarioId, {
+          items: [
+            {
+              categoriaId: 'categoria-1',
+              loteId: 'lote-1',
+              tamanhoCamisa: 'M',
+              modeloCamisaId: '00000000-0000-0000-0000-000000000000',
+              atleta: {
+                nomeCompleto: 'Atleta Comum',
+                cpf: '33333333333',
+                dataNascimento: '1990-01-01',
+                genero: 'FEMININO' as const,
+                pcd: false,
+              },
+            },
+          ],
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('matricula fora da lista em categoria comum nao sai de graca', async () => {
+      prisma.categoria.findUnique.mockResolvedValue({
+        ...categoriaServidor,
+        servidorPublico: false,
+      });
+      prisma.servidorPublico.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.createBatch(usuarioId, { items: [atletaServidor('11111111111')] }),
+      ).rejects.toThrow(NotFoundException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('recusa a categoria de servidor pela inscricao individual', async () => {
+      await expect(service.create(usuarioId, dto)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('validar matricula nao devolve o nome do servidor', async () => {
+      prisma.evento.findUnique.mockResolvedValue({
+        permiteServidorPublico: true,
+        vagasServidorPublico: null,
+      });
+      prisma.servidorPublico.findFirst.mockResolvedValue({
+        id: 'servidor-1',
+        matricula: '12345',
+        cpf: '11111111111',
+        nome: 'MARIA DA SILVA',
+        inscricao: null,
+      });
+
+      const res = await service.validarServidor({
+        eventoId,
+        cpf: '111.111.111-11',
+        matricula: '12345',
+      });
+
+      expect(res.valido).toBe(true);
+      expect(JSON.stringify(res)).not.toContain('MARIA');
+    });
+
+    it('conta os servidores do proprio carrinho no limite de vagas', async () => {
+      prisma.categoria.findUnique.mockResolvedValue({
+        ...categoriaServidor,
+        modalidade: {
+          ...categoriaServidor.modalidade,
+          evento: { ...categoriaServidor.modalidade.evento, vagasServidorPublico: 1 },
+        },
+      });
+      prisma.servidorPublico.count.mockResolvedValue(0);
+      prisma.servidorPublico.findFirst.mockResolvedValue({
+        id: 'servidor-x',
+        matricula: '12345',
+        inscricaoId: null,
+        utilizadoEm: null,
+        inscricao: null,
+      });
+
+      // Sobrou 1 vaga e o carrinho traz 2 servidores: o segundo nao cabe.
+      await expect(
+        service.createBatch(usuarioId, {
+          items: [atletaServidor('11111111111'), atletaServidor('22222222222')],
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
   });
 });

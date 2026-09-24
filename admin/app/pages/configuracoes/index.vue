@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Check, X, AlertTriangle } from 'lucide-vue-next'
 import type { AdminItem } from '../../composables/useAdminGerenciamento'
 
 const { user } = useAuth()
@@ -64,8 +65,8 @@ async function onCriarAdmin() {
     return
   }
 
-  if (senha.length < 6) {
-    erroModal.value = 'A senha deve ter no mínimo 6 caracteres.'
+  if (senha.length < 8) {
+    erroModal.value = 'A senha deve ter no mínimo 8 caracteres.'
     return
   }
 
@@ -170,10 +171,10 @@ function extrairIniciais(nome?: string, email?: string) {
       class="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800"
     >
       <div class="flex items-center gap-2">
-        <span class="text-emerald-600 font-black">✓</span>
+        <Check :size="16" class="shrink-0 text-emerald-600" />
         <span>{{ sucessoMsg }}</span>
       </div>
-      <button type="button" class="text-emerald-700 hover:text-emerald-900 cursor-pointer" @click="sucessoMsg = ''">✕</button>
+      <button type="button" class="text-emerald-700 hover:text-emerald-900 cursor-pointer" aria-label="Fechar" @click="sucessoMsg = ''"><X :size="16" /></button>
     </div>
 
     <div
@@ -181,10 +182,10 @@ function extrairIniciais(nome?: string, email?: string) {
       class="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700"
     >
       <div class="flex items-center gap-2">
-        <span class="text-red-600 font-bold">✕</span>
+        <AlertTriangle :size="16" class="shrink-0 text-red-600" />
         <span>{{ erro }}</span>
       </div>
-      <button type="button" class="text-red-700 hover:text-red-900 cursor-pointer" @click="erro = ''">✕</button>
+      <button type="button" class="text-red-700 hover:text-red-900 cursor-pointer" aria-label="Fechar" @click="erro = ''"><X :size="16" /></button>
     </div>
 
     <!-- Lista de Administradores -->
@@ -306,8 +307,8 @@ function extrairIniciais(nome?: string, email?: string) {
               v-model="form.password"
               :type="mostrarSenha ? 'text' : 'password'"
               required
-              minlength="6"
-              placeholder="Mínimo 6 caracteres"
+              minlength="8"
+              placeholder="Mínimo 8 caracteres"
               class="mt-1 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-800 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
           </div>
@@ -318,14 +319,14 @@ function extrairIniciais(nome?: string, email?: string) {
               v-model="form.confirmPassword"
               :type="mostrarSenha ? 'text' : 'password'"
               required
-              minlength="6"
+              minlength="8"
               placeholder="Digite a senha novamente"
               class="mt-1 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-800 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
           </div>
 
           <div class="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 leading-relaxed">
-            <p class="font-bold">⚠️ Atenção:</p>
+            <p class="font-bold flex items-center gap-1.5"><AlertTriangle :size="14" /> Atenção:</p>
             <p class="mt-0.5">O novo administrador terá acesso completo às funções do painel administrativo. Não compartilhe senhas com pessoas não autorizadas.</p>
           </div>
 

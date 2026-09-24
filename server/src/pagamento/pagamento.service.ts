@@ -208,6 +208,11 @@ export class PagamentoService {
 
     let valorBaseTotal = 0;
     for (const inscricao of inscricoes) {
+      // Servidor publico com isencao entrou no pedido com valor zero. Sem isso
+      // o pedido misto (servidor + pagante) cobrava o servidor tambem, e o
+      // Mercado Pago recebia mais do que o site mostrou.
+      if (inscricao.isServidorPublico) continue;
+
       valorBaseTotal += await calcularValorInscricao(this.prisma, {
         loteId: inscricao.loteId,
         modalidadeId: inscricao.categoria.modalidadeId,
@@ -219,7 +224,12 @@ export class PagamentoService {
           inscricao.dependente?.dataNascimento ||
           inscricao.cliente.pf?.dataNascimento,
         incluiCamisa: inscricao.incluiCamisa,
+        valorCamisa: inscricao.valorCamisa,
       });
+    }
+
+    if (valorBaseTotal <= 0) {
+      throw new BadRequestException('Não há valor a pagar neste pedido.');
     }
 
     const comissaoPercentual = Number(evento.organizador?.comissaoPercentual ?? 10);

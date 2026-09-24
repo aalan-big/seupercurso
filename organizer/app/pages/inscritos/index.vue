@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BarChart2, AlertTriangle, Footprints, X, CheckCircle, Hash, Shirt, CreditCard, Save, ListTree, FileText } from 'lucide-vue-next'
+import { BarChart2, AlertTriangle, Footprints, X, CheckCircle, Hash, Shirt, CreditCard, Save, ListTree, FileText, UserRound } from 'lucide-vue-next'
 import { urlFoto } from '../../utils/foto'
 
 const { inscritos, fetchInscritos, exportarCsv, atualizarInscricao, conferirDocumentoIdoso } = useInscritosOrganizador()
@@ -485,7 +485,7 @@ function formatarData(iso: string) {
                   CPF: {{ documentoCliente(atletaSelecionado) }} · {{ atletaSelecionado.cliente.usuario.email }}
                 </p>
                 <span v-if="compradorTitular(atletaSelecionado)" class="block text-orange-600 font-bold text-xs mt-0.5 truncate">
-                  📌 {{ compradorTitular(atletaSelecionado) }}
+                  <UserRound :size="12" class="inline -mt-0.5" /> {{ compradorTitular(atletaSelecionado) }}
                 </span>
               </div>
             </div>

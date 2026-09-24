@@ -409,9 +409,10 @@ export class OrganizadorService {
 
     for (const inscricao of inscricoes) {
       const semCamisa = evento.camisaOpcional && !inscricao.incluiCamisa;
+      // Fica de fora da grade de tamanhos: ela e a lista de camisas a produzir.
+      // A contagem de quem nao quis camisa vai em `totalSemCamisa`.
       if (semCamisa) {
         totalSemCamisa++;
-        totalPorTamanho['Sem camisa'] = (totalPorTamanho['Sem camisa'] || 0) + 1;
         continue;
       }
 
@@ -612,6 +613,22 @@ export class OrganizadorService {
     });
     if (!modelo) throw new NotFoundException('Modelo de camisa não encontrado.');
 
+    // Excluir apagava em silencio a escolha de quem ja tinha pedido esse
+    // modelo, e no relatorio da grafica ele virava "Modelo Padrão".
+    const inscricoesComModelo = await this.prisma.inscricao.count({
+      where: { modeloCamisaId: modeloId },
+    });
+    if (inscricoesComModelo > 0) {
+      throw new ConflictException(
+        `${inscricoesComModelo} atleta(s) já escolheram o modelo "${modelo.nome}". Em vez de excluir, desative o modelo: ele some da inscrição e quem já escolheu continua com ele.`,
+      );
+    }
+
+    // Apaga as fotos so depois de saber que o modelo sai mesmo.
+    const modeloRemovido = await this.prisma.modeloCamisa.delete({
+      where: { id: modeloId },
+    });
+
     if (modelo.fotoFrenteUrl?.startsWith('/uploads/')) {
       unlink(join(process.cwd(), modelo.fotoFrenteUrl)).catch(() => undefined);
     }
@@ -619,9 +636,7 @@ export class OrganizadorService {
       unlink(join(process.cwd(), modelo.fotoVersoUrl)).catch(() => undefined);
     }
 
-    return this.prisma.modeloCamisa.delete({
-      where: { id: modeloId },
-    });
+    return modeloRemovido;
   }
 
   async atualizarFotoModeloCamisa(
@@ -1030,6 +1045,28 @@ export class OrganizadorService {
       throw new BadRequestException(
         'Este evento não entrega camisa, então não há tamanho para definir.',
       );
+    }
+
+    // Categoria e modelo vinham sem conferencia: dava para mover a inscricao
+    // para a categoria de outro evento (ate de outro organizador).
+    const eventoId = inscricao.categoria.modalidade.eventoId;
+    if (dto.categoriaId !== undefined && dto.categoriaId !== inscricao.categoriaId) {
+      const categoriaDestino = await this.prisma.categoria.findFirst({
+        where: { id: dto.categoriaId, modalidade: { eventoId } },
+        select: { id: true },
+      });
+      if (!categoriaDestino) {
+        throw new BadRequestException('A categoria escolhida não pertence a este evento.');
+      }
+    }
+    if (dto.modeloCamisaId) {
+      const modeloDestino = await this.prisma.modeloCamisa.findFirst({
+        where: { id: dto.modeloCamisaId, eventoId },
+        select: { id: true },
+      });
+      if (!modeloDestino) {
+        throw new BadRequestException('O modelo de camisa escolhido não pertence a este evento.');
+      }
     }
 
     const res = await this.prisma.inscricao.update({

@@ -26,7 +26,9 @@ import {
   LogIn,
   X,
   Camera,
-  Eye
+  Eye,
+  Landmark,
+  IdCard
 } from 'lucide-vue-next'
 import type { ModeloCamisaEvento } from '../../composables/useEvento'
 
@@ -87,11 +89,11 @@ interface ItemCarrinho {
   // servidor (sobrevive ao sessionStorage) e o nome so pra mostrar na tela.
   documentoIdosoUrl?: string
   documentoIdosoNome?: string
+  documentoIdosoErro?: string
   matriculaServidor?: string
   servidorValidado?: boolean
   servidorValidando?: boolean
   servidorErro?: string
-  servidorNome?: string
 }
 
 // Modal Lightbox de fotos de modelos de camisa
@@ -119,6 +121,7 @@ const carrinho = ref<ItemCarrinho[]>([])
 
 // Modal de adição de atleta
 const modalAdicionarAtletaAberto = ref(false)
+const erroAdicionarAtleta = ref('')
 const tipoNovoAtleta = ref<'DEPENDENTE' | 'MANUAL'>('DEPENDENTE')
 const dependenteSelecionadoId = ref<string | null>(null)
 
@@ -188,7 +191,7 @@ function removerCupom() {
 const inscrevendo = ref(false)
 const erroInscricao = ref('')
 const metodoPagamentoSelecionado = ref<'PIX' | 'CREDITO'>('PIX')
-const inscricaoCriada = ref<{ id?: string; pedidoId?: string; pagamentoId?: string; valor: string; metodo?: string; pixCopiaECola?: string; pixQrCodeUrl?: string } | null>(null)
+const inscricaoCriada = ref<{ id?: string; pedidoId?: string; pagamentoId?: string; valor: string; metodo?: string; pixCopiaECola?: string; pixQrCodeUrl?: string; isencaoServidor?: boolean } | null>(null)
 
 // Acompanhamento do PIX: sem isso o comprador pagava e ficava na tela sem
 // nenhuma confirmacao, dependendo de recarregar a pagina.
@@ -417,17 +420,19 @@ function abrirModalAdicionarAtleta() {
   formManual.genero = 'MASCULINO'
   formManual.pcd = false
   dependenteSelecionadoId.value = dependentes.value.length > 0 ? dependentes.value[0].id : null
+  erroAdicionarAtleta.value = ''
   modalAdicionarAtletaAberto.value = true
 }
 
 function confirmarAdicionarAtleta() {
   erroInscricao.value = ''
+  erroAdicionarAtleta.value = ''
   const temCamisaOpcional = !!eventoSelecionado.value?.camisaOpcional
   const primeiroModeloId = eventoSelecionado.value?.modelosCamisa?.[0]?.id || null
 
   if (tipoNovoAtleta.value === 'DEPENDENTE') {
     if (!dependenteSelecionadoId.value) {
-      alert('Selecione um dependente.')
+      erroAdicionarAtleta.value = 'Selecione um dependente.'
       return
     }
     const dep = dependentes.value.find((d) => d.id === dependenteSelecionadoId.value)
@@ -435,7 +440,7 @@ function confirmarAdicionarAtleta() {
 
     const depCpf = (dep.cpf || '').replace(/\D/g, '')
     if (depCpf && carrinho.value.some((item) => (item.cpf || '').replace(/\D/g, '') === depCpf)) {
-      alert(`O atleta ${dep.nomeCompleto} já está no seu carrinho de inscrições.`)
+      erroAdicionarAtleta.value = `O atleta ${dep.nomeCompleto} já está no seu carrinho de inscrições.`
       return
     }
 
@@ -456,16 +461,16 @@ function confirmarAdicionarAtleta() {
     })
   } else {
     if (!formManual.nomeCompleto.trim() || !formManual.cpf.trim() || !formManual.dataNascimento) {
-      alert('Preencha os campos obrigatórios do atleta (Nome, CPF e Data de Nascimento).')
+      erroAdicionarAtleta.value = 'Preencha os campos obrigatórios do atleta (Nome, CPF e Data de Nascimento).'
       return
     }
     const cpfLimpo = formManual.cpf.replace(/\D/g, '')
     if (!cpfEhValido(cpfLimpo)) {
-      alert('CPF inválido. Confira os números digitados.')
+      erroAdicionarAtleta.value = 'CPF inválido. Confira os números digitados.'
       return
     }
     if (carrinho.value.some((item) => (item.cpf || '').replace(/\D/g, '') === cpfLimpo)) {
-      alert('Este CPF já está no seu carrinho de inscrições.')
+      erroAdicionarAtleta.value = 'Este CPF já está no seu carrinho de inscrições.'
       return
     }
 
@@ -496,7 +501,7 @@ function removerAtleta(uid: string) {
 function temDescontoIdoso(item: ItemCarrinho) {
   const ev = eventoSelecionado.value
   if (!ev?.aplicaDescontoIdoso || !ev.percentualDescontoIdoso) return false
-  if (item.servidorValidado) return false
+  if (isencaoServidorAtiva(item)) return false
   return calcularIdade(item.dataNascimento, ev.dataInicio) >= 60
 }
 
@@ -562,7 +567,7 @@ async function onDocumentoIdosoSelecionado(item: ItemCarrinho, e: Event) {
   const input = e.target as HTMLInputElement
   const arquivoOriginal = input.files?.[0]
   if (!arquivoOriginal) return
-  erroInscricao.value = ''
+  item.documentoIdosoErro = ''
   enviandoDocumentoIdoso.value = item.uid
   try {
     const arquivo = await comprimirImagemSeNecessario(arquivoOriginal)
@@ -570,9 +575,9 @@ async function onDocumentoIdosoSelecionado(item: ItemCarrinho, e: Event) {
     item.documentoIdosoUrl = url
     item.documentoIdosoNome = arquivoOriginal.name
   } catch (err: any) {
-    const msg = extrairErro(err)
-    erroInscricao.value = `Falha ao enviar documento: ${msg}`
-    alert(`Falha ao enviar documento: ${msg}`)
+    // Aparece junto dos botoes de envio daquele atleta, onde a pessoa esta
+    // olhando; o alert() do navegador travava a tela no celular.
+    item.documentoIdosoErro = `Falha ao enviar documento: ${extrairErro(err)}`
   } finally {
     enviandoDocumentoIdoso.value = null
     input.value = ''
@@ -665,10 +670,21 @@ function itemIsServidorPublico(item: ItemCarrinho) {
   return !!cat?.servidorPublico
 }
 
+// O servidor da lista disputa qualquer categoria de graca; a matricula e
+// obrigatoria so na categoria marcada como Servidor Publico.
+function isencaoServidorAtiva(item: ItemCarrinho) {
+  return !!eventoSelecionado.value?.permiteServidorPublico && !!item.categoriaId && !!item.servidorValidado
+}
+
 async function validarMatriculaServidor(item: ItemCarrinho) {
   item.servidorErro = ''
   if (!item.matriculaServidor || !item.matriculaServidor.trim()) {
     item.servidorErro = 'Digite o número da sua matrícula de servidor público.'
+    return
+  }
+  // O servidor exige login para validar; o carrinho sobrevive ao login.
+  if (!token.value) {
+    item.servidorErro = 'Entre na sua conta para validar a matrícula. Os atletas do carrinho continuam salvos.'
     return
   }
   item.servidorValidando = true
@@ -676,7 +692,6 @@ async function validarMatriculaServidor(item: ItemCarrinho) {
     const res = await validarServidorPublico(eventoId, item.cpf, item.matriculaServidor.trim())
     if (res.valido) {
       item.servidorValidado = true
-      item.servidorNome = res.nome || item.nome
       item.servidorErro = ''
     }
   } catch (err: any) {
@@ -687,19 +702,19 @@ async function validarMatriculaServidor(item: ItemCarrinho) {
   }
 }
 
+// A matricula validada vale para o CPF no evento inteiro, em qualquer
+// categoria: trocar de categoria nao obriga a validar de novo.
+const todosSaoServidoresIsentos = computed(
+  () => carrinho.value.length > 0 && carrinho.value.every((i) => isencaoServidorAtiva(i))
+)
+
 function selecionarCategoriaItem(item: ItemCarrinho, categoriaId: string) {
-  if (item.categoriaId !== categoriaId) {
-    item.categoriaId = categoriaId
-    item.servidorValidado = false
-    item.servidorErro = ''
-  }
+  item.categoriaId = categoriaId
 }
 
 function calcularPrecoItem(item: ItemCarrinho) {
   if (!item.modalidadeId) return 0
-  if (item.servidorValidado || (itemIsServidorPublico(item) && item.servidorValidado)) {
-    return 0
-  }
+  if (isencaoServidorAtiva(item)) return 0
   const valorBase = precoBasePara(item.modalidadeId)
   let valor = valorBase
 
@@ -732,8 +747,6 @@ const valorTotalCalculado = computed(() => {
 function selecionarModalidadeItem(item: ItemCarrinho, modalidadeId: string) {
   item.modalidadeId = modalidadeId
   item.categoriaId = null
-  item.servidorValidado = false
-  item.servidorErro = ''
   const mod = modalidadesAtivas.value.find((m) => m.id === modalidadeId)
   if (mod && mod.categorias && mod.categorias.length > 0) {
     const elegivel = mod.categorias.find((c) => !motivoInelegibilidadeParaAtleta(c, item))
@@ -1039,7 +1052,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
         modeloCamisaId: comCamisa ? (item.modeloCamisaId || undefined) : undefined,
         cupomCodigo: cupomCodigo.value || undefined,
         dependenteId: item.dependenteId,
-        matriculaServidor: (itemIsServidorPublico(item) || item.servidorValidado) ? item.matriculaServidor?.trim() : undefined,
+        matriculaServidor: isencaoServidorAtiva(item) ? item.matriculaServidor?.trim() : undefined,
         documentoIdosoUrl: item.documentoIdosoUrl || undefined,
         atleta: item.tipo === 'MANUAL'
           ? {
@@ -1055,12 +1068,13 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
 
     const batchRes = await criarBatch(itemsPayload)
 
-    // Se for inscrição 100% gratuita (Servidor Público com isenção total)
-    if (batchRes.valorTotal === 0 || (batchRes as any).status === 'CONFIRMADA') {
+    // Pedido de R$ 0 ja volta confirmado: servidores isentos, cupom de 100%...
+    if (batchRes.valorTotal === 0 || batchRes.status === 'CONFIRMADA') {
       inscricaoCriada.value = {
         pedidoId: batchRes.pedidoId,
         valor: '0.00',
-        metodo: 'ISENCAO_SERVIDOR_PUBLICO'
+        metodo: 'GRATUITO',
+        isencaoServidor: todosSaoServidoresIsentos.value
       }
       limparEstadoCheckout()
       return
@@ -1128,14 +1142,15 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
             </p>
           </div>
 
-          <!-- Servidor Público Isenção -->
-          <div v-if="inscricaoCriada.metodo === 'ISENCAO_SERVIDOR_PUBLICO'" class="p-5 sm:p-6 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-3">
-            <span class="inline-block px-3 py-1 bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-full text-[11px] font-black uppercase tracking-wider">
-              🏛️ Isenção Concedida · Servidor Público
+          <!-- Inscricao gratuita (servidores isentos, cupom de 100%...) -->
+          <div v-if="inscricaoCriada.metodo === 'GRATUITO'" class="p-5 sm:p-6 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-3">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-full text-[11px] font-black uppercase tracking-wider">
+              <Landmark v-if="inscricaoCriada.isencaoServidor" class="w-3.5 h-3.5" />
+              {{ inscricaoCriada.isencaoServidor ? 'Isenção Concedida · Servidor Público' : 'Inscrição Gratuita' }}
             </span>
             <p class="text-2xl sm:text-3xl font-black text-emerald-600">R$ 0,00 (100% Gratuito)</p>
             <p class="text-xs sm:text-sm font-semibold text-emerald-900">
-              Sua inscrição foi confirmada com sucesso! As vagas gratuitas foram reservadas e os comprovantes e vouchers enviados para seu e-mail cadastrado.
+              Sua inscrição foi confirmada com sucesso! Os comprovantes foram enviados para o seu e-mail cadastrado.
             </p>
           </div>
 
@@ -1429,44 +1444,19 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                     <p class="text-[11px] font-bold" :class="item.documentoIdosoUrl ? 'text-emerald-900' : 'text-amber-900'">
                       Desconto do idoso ({{ eventoSelecionado?.percentualDescontoIdoso }}%) — envie um documento com foto (RG ou CNH) pra comprovar a idade.
                       <span v-if="eventoSelecionado?.permiteServidorPublico" class="block font-normal mt-0.5 text-slate-600">
-                        (Não obrigatório caso vá inscrever este atleta na categoria Servidor Público com isenção).
+                        (Não obrigatório se o atleta for servidor público da lista oficial: a inscrição dele sai de graça).
                       </span>
                       <span v-else class="block font-normal mt-0.5">
                         Ele será conferido na retirada do kit.
                       </span>
                     </p>
-                    <div v-if="item.documentoIdosoUrl" class="flex items-center gap-2 text-xs font-bold text-emerald-800">
-                      <CheckCircle class="w-4 h-4 shrink-0" />
-                      <span class="truncate">{{ item.documentoIdosoNome || 'Documento enviado' }}</span>
-                    </div>
-                    <div class="flex flex-wrap gap-2">
-                      <label
-                        class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-orange-500 text-white text-xs font-bold cursor-pointer hover:bg-orange-600"
-                        :class="{ 'opacity-60 pointer-events-none': enviandoDocumentoIdoso === item.uid }"
-                      >
-                        <Camera class="w-4 h-4" />
-                        <span>{{ enviandoDocumentoIdoso === item.uid ? 'Enviando...' : (item.documentoIdosoUrl ? 'Tirar outra foto' : 'Tirar foto agora') }}</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          class="hidden"
-                          @change="onDocumentoIdosoSelecionado(item, $event)"
-                        />
-                      </label>
-                      <label
-                        class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-slate-300 text-xs font-bold text-slate-700 cursor-pointer hover:bg-slate-50"
-                        :class="{ 'opacity-60 pointer-events-none': enviandoDocumentoIdoso === item.uid }"
-                      >
-                        <FileText class="w-4 h-4" />
-                        <span>{{ item.documentoIdosoUrl ? 'Trocar arquivo' : 'Escolher arquivo' }}</span>
-                        <input
-                          type="file"
-                          accept="image/*,application/pdf"
-                          class="hidden"
-                          @change="onDocumentoIdosoSelecionado(item, $event)"
-                        />
-                      </label>
-                    </div>
+                    <DocumentoIdosoUpload
+                      :enviando="enviandoDocumentoIdoso === item.uid"
+                      :enviado="!!item.documentoIdosoUrl"
+                      :nome-arquivo="item.documentoIdosoNome"
+                      :erro="item.documentoIdosoErro"
+                      @selecionar="onDocumentoIdosoSelecionado(item, $event)"
+                    />
                   </div>
                 </div>
               </div>
@@ -1566,7 +1556,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                             v-if="cat.servidorPublico"
                             class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-100 text-blue-800 border border-blue-200"
                           >
-                            🏛️ Servidor Público
+                            <Landmark class="inline w-3 h-3 -mt-0.5" /> Servidor Público
                           </span>
                         </div>
                         <p v-if="motivoInelegibilidadeParaAtleta(cat, item)" class="text-xs text-rose-500 mt-0.5">
@@ -1577,21 +1567,26 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                     </div>
                   </div>
 
-                  <!-- Validação de Servidor Público se a categoria for Servidor Público -->
+                  <!--
+                    Validacao de servidor publico. Obrigatoria na categoria marcada
+                    como Servidor Publico; nas demais e opcional, porque o servidor
+                    da lista disputa qualquer categoria de graca.
+                  -->
                   <div
-                    v-if="itemIsServidorPublico(item)"
+                    v-if="eventoSelecionado?.permiteServidorPublico && item.categoriaId"
                     class="rounded-xl border p-4 space-y-3 transition mt-3"
                     :class="item.servidorValidado ? 'bg-emerald-50 border-emerald-300' : 'bg-blue-50 border-blue-200'"
                   >
                     <div class="flex items-start gap-3">
-                      <span class="text-2xl">🏛️</span>
+                      <Landmark class="w-6 h-6 shrink-0" :class="item.servidorValidado ? 'text-emerald-600' : 'text-blue-600'" />
                       <div class="flex-1 space-y-2">
                         <div>
                           <h4 class="text-xs font-black uppercase tracking-wider" :class="item.servidorValidado ? 'text-emerald-900' : 'text-blue-900'">
-                            Categoria Servidor Público · 100% Gratuita
+                            {{ itemIsServidorPublico(item) ? 'Categoria Servidor Público · 100% Gratuita' : 'É servidor público? Inscrição 100% gratuita' }}
                           </h4>
                           <p class="text-xs text-slate-600 mt-0.5">
                             Digite a matrícula funcional de <strong>{{ item.nome.split(' ')[0] }}</strong> (CPF {{ formatarCpf(item.cpf) }}) para validar na lista oficial e liberar a gratuidade.
+                            <span v-if="!itemIsServidorPublico(item)">Se não for servidor, deixe em branco.</span>
                           </p>
                         </div>
 
@@ -1617,7 +1612,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                         <div v-else class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
                           <div class="flex items-center gap-2 text-xs font-bold text-emerald-800">
                             <CheckCircle class="w-4 h-4 text-emerald-600 shrink-0" />
-                            <span>Matrícula {{ item.matriculaServidor }} confirmada na lista oficial! {{ item.servidorNome ? `(${item.servidorNome})` : '' }}</span>
+                            <span>Matrícula {{ item.matriculaServidor }} confirmada ✓</span>
                           </div>
                           <button
                             type="button"
@@ -1643,7 +1638,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                     :class="item.documentoIdosoUrl ? 'border-emerald-200 bg-emerald-50' : 'border-amber-300 bg-amber-50'"
                   >
                     <div class="flex items-start gap-2.5">
-                      <span class="text-xl">🪪</span>
+                      <IdCard class="w-5 h-5 shrink-0" :class="item.documentoIdosoUrl ? 'text-emerald-600' : 'text-amber-600'" />
                       <div class="flex-1 space-y-1.5">
                         <p class="text-xs font-black uppercase tracking-wider" :class="item.documentoIdosoUrl ? 'text-emerald-900' : 'text-amber-900'">
                           Desconto 60+ (Idoso) · {{ eventoSelecionado?.percentualDescontoIdoso }}% OFF
@@ -1652,41 +1647,14 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                           Para validar o desconto por idade de <strong>{{ item.nome.split(' ')[0] }}</strong>, anexe uma foto do documento oficial (RG ou CNH).
                         </p>
 
-                        <div v-if="item.documentoIdosoUrl" class="flex items-center gap-2 text-xs font-bold text-emerald-800 pt-1">
-                          <CheckCircle class="w-4 h-4 shrink-0 text-emerald-600" />
-                          <span class="truncate">{{ item.documentoIdosoNome || 'Documento enviado com sucesso' }}</span>
-                        </div>
-
-                        <div class="flex flex-wrap gap-2 pt-1">
-                          <label
-                            class="px-3 py-1.5 bg-white border border-slate-300 hover:border-slate-400 text-slate-700 rounded-lg text-xs font-bold cursor-pointer transition flex items-center gap-1.5 shadow-xs"
-                            :class="{ 'opacity-60 pointer-events-none': enviandoDocumentoIdoso === item.uid }"
-                          >
-                            <Camera class="w-3.5 h-3.5" />
-                            <span>{{ enviandoDocumentoIdoso === item.uid ? 'Enviando...' : (item.documentoIdosoUrl ? 'Tirar outra foto' : 'Tirar foto agora') }}</span>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              capture="environment"
-                              class="hidden"
-                              @change="onDocumentoIdosoSelecionado(item, $event)"
-                            />
-                          </label>
-
-                          <label
-                            class="px-3 py-1.5 bg-white border border-slate-300 hover:border-slate-400 text-slate-700 rounded-lg text-xs font-bold cursor-pointer transition flex items-center gap-1.5 shadow-xs"
-                            :class="{ 'opacity-60 pointer-events-none': enviandoDocumentoIdoso === item.uid }"
-                          >
-                            <FileText class="w-3.5 h-3.5" />
-                            <span>{{ item.documentoIdosoUrl ? 'Trocar arquivo' : 'Escolher arquivo (PDF ou Foto)' }}</span>
-                            <input
-                              type="file"
-                              accept="image/*,application/pdf"
-                              class="hidden"
-                              @change="onDocumentoIdosoSelecionado(item, $event)"
-                            />
-                          </label>
-                        </div>
+                        <DocumentoIdosoUpload
+                          class="pt-1"
+                          :enviando="enviandoDocumentoIdoso === item.uid"
+                          :enviado="!!item.documentoIdosoUrl"
+                          :nome-arquivo="item.documentoIdosoNome"
+                          :erro="item.documentoIdosoErro"
+                          @selecionar="onDocumentoIdosoSelecionado(item, $event)"
+                        />
                       </div>
                     </div>
                   </div>
@@ -1927,10 +1895,10 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                   <div class="flex flex-wrap items-center gap-2">
                     <span class="font-semibold">{{ item.nome }} ({{ modalidadesAtivas.find((m) => m.id === item.modalidadeId)?.nome }})</span>
                     <span
-                      v-if="itemIsServidorPublico(item) && item.servidorValidado"
+                      v-if="isencaoServidorAtiva(item)"
                       class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-100 text-blue-800 border border-blue-200"
                     >
-                      🏛️ Servidor Público
+                      <Landmark class="inline w-3 h-3 -mt-0.5" /> Servidor Público
                     </span>
                     <span
                       v-else-if="eventoSelecionado?.camisaOpcional && item.incluiCamisa"
@@ -1965,18 +1933,22 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
               4. Checkout & Confirmação
             </h2>
 
-            <!-- Caso 100% Gratuito (ex: Servidor Público Isento) -->
+            <!-- Caso 100% Gratuito (servidores isentos, cupom de 100%...) -->
             <div v-if="valorTotalCalculado === 0" class="bg-white border border-emerald-200 rounded-2xl p-6 sm:p-8 shadow-sm text-center space-y-4">
               <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto border border-emerald-200 shadow-xs">
                 <CheckCircle class="w-8 h-8" />
               </div>
               <div class="space-y-2">
-                <span class="inline-block px-3 py-1 bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-full text-xs font-black uppercase tracking-wider">
-                  🏛️ Isenção Integral · Servidor Público
+                <span
+                  v-if="todosSaoServidoresIsentos"
+                  class="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-full text-xs font-black uppercase tracking-wider"
+                >
+                  <Landmark class="w-3.5 h-3.5" /> Isenção Integral · Servidor Público
                 </span>
                 <h3 class="text-xl sm:text-2xl font-black text-slate-900">Inscrição 100% Gratuita</h3>
                 <p class="text-xs sm:text-sm text-slate-500 max-w-lg mx-auto">
-                  A matrícula e CPF de todos os atletas foram confirmados na lista de servidores públicos autorizados. O valor total da sua inscrição é <strong>R$ 0,00</strong>.
+                  <template v-if="todosSaoServidoresIsentos">A matrícula e o CPF de todos os atletas foram confirmados na lista de servidores públicos autorizados.</template>
+                  O valor total da sua inscrição é <strong>R$ 0,00</strong>.
                 </p>
               </div>
 
@@ -1988,64 +1960,6 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
 
             <!-- Caso Pagamento Normal (PIX / Cartão) -->
             <template v-else>
-              <!-- Card Isenção Servidor Público no Checkout se o evento permite -->
-              <div
-                v-if="eventoSelecionado?.permiteServidorPublico"
-                class="bg-white border border-blue-200 rounded-2xl p-5 space-y-3 shadow-sm"
-              >
-                <div class="flex items-start gap-3">
-                  <span class="text-2xl">🏛️</span>
-                  <div class="flex-1">
-                    <h4 class="text-xs font-black uppercase tracking-wider text-blue-900">
-                      É Servidor Público? Solicite Isenção de Taxa (100% Gratuito)
-                    </h4>
-                    <p class="text-xs text-slate-500 mt-0.5">
-                      Se você é servidor público cadastrado na lista oficial deste evento, informe a sua matrícula para validar seu CPF e zerar o valor total a pagar.
-                    </p>
-                  </div>
-                </div>
-
-                <div class="space-y-3 pt-1">
-                  <div
-                    v-for="item in carrinho"
-                    :key="item.uid"
-                    class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2"
-                  >
-                    <div class="flex items-center justify-between">
-                      <span class="text-xs font-bold text-slate-800">
-                        {{ item.nome }} · CPF: {{ formatarCpf(item.cpf) }}
-                      </span>
-                      <span v-if="item.servidorValidado" class="text-xs font-bold text-emerald-600 flex items-center gap-1">
-                        <CheckCircle class="w-4 h-4" /> Isenção Confirmada (R$ 0,00)
-                      </span>
-                    </div>
-
-                    <div v-if="!item.servidorValidado" class="flex flex-col sm:flex-row gap-2">
-                      <input
-                        v-model="item.matriculaServidor"
-                        type="text"
-                        placeholder="Digite sua matrícula funcional..."
-                        class="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-800 focus:border-blue-500 focus:outline-none"
-                        @keydown.enter.prevent="validarMatriculaServidor(item)"
-                      />
-                      <button
-                        type="button"
-                        @click="validarMatriculaServidor(item)"
-                        :disabled="item.servidorValidando"
-                        class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-black uppercase tracking-wider rounded-xl transition flex items-center justify-center gap-1.5 shadow-sm shrink-0"
-                      >
-                        <span v-if="item.servidorValidando" class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                        <span>{{ item.servidorValidando ? 'Validando...' : 'Validar Matrícula' }}</span>
-                      </button>
-                    </div>
-
-                    <p v-if="item.servidorErro" class="text-xs font-semibold text-rose-600">
-                      {{ item.servidorErro }}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
               <!-- Comprovação de Desconto de Idoso (60+) no Checkout se houver pendência -->
               <div
                 v-if="atletasSemDocumentoIdoso().length > 0"
@@ -2053,7 +1967,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                 class="bg-amber-50 border border-amber-300 rounded-2xl p-5 space-y-3 shadow-sm"
               >
                 <div class="flex items-start gap-3">
-                  <span class="text-2xl">🪪</span>
+                  <IdCard class="w-6 h-6 shrink-0 text-amber-600" />
                   <div class="flex-1 space-y-1">
                     <h4 class="text-xs font-black uppercase tracking-wider text-amber-900">
                       Comprovante de Idade (Desconto 60+) Obrigatório
@@ -2082,36 +1996,14 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                       </span>
                     </div>
 
-                    <div class="flex flex-wrap gap-2 pt-1">
-                      <label
-                        class="px-3.5 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-black uppercase tracking-wider cursor-pointer transition flex items-center gap-1.5 shadow-xs"
-                        :class="{ 'opacity-60 pointer-events-none': enviandoDocumentoIdoso === item.uid }"
-                      >
-                        <Camera class="w-4 h-4" />
-                        <span>{{ enviandoDocumentoIdoso === item.uid ? 'Enviando...' : (item.documentoIdosoUrl ? 'Tirar outra foto' : 'Tirar foto agora') }}</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          capture="environment"
-                          class="hidden"
-                          @change="onDocumentoIdosoSelecionado(item, $event)"
-                        />
-                      </label>
-
-                      <label
-                        class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer transition flex items-center gap-1.5 shadow-xs"
-                        :class="{ 'opacity-60 pointer-events-none': enviandoDocumentoIdoso === item.uid }"
-                      >
-                        <FileText class="w-4 h-4" />
-                        <span>{{ item.documentoIdosoUrl ? 'Trocar arquivo' : 'Escolher arquivo (PDF ou Foto)' }}</span>
-                        <input
-                          type="file"
-                          accept="image/*,application/pdf"
-                          class="hidden"
-                          @change="onDocumentoIdosoSelecionado(item, $event)"
-                        />
-                      </label>
-                    </div>
+                    <DocumentoIdosoUpload
+                      class="pt-1"
+                      :enviando="enviandoDocumentoIdoso === item.uid"
+                      :enviado="!!item.documentoIdosoUrl"
+                      :nome-arquivo="item.documentoIdosoNome"
+                      :erro="item.documentoIdosoErro"
+                      @selecionar="onDocumentoIdosoSelecionado(item, $event)"
+                    />
                   </div>
                 </div>
               </div>
@@ -2349,6 +2241,14 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
             </div>
           </div>
         </div>
+
+        <p
+          v-if="erroAdicionarAtleta"
+          class="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-xs font-semibold text-red-700"
+        >
+          <AlertTriangle class="w-4 h-4 shrink-0 text-red-600" />
+          <span>{{ erroAdicionarAtleta }}</span>
+        </p>
 
         <div class="flex justify-end gap-3 pt-3 border-t border-slate-100">
           <button @click="modalAdicionarAtletaAberto = false" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold uppercase rounded-xl transition">

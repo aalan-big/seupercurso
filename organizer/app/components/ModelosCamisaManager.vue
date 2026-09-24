@@ -14,6 +14,7 @@ const {
   removerModeloCamisa,
   uploadFotoModeloCamisa
 } = useEventoOrganizador()
+const { confirmar } = useConfirmacao()
 
 const config = useRuntimeConfig()
 const apiBase = config.public.apiBase as string
@@ -94,7 +95,9 @@ async function salvarModelo() {
     if (modeloEmEdicao.value) {
       await atualizarModeloCamisa(props.eventoId, modeloEmEdicao.value.id, {
         nome: form.value.nome.trim(),
-        descricao: form.value.descricao.trim() || undefined,
+        // Vazio vai como '' (o servidor grava null); undefined nao apagava a
+        // descricao antiga.
+        descricao: form.value.descricao.trim(),
         ordem: Number(form.value.ordem),
         ativo: form.value.ativo
       })
@@ -118,7 +121,13 @@ async function salvarModelo() {
 }
 
 async function onRemoverModelo(modelo: ModeloCamisa) {
-  if (!confirm(`Deseja realmente excluir o modelo "${modelo.nome}"?`)) return
+  const ok = await confirmar({
+    titulo: 'Excluir modelo de camisa',
+    mensagem: `Deseja realmente excluir o modelo "${modelo.nome}"?`,
+    textoConfirmar: 'Excluir',
+    perigo: true
+  })
+  if (!ok) return
 
   try {
     await removerModeloCamisa(props.eventoId, modelo.id)

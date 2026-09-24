@@ -6,6 +6,10 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ServidorPublicoParserService } from './servidor-publico-parser.service';
+import {
+  FILTRO_SERVIDOR_EM_USO,
+  FILTRO_SERVIDOR_LIVRE,
+} from '../common/servidor-publico-em-uso';
 
 @Injectable()
 export class ServidorPublicoService {
@@ -70,36 +74,85 @@ export class ServidorPublicoService {
       );
     }
 
-    // Inserir em lotes de 250 para suportar arquivos grandes (72+ páginas) com alta performance
+    // Em lotes de 250 para suportar arquivos grandes (72+ páginas).
     const CHUNK_SIZE = 250;
     const servidores = resultado.servidores;
-    let inseridosOuAtualizados = 0;
+    let novosInseridos = 0;
+    let atualizados = 0;
+    let ignoradosEmUso = 0;
 
     for (let i = 0; i < servidores.length; i += CHUNK_SIZE) {
       const chunk = servidores.slice(i, i + CHUNK_SIZE);
-      const dataParaInserir = chunk.map((s) => ({
-        eventoId,
-        categoriaId: categoriaVinculadaId,
-        cpf: s.cpf,
-        matricula: s.matricula,
-        nome: s.nome || null,
-        orgao: s.orgao || null,
-      }));
 
-      const res = await this.prisma.servidorPublico.createMany({
-        data: dataParaInserir,
-        skipDuplicates: true,
+      const existentes = await this.prisma.servidorPublico.findMany({
+        where: { eventoId, cpf: { in: chunk.map((s) => s.cpf) } },
+        select: {
+          id: true,
+          cpf: true,
+          matricula: true,
+          nome: true,
+          orgao: true,
+        },
       });
-      inseridosOuAtualizados += res.count;
+      const existentesPorCpf = new Map(existentes.map((e) => [e.cpf, e]));
+
+      const novos = chunk.filter((s) => !existentesPorCpf.has(s.cpf));
+      if (novos.length > 0) {
+        const res = await this.prisma.servidorPublico.createMany({
+          data: novos.map((s) => ({
+            eventoId,
+            categoriaId: categoriaVinculadaId,
+            cpf: s.cpf,
+            matricula: s.matricula,
+            nome: s.nome || null,
+            orgao: s.orgao || null,
+          })),
+          skipDuplicates: true,
+        });
+        novosInseridos += res.count;
+      }
+
+      // Reenviar a lista corrige quem ainda nao usou a isencao (matricula lida
+      // errada na primeira vez, por exemplo). Quem ja esta inscrito fica como
+      // esta: a matricula dele e a que valeu na inscricao.
+      for (const s of chunk) {
+        const atual = existentesPorCpf.get(s.cpf);
+        if (!atual) continue;
+
+        const mudou =
+          atual.matricula !== s.matricula ||
+          (s.nome && atual.nome !== s.nome) ||
+          (s.orgao && atual.orgao !== s.orgao);
+        if (!mudou) continue;
+
+        const { count } = await this.prisma.servidorPublico.updateMany({
+          where: { id: atual.id, ...FILTRO_SERVIDOR_LIVRE },
+          data: {
+            matricula: s.matricula,
+            ...(s.nome ? { nome: s.nome } : {}),
+            ...(s.orgao ? { orgao: s.orgao } : {}),
+          },
+        });
+        if (count > 0) atualizados++;
+        else ignoradosEmUso++;
+      }
+    }
+
+    const detalhes = [`${novosInseridos} novos cadastrados`];
+    if (atualizados > 0) detalhes.push(`${atualizados} corrigidos`);
+    if (ignoradosEmUso > 0) {
+      detalhes.push(`${ignoradosEmUso} não alterados por já estarem inscritos`);
     }
 
     return {
       sucesso: true,
       totalLidos: resultado.totalEncontrados,
-      novosInseridos: inseridosOuAtualizados,
+      novosInseridos,
+      atualizados,
+      ignoradosEmUso,
       amostra: servidores.slice(0, 10),
       vagasLimiteEvento: evento.vagasServidorPublico,
-      mensagem: `${resultado.totalEncontrados} servidores lidos do arquivo (${inseridosOuAtualizados} novos cadastrados com sucesso).`,
+      mensagem: `${resultado.totalEncontrados} servidores lidos do arquivo (${detalhes.join(', ')}).`,
     };
   }
 
@@ -109,7 +162,7 @@ export class ServidorPublicoService {
     const [total, utilizados, lista] = await Promise.all([
       this.prisma.servidorPublico.count({ where: { eventoId } }),
       this.prisma.servidorPublico.count({
-        where: { eventoId, inscricaoId: { not: null } },
+        where: { eventoId, ...FILTRO_SERVIDOR_EM_USO },
       }),
       this.prisma.servidorPublico.findMany({
         where: { eventoId },

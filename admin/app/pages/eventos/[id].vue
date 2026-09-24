@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, Ban, FileText, CheckCircle } from 'lucide-vue-next'
+import { ArrowLeft, Ban, FileText, CheckCircle, Landmark } from 'lucide-vue-next'
 import type { EventoAdmin } from '../../composables/useAdminEventos'
 
 const route = useRoute()
@@ -113,7 +113,7 @@ async function confirmarSuspensao() {
   processando.value = true
   try {
     evento.value = await suspender(route.params.id as string, motivo.value || undefined)
-    sucesso.value = '🛑 Evento BARRADO/SUSPENSO com sucesso. Novas inscrições foram bloqueadas.'
+    sucesso.value = 'Evento BARRADO/SUSPENSO com sucesso. Novas inscrições foram bloqueadas.'
     mostrarMotivoSuspensao.value = false
   } catch (e) {
     erro.value = extrairErro(e)
@@ -181,7 +181,7 @@ async function confirmarSuspensao() {
       <div class="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div class="flex items-start gap-3">
-            <span class="text-2xl">🏛️</span>
+            <Landmark :size="24" class="shrink-0 text-slate-600" />
             <div>
               <h2 class="text-sm font-bold uppercase tracking-wide text-slate-800">
                 Inscrições de Servidor Público (Isenção Pré-paga)

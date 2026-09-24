@@ -210,5 +210,22 @@ describe('auditoria da comissao da plataforma', () => {
       );
       expect(valorComCamisa).toBe(80);
     });
+
+    it('inscricao ja criada paga o valor da camisa gravado, nao o preco atual do evento', async () => {
+      // Atleta pediu com camisa a R$ 40; depois o organizador subiu para R$ 60.
+      const valor = await calcularValorInscricao(
+        prismaFalso({ preco: '40', camisaOpcional: true, valorCamisaOpcional: 60 }),
+        { ...ctx, incluiCamisa: true, valorCamisa: '40' },
+      );
+      expect(valor).toBe(80);
+    });
+
+    it('inscricao ja criada sem valor de camisa gravado nao soma camisa', async () => {
+      const valor = await calcularValorInscricao(
+        prismaFalso({ preco: '40', camisaOpcional: true, valorCamisaOpcional: 60 }),
+        { ...ctx, incluiCamisa: true, valorCamisa: null },
+      );
+      expect(valor).toBe(40);
+    });
   });
 });

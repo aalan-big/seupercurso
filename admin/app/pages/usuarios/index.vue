@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Check, X, AlertTriangle } from 'lucide-vue-next'
 import type { UsuarioAdmin } from '../../composables/useAdminUsuarios'
 
 const { usuarios, buscarUsuarios, verificarEmail, alterarEmail, criarUsuario } = useAdminUsuarios()
@@ -255,16 +256,16 @@ onMounted(() => {
       v-if="sucessoMsg"
       class="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800"
     >
-      <span>✓ {{ sucessoMsg }}</span>
-      <button type="button" class="text-emerald-700 hover:text-emerald-900" @click="sucessoMsg = ''">✕</button>
+      <span class="flex items-center gap-2"><Check :size="16" class="shrink-0" /> {{ sucessoMsg }}</span>
+      <button type="button" class="text-emerald-700 hover:text-emerald-900" aria-label="Fechar" @click="sucessoMsg = ''"><X :size="16" /></button>
     </div>
 
     <div
       v-if="erro"
       class="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700"
     >
-      <span>✕ {{ erro }}</span>
-      <button type="button" class="text-red-700 hover:text-red-900" @click="erro = ''">✕</button>
+      <span class="flex items-center gap-2"><AlertTriangle :size="16" class="shrink-0" /> {{ erro }}</span>
+      <button type="button" class="text-red-700 hover:text-red-900" aria-label="Fechar" @click="erro = ''"><X :size="16" /></button>
     </div>
 
     <!-- Loading -->
@@ -314,7 +315,7 @@ onMounted(() => {
                 v-else
                 class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-800"
               >
-                ⚠️ E-mail Pendente (Travado)
+                <AlertTriangle :size="12" /> E-mail Pendente (Travado)
               </span>
             </div>
 
@@ -547,7 +548,7 @@ onMounted(() => {
             <input
               v-model="formCriar.password"
               type="text"
-              placeholder="Opcional (se vazio, usa os 6 primeiros dígitos do CPF)"
+              placeholder="Opcional (se vazio, o sistema gera uma senha aleatória)"
               class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
             <p class="mt-1 text-[11px] text-slate-400">

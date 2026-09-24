@@ -10,6 +10,12 @@ interface ContextoValor {
   cupomId?: string | null;
   dataNascimentoAtleta?: Date | null;
   incluiCamisa?: boolean;
+  /**
+   * Valor da camisa gravado na inscricao. Quando informado (inclusive null),
+   * vale ele e nao o preco atual do evento: se o organizador muda o preco
+   * entre o pedido e o pagamento, o atleta paga o que viu na tela.
+   */
+  valorCamisa?: number | string | { toString(): string } | null;
 }
 
 export async function calcularValorInscricao(
@@ -55,8 +61,13 @@ export async function calcularValorInscricao(
     }
   }
 
-  // Se o evento oferece camisa opcional e o participante optou por incluí-la:
-  if (evento?.camisaOpcional && ctx.incluiCamisa && evento.valorCamisaOpcional) {
+  // Camisa opcional escolhida pelo participante. A inscricao ja criada traz o
+  // valor gravado; sem ele (pedido sendo montado), vale o preco do evento.
+  if (ctx.valorCamisa !== undefined) {
+    if (ctx.incluiCamisa && ctx.valorCamisa !== null) {
+      valor += Number(ctx.valorCamisa);
+    }
+  } else if (evento?.camisaOpcional && ctx.incluiCamisa && evento.valorCamisaOpcional) {
     valor += Number(evento.valorCamisaOpcional);
   }
 

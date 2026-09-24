@@ -1,5 +1,19 @@
 <script setup lang="ts">
-import { Footprints, Plus, Accessibility, Pencil, ArrowRightLeft, Trophy } from 'lucide-vue-next'
+import {
+  Footprints,
+  Plus,
+  Accessibility,
+  Pencil,
+  ArrowRightLeft,
+  Trophy,
+  Landmark,
+  Lock,
+  Check,
+  X,
+  FileText,
+  CheckCircle,
+  AlertTriangle
+} from 'lucide-vue-next'
 import type { ModalidadeOrganizador } from '../composables/useEventoOrganizador'
 
 const props = defineProps<{
@@ -23,6 +37,7 @@ const {
   obterServidoresPublicos,
   limparServidoresPublicos
 } = useEventoOrganizador()
+const { confirmar, avisar } = useConfirmacao()
 
 const generoOpcoes = [
   { valor: 'LIVRE' as const, label: 'Livre' },
@@ -87,7 +102,13 @@ async function onCriarModalidade() {
 }
 
 async function onRemoverModalidade(modalidadeId: string) {
-  if (!confirm('Deseja realmente remover esta modalidade?')) return
+  const ok = await confirmar({
+    titulo: 'Remover modalidade',
+    mensagem: 'Deseja realmente remover esta modalidade?',
+    textoConfirmar: 'Remover',
+    perigo: true
+  })
+  if (!ok) return
   erro.value = ''
   salvando.value = true
   try {
@@ -95,7 +116,7 @@ async function onRemoverModalidade(modalidadeId: string) {
   } catch (e) {
     const msg = extrairErro(e)
     erro.value = msg
-    alert(msg)
+    await avisar('Não foi possível remover', msg)
   } finally {
     salvando.value = false
   }
@@ -267,7 +288,13 @@ async function onArquivoSelecionado(e: Event) {
 }
 
 async function onLimparServidores() {
-  if (!confirm('Deseja realmente remover os servidores desta lista que ainda NÃO realizaram inscrição?')) return
+  const ok = await confirmar({
+    titulo: 'Limpar lista de servidores',
+    mensagem: 'Deseja remover os servidores desta lista que ainda NÃO realizaram inscrição? Quem já se inscreveu continua na lista.',
+    textoConfirmar: 'Remover',
+    perigo: true
+  })
+  if (!ok) return
   try {
     const res = await limparServidoresPublicos(props.eventoId)
     mensagemSucessoUpload.value = res.mensagem || 'Servidores não utilizados foram removidos.'
@@ -330,13 +357,15 @@ const modalidadeOrigemMigracaoId = ref<string>('')
 const categoriaDestinoMigracaoId = ref<string>('')
 const migrandoInscritos = ref(false)
 const erroMigracao = ref('')
-const excluirOrigemAposMigrar = ref(true)
+// Desmarcado: apagar a categoria antiga tem que ser escolha, nao padrao.
+const excluirOrigemAposMigrar = ref(false)
 
 function abrirModalMigracao(modalidadeId: string, categoria: any) {
   categoriaOrigemMigracao.value = categoria
   modalidadeOrigemMigracaoId.value = modalidadeId
   categoriaDestinoMigracaoId.value = ''
   erroMigracao.value = ''
+  excluirOrigemAposMigrar.value = false
   modalMigracaoAberto.value = true
 }
 
@@ -381,11 +410,12 @@ async function onConfirmarMigracao() {
         modalidadeOrigemMigracaoId.value,
         categoriaOrigemMigracao.value.id
       )
-      alert(`${res.mensagem}\nA categoria antiga foi excluída com sucesso!`)
+      fecharModalMigracao()
+      await avisar('Atletas migrados', `${res.mensagem}\nA categoria antiga foi excluída.`)
     } else {
-      alert(res.mensagem)
+      fecharModalMigracao()
+      await avisar('Atletas migrados', res.mensagem)
     }
-    fecharModalMigracao()
   } catch (err: any) {
     erroMigracao.value = extrairErro(err)
   } finally {
@@ -394,7 +424,13 @@ async function onConfirmarMigracao() {
 }
 
 async function onRemoverCategoria(modalidadeId: string, categoria: any) {
-  if (!confirm(`Deseja realmente remover a categoria "${categoria.nome}"?`)) return
+  const ok = await confirmar({
+    titulo: 'Remover categoria',
+    mensagem: `Deseja realmente remover a categoria "${categoria.nome}"?`,
+    textoConfirmar: 'Remover',
+    perigo: true
+  })
+  if (!ok) return
   erro.value = ''
   salvando.value = true
   try {
@@ -403,11 +439,14 @@ async function onRemoverCategoria(modalidadeId: string, categoria: any) {
     const msg = extrairErro(e)
     erro.value = msg
     if (msg.includes('já existe inscrição')) {
-      if (confirm(`Não é possível excluir diretamente porque já existem atletas inscritos na categoria "${categoria.nome}".\n\nDeseja migrar esses atletas para outra categoria (ex: Servidor Público Afiliado) agora mesmo?`)) {
-        abrirModalMigracao(modalidadeId, categoria)
-      }
+      const migrar = await confirmar({
+        titulo: 'Categoria com atletas inscritos',
+        mensagem: `Não é possível excluir diretamente porque já existem atletas inscritos na categoria "${categoria.nome}".\n\nDeseja migrar esses atletas para outra categoria agora?`,
+        textoConfirmar: 'Migrar atletas'
+      })
+      if (migrar) abrirModalMigracao(modalidadeId, categoria)
     } else {
-      alert(msg)
+      await avisar('Não foi possível remover', msg)
     }
   } finally {
     salvando.value = false
@@ -510,7 +549,7 @@ function faixaEtaria(min: number | null, max: number | null) {
       class="rounded-3xl border border-amber-300 bg-amber-50/80 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs"
     >
       <div class="flex items-start sm:items-center gap-3">
-        <span class="text-3xl">🏛️</span>
+        <Landmark :size="28" class="shrink-0 text-amber-700" />
         <div>
           <h4 class="text-xs font-black uppercase tracking-wider text-amber-950">
             Categoria Servidor Público Liberada pelo Admin
@@ -732,7 +771,9 @@ function faixaEtaria(min: number | null, max: number | null) {
                         :title="categoria.servidorPublico ? 'Clique para desmarcar categoria de servidor público' : 'Clique para marcar esta categoria como Servidor Público (Isenção)'"
                         @click="onToggleServidorPublico(modalidade.id, categoria)"
                       >
-                        <span>🏛️ {{ categoria.servidorPublico ? 'Servidor Público ✓' : '+ Marcar Servidor' }}</span>
+                        <Landmark :size="11" />
+                        <span>{{ categoria.servidorPublico ? 'Servidor Público' : 'Marcar Servidor' }}</span>
+                        <Check v-if="categoria.servidorPublico" :size="11" />
                       </button>
                     </p>
                   </div>
@@ -809,7 +850,8 @@ function faixaEtaria(min: number | null, max: number | null) {
                     class="rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 px-3 py-1.5 text-xs font-extrabold text-amber-900 transition flex items-center gap-1 self-start sm:self-auto"
                     @click="abrirModalServidores()"
                   >
-                    <span>🏛️ Lista de Servidores (PDF/Planilha)</span>
+                    <Landmark :size="14" class="inline -mt-0.5" />
+                    <span>Lista de Servidores (PDF/Planilha)</span>
                   </button>
 
                   <button
@@ -886,7 +928,7 @@ function faixaEtaria(min: number | null, max: number | null) {
                     class="flex items-center gap-2 text-xs font-extrabold text-amber-950 bg-amber-50 border border-amber-300 rounded-xl px-3 py-2 cursor-pointer transition hover:bg-amber-100"
                   >
                     <input v-model="novaCategoria.servidorPublico" type="checkbox" class="h-4 w-4 rounded accent-amber-600" />
-                    <span>🏛️ Marcar Categoria Servidor Público (Isenção 100%)</span>
+                    <span><Landmark :size="13" class="inline -mt-0.5" /> Marcar Categoria Servidor Público (Isenção 100%)</span>
                   </label>
 
                   <span
@@ -894,7 +936,7 @@ function faixaEtaria(min: number | null, max: number | null) {
                     class="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-400 bg-slate-100 border border-slate-200 px-3 py-2 rounded-xl cursor-not-allowed"
                     title="A liberação de categorias de servidor público com taxa pré-paga é feita pela administração"
                   >
-                    <span>🔒 Categoria Servidor Público (Bloqueado)</span>
+                    <span><Lock :size="12" class="inline -mt-0.5" /> Categoria Servidor Público (Bloqueado)</span>
                   </span>
                 </div>
 
@@ -918,7 +960,8 @@ function faixaEtaria(min: number | null, max: number | null) {
             class="text-xs font-black uppercase tracking-wider text-slate-700 hover:text-primary flex items-center gap-1.5"
             @click="abrirMapa(modalidade.id)"
           >
-            <span>Percurso / Mapa {{ modalidade.rotaGeoJson || modalidade.mapaEmbedUrl || modalidade.mapaPercursoUrl ? '✓' : '' }}</span>
+            <span>Percurso / Mapa</span>
+            <Check v-if="modalidade.rotaGeoJson || modalidade.mapaEmbedUrl || modalidade.mapaPercursoUrl" :size="13" class="text-emerald-600" />
             <AppIcon name="chevron" size="14" :class="modalidadeMapaAbertaId === modalidade.id ? 'rotate-180 transition' : 'transition'" />
           </button>
 
@@ -1077,7 +1120,7 @@ function faixaEtaria(min: number | null, max: number | null) {
           <!-- Header -->
           <div class="flex items-start justify-between border-b border-slate-100 pb-4">
             <div class="flex items-center gap-3">
-              <span class="text-3xl">🏛️</span>
+              <Landmark :size="28" class="shrink-0 text-amber-700" />
               <div>
                 <h3 class="text-base font-extrabold text-slate-900">
                   Lista de Servidores Públicos Autorizados
@@ -1091,8 +1134,9 @@ function faixaEtaria(min: number | null, max: number | null) {
               type="button"
               class="text-slate-400 hover:text-slate-600 font-bold p-1 rounded-lg"
               @click="fecharModalServidores"
+              aria-label="Fechar"
             >
-              ✕
+              <X :size="18" />
             </button>
           </div>
 
@@ -1128,7 +1172,7 @@ function faixaEtaria(min: number | null, max: number | null) {
                 @change="onArquivoSelecionado"
               />
               <div class="flex flex-col items-center justify-center gap-2">
-                <span class="text-3xl">📄</span>
+                <FileText :size="30" class="text-slate-400" />
                 <p class="text-xs font-bold text-slate-700">
                   Clique para selecionar o PDF (suporta arquivos extensos de 70+ páginas) ou Planilha
                 </p>
@@ -1149,13 +1193,13 @@ function faixaEtaria(min: number | null, max: number | null) {
 
             <!-- Mensagens de Alerta -->
             <div v-if="mensagemSucessoUpload" class="rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-xs font-bold text-emerald-800 flex items-center justify-between">
-              <span>✅ {{ mensagemSucessoUpload }}</span>
-              <button type="button" class="text-emerald-600 hover:underline" @click="mensagemSucessoUpload = ''">✕</button>
+              <span class="flex items-center gap-1.5"><CheckCircle :size="14" class="shrink-0" /> {{ mensagemSucessoUpload }}</span>
+              <button type="button" class="text-emerald-600 hover:text-emerald-800" aria-label="Fechar" @click="mensagemSucessoUpload = ''"><X :size="14" /></button>
             </div>
 
             <div v-if="erroUpload" class="rounded-xl border border-red-300 bg-red-50 p-3 text-xs font-bold text-red-800 flex items-center justify-between">
-              <span>⚠️ {{ erroUpload }}</span>
-              <button type="button" class="text-red-600 hover:underline" @click="erroUpload = ''">✕</button>
+              <span class="flex items-center gap-1.5"><AlertTriangle :size="14" class="shrink-0" /> {{ erroUpload }}</span>
+              <button type="button" class="text-red-600 hover:text-red-800" aria-label="Fechar" @click="erroUpload = ''"><X :size="14" /></button>
             </div>
 
             <!-- Tabela dos Servidores Importados -->
@@ -1238,7 +1282,7 @@ function faixaEtaria(min: number | null, max: number | null) {
           <!-- Cabeçalho -->
           <div class="flex items-center justify-between border-b border-slate-100 pb-4">
             <div class="flex items-center gap-2">
-              <span class="text-2xl">🔄</span>
+              <ArrowRightLeft :size="24" class="shrink-0 text-blue-600" />
               <div>
                 <h3 class="text-base font-extrabold text-slate-900">
                   Migrar Atletas de Categoria
@@ -1280,7 +1324,7 @@ function faixaEtaria(min: number | null, max: number | null) {
                   :key="cat.id"
                   :value="cat.id"
                 >
-                  {{ cat.modalidadeNome }} — {{ cat.nome }} {{ cat.servidorPublico ? '🏛️ (Servidor Público)' : '' }}
+                  {{ cat.modalidadeNome }} — {{ cat.nome }} {{ cat.servidorPublico ? '(Servidor Público)' : '' }}
                 </option>
               </select>
             </div>

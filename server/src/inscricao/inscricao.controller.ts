@@ -33,6 +33,8 @@ import { ValidarServidorDto } from './dto/validar-servidor.dto';
 export class InscricaoController {
   constructor(private readonly inscricaoService: InscricaoService) {}
 
+  // Exige login: aberto, qualquer um testava CPF + matricula a vontade.
+  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   @Post('validar-servidor')
   validarServidor(@Body() dto: ValidarServidorDto) {

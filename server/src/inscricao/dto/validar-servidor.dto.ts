@@ -1,8 +1,7 @@
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsNotEmpty, IsString, IsUUID } from 'class-validator';
 
 export class ValidarServidorDto {
-  @IsString()
-  @IsNotEmpty({ message: 'O ID do evento é obrigatório.' })
+  @IsUUID('all', { message: 'Evento inválido.' })
   eventoId: string;
 
   @IsString()

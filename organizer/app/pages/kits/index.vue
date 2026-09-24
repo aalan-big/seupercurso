@@ -93,6 +93,17 @@ function exportarRelatorioGraficaCSV() {
       csvContent += `"${tamanho}",${qty}\n`
     })
 
+    // Com mais de um modelo, a grafica precisa dos tamanhos de cada um.
+    if (kits.value.porModelo && kits.value.porModelo.length > 1) {
+      csvContent += '\nTAMANHOS POR MODELO DE CAMISA\n'
+      csvContent += 'Modelo,Tamanho,Quantidade\n'
+      kits.value.porModelo.forEach((modelo) => {
+        ordenarTamanhos(modelo.tamanhos).forEach(([tamanho, qty]) => {
+          csvContent += `"${modelo.modeloNome}","${tamanho}",${qty}\n`
+        })
+      })
+    }
+
     csvContent += '\nTAMANHOS POR MODALIDADE\n'
     csvContent += 'Modalidade,Tamanho,Quantidade\n'
     kits.value.porModalidade.forEach((mod) => {

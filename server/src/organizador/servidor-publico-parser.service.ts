@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import * as ExcelJS from 'exceljs';
 
 export interface ServidorExtraido {
@@ -66,7 +66,7 @@ export class ServidorPublicoParserService {
       return this.extrairDeTexto(textoCompleto);
     } catch (err: any) {
       this.logger.error(`Erro ao extrair texto do PDF: ${err.message}`, err.stack);
-      throw new Error(
+      throw new BadRequestException(
         `Não foi possível ler o arquivo PDF. Verifique se o arquivo não está corrompido ou protegido por senha. Detalhes: ${err.message}`,
       );
     }
@@ -160,7 +160,7 @@ export class ServidorPublicoParserService {
       };
     } catch (err: any) {
       this.logger.error(`Erro ao processar planilha Excel: ${err.message}`, err.stack);
-      throw new Error(`Não foi possível processar a planilha: ${err.message}`);
+      throw new BadRequestException(`Não foi possível processar a planilha: ${err.message}`);
     }
   }
 
@@ -208,8 +208,12 @@ export class ServidorPublicoParserService {
       let matricula = '';
       let nome = '';
 
-      // Tenta padrão explícito: "Matrícula: 12345" ou "Mat: 12345"
-      const matchMatriculaExplicita = restante.match(/(?:matr[ií]cula|matr\.?|mat:?)\s*([0-9A-Za-z\-_/]+)/i);
+      // Tenta padrão explícito: "Matrícula: 12345", "Mat: 12345", "Matrícula nº 12345".
+      // A matricula precisa ter ao menos um digito: sem isso "Matrícula:" virava
+      // "r"/"icula" e um nome como "MATIAS" virava "IAS".
+      const matchMatriculaExplicita = restante.match(
+        /(?:matr[ií]cula|matr\.?|mat)\s*[:.\-]?\s*(?:n[º°o]\.?\s*[:.\-]?\s*)?([0-9A-Za-z\-_/]*\d[0-9A-Za-z\-_/]*)/i,
+      );
       if (matchMatriculaExplicita) {
         matricula = matchMatriculaExplicita[1].trim();
       }

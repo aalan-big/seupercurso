@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import { randomInt } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrganizadorService } from '../organizador/organizador.service';
 import { Prisma } from '../generated/prisma/client';
@@ -30,6 +31,17 @@ const EVENTO_INCLUDE = {
   organizador: { include: ORGANIZADOR_INCLUDE },
   modalidades: { include: { categorias: true } },
 } as const;
+
+// Sem 0/O, 1/l/I: a senha e lida na tela e repassada ao atleta por telefone.
+const ALFABETO_SENHA = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function gerarSenhaAleatoria(tamanho = 10): string {
+  let senha = '';
+  for (let i = 0; i < tamanho; i++) {
+    senha += ALFABETO_SENHA[randomInt(ALFABETO_SENHA.length)];
+  }
+  return senha;
+}
 
 @Injectable()
 export class AdminService {
@@ -616,7 +628,9 @@ export class AdminService {
       throw new ConflictException('Já existe um atleta cadastrado com esse CPF.');
     }
 
-    const senha = dto.password?.trim() || `sp${cpfLimpo.slice(0, 6) || '123456'}`;
+    // Sem senha informada, gera uma aleatoria. A antiga ("sp" + 6 digitos do
+    // CPF) era adivinhavel por quem soubesse o CPF do atleta.
+    const senha = dto.password?.trim() || gerarSenhaAleatoria();
     const passwordHash = await bcrypt.hash(senha, 10);
 
     const dataNasc = dto.dataNascimento
