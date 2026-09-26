@@ -47,28 +47,36 @@ async function onSalvarServidorPublico() {
 }
 
 // Limite de cupons do evento: o organizador so cria ate esse numero.
+// Usos por cupom: quantas pessoas cada cupom NOVO atende (os ja criados nao mudam).
 const editandoLimiteCupons = ref(false)
 const novoLimiteCupons = ref(10)
+const novoUsosPorCupom = ref(1)
 const salvandoLimiteCupons = ref(false)
 
 function abrirEdicaoLimiteCupons() {
   if (!evento.value) return
   novoLimiteCupons.value = evento.value.limiteCupons ?? 10
+  novoUsosPorCupom.value = evento.value.usosPorCupom ?? 1
   editandoLimiteCupons.value = true
 }
 
 async function salvarLimiteCupons() {
   erro.value = ''
   sucesso.value = ''
-  const valor = Number(novoLimiteCupons.value)
-  if (!Number.isInteger(valor) || valor < 0 || valor > 1000) {
+  const limite = Number(novoLimiteCupons.value)
+  const usos = Number(novoUsosPorCupom.value)
+  if (!Number.isInteger(limite) || limite < 0 || limite > 1000) {
     erro.value = 'O limite de cupons deve ser um número inteiro entre 0 e 1000.'
+    return
+  }
+  if (!Number.isInteger(usos) || usos < 1 || usos > 10000) {
+    erro.value = 'Os usos por cupom devem ser um número inteiro entre 1 e 10000.'
     return
   }
   salvandoLimiteCupons.value = true
   try {
-    evento.value = await definirLimiteCupons(route.params.id as string, valor)
-    sucesso.value = `Limite de cupons do evento atualizado para ${valor}.`
+    evento.value = await definirLimiteCupons(route.params.id as string, { limiteCupons: limite, usosPorCupom: usos })
+    sucesso.value = `Cupons do evento: até ${limite} cupom(ns), cada um para ${usos} pessoa(s).`
     editandoLimiteCupons.value = false
   } catch (e) {
     erro.value = extrairErro(e)
@@ -272,17 +280,21 @@ async function confirmarSuspensao() {
         <div class="flex items-start gap-3">
           <Ticket :size="24" class="shrink-0 text-slate-600" />
           <div class="min-w-0 flex-1">
-            <h2 class="text-sm font-bold uppercase tracking-wide text-slate-800">Limite de cupons</h2>
+            <h2 class="text-sm font-bold uppercase tracking-wide text-slate-800">Cupons de desconto</h2>
             <p class="mt-0.5 text-xs text-slate-500">
-              Quantos cupons de desconto o organizador pode criar neste evento. Os cupons já criados continuam valendo se você baixar o limite.
+              O organizador cria até o limite de cupons, e cada cupom novo atende só o número de pessoas definido aqui.
+              Mudanças valem para os cupons criados depois; os já criados continuam como estão.
             </p>
 
-            <p class="mt-3 text-xs font-semibold text-slate-500">
-              Cupons criados: <span class="text-slate-900">{{ evento._count?.cupons ?? 0 }}</span>
-            </p>
-
-            <div v-if="!editandoLimiteCupons" class="mt-2 flex items-center gap-3">
-              <span class="text-xl font-black text-slate-900">{{ evento.limiteCupons ?? 10 }}</span>
+            <div v-if="!editandoLimiteCupons" class="mt-3 flex flex-wrap items-end gap-x-8 gap-y-3">
+              <div>
+                <p class="text-xs font-semibold text-slate-500">Limite de cupons</p>
+                <p class="text-xl font-black text-slate-900">{{ evento.limiteCupons ?? 10 }}</p>
+              </div>
+              <div>
+                <p class="text-xs font-semibold text-slate-500">Usos por cupom</p>
+                <p class="text-xl font-black text-slate-900">{{ evento.usosPorCupom ?? 1 }}</p>
+              </div>
               <button
                 type="button"
                 class="text-xs font-bold uppercase tracking-wide text-secondary hover:underline"
@@ -292,15 +304,29 @@ async function confirmarSuspensao() {
               </button>
             </div>
 
-            <div v-else class="mt-2 flex flex-wrap items-center gap-2">
-              <input
-                v-model.number="novoLimiteCupons"
-                type="number"
-                min="0"
-                max="1000"
-                step="1"
-                class="w-24 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
-              />
+            <div v-else class="mt-3 flex flex-wrap items-end gap-2">
+              <label class="text-xs font-semibold text-slate-500">
+                Limite de cupons
+                <input
+                  v-model.number="novoLimiteCupons"
+                  type="number"
+                  min="0"
+                  max="1000"
+                  step="1"
+                  class="mt-1 block w-28 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-900 focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+                />
+              </label>
+              <label class="text-xs font-semibold text-slate-500">
+                Usos por cupom
+                <input
+                  v-model.number="novoUsosPorCupom"
+                  type="number"
+                  min="1"
+                  max="10000"
+                  step="1"
+                  class="mt-1 block w-28 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-900 focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+                />
+              </label>
               <button
                 type="button"
                 :disabled="salvandoLimiteCupons"
@@ -316,6 +342,22 @@ async function confirmarSuspensao() {
               >
                 Cancelar
               </button>
+            </div>
+
+            <div class="mt-4 border-t border-slate-100 pt-3">
+              <p class="text-xs font-semibold text-slate-500">
+                Cupons criados: <span class="text-slate-900">{{ evento._count?.cupons ?? 0 }}</span>
+              </p>
+              <ul v-if="evento.cupons?.length" class="mt-2 divide-y divide-slate-100 text-xs">
+                <li v-for="cupom in evento.cupons" :key="cupom.id" class="flex flex-wrap items-center justify-between gap-2 py-2">
+                  <span class="font-mono font-bold text-slate-900">{{ cupom.codigo }}</span>
+                  <span class="text-slate-600">
+                    {{ Number(cupom.percentualDesconto) }}% ·
+                    {{ cupom._count.inscricoes }} {{ cupom.quantidadeMaxima ? `de ${cupom.quantidadeMaxima}` : '(sem limite)' }} usos pagos
+                    <span v-if="!cupom.ativo" class="ml-1 font-bold text-red-600">inativo</span>
+                  </span>
+                </li>
+              </ul>
             </div>
           </div>
         </div>

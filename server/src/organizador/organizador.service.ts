@@ -1829,7 +1829,9 @@ export class OrganizadorService {
           eventoId,
           codigo: dto.codigo.toUpperCase(),
           percentualDesconto: dto.percentualDesconto,
-          quantidadeMaxima: dto.quantidadeMaxima,
+          // Vem do evento, nao do organizador: e o que segura desconto em
+          // massa (um cupom sem limite para a prova inteira).
+          quantidadeMaxima: evento.usosPorCupom,
           ...(dto.validoAte ? { validoAte: new Date(dto.validoAte) } : {}),
         },
       });

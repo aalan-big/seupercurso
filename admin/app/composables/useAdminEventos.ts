@@ -16,7 +16,17 @@ export interface EventoAdmin {
   permiteServidorPublico?: boolean
   vagasServidorPublico?: number | null
   limiteCupons?: number
+  usosPorCupom?: number
   _count?: { cupons: number }
+  cupons?: {
+    id: string
+    codigo: string
+    percentualDesconto: string
+    quantidadeMaxima: number | null
+    ativo: boolean
+    // Inscricoes pagas com o cupom
+    _count: { inscricoes: number }
+  }[]
   createdAt: string
   organizador: {
     id: string
@@ -70,10 +80,10 @@ export function useAdminEventos() {
     })
   }
 
-  async function definirLimiteCupons(id: string, limiteCupons: number) {
+  async function definirLimiteCupons(id: string, config: { limiteCupons: number; usosPorCupom: number }) {
     return api<EventoAdmin>(`/admin/eventos/${id}/limite-cupons`, {
       method: 'POST',
-      body: { limiteCupons }
+      body: config
     })
   }
 

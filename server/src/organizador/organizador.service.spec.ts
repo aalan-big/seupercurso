@@ -63,6 +63,7 @@ describe('OrganizadorService', () => {
         id: eventoId,
         organizadorId,
         limiteCupons: 10,
+        usosPorCupom: 1,
       });
       prisma.cupom = {
         count: jest.fn().mockResolvedValue(9),
@@ -81,6 +82,38 @@ describe('OrganizadorService', () => {
       );
     });
 
+    it('cada cupom novo sai com os usos do evento, nao com o que o organizador mandar', async () => {
+      // O painel antigo ainda mandava "limite de usos"; o whitelist descarta,
+      // mas mesmo que chegasse, quem manda e o evento.
+      await service.criarCupom(usuarioId, eventoId, {
+        ...dtoCupom,
+        quantidadeMaxima: 800,
+      } as any);
+
+      expect(prisma.cupom.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ quantidadeMaxima: 1 }),
+        }),
+      );
+    });
+
+    it('usa os usos por cupom que o admin liberou para o evento', async () => {
+      prisma.evento.findUnique.mockResolvedValue({
+        id: eventoId,
+        organizadorId,
+        limiteCupons: 10,
+        usosPorCupom: 30,
+      });
+
+      await service.criarCupom(usuarioId, eventoId, dtoCupom);
+
+      expect(prisma.cupom.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ quantidadeMaxima: 30 }),
+        }),
+      );
+    });
+
     it('recusa quando o evento ja chegou no limite', async () => {
       prisma.cupom.count.mockResolvedValue(10);
 
@@ -95,6 +128,7 @@ describe('OrganizadorService', () => {
         id: eventoId,
         organizadorId,
         limiteCupons: 15,
+        usosPorCupom: 1,
       });
       prisma.cupom.count.mockResolvedValue(12);
 
@@ -108,6 +142,7 @@ describe('OrganizadorService', () => {
         id: eventoId,
         organizadorId,
         limiteCupons: 0,
+        usosPorCupom: 1,
       });
       prisma.cupom.count.mockResolvedValue(0);
 

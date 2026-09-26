@@ -32,8 +32,22 @@ const ORGANIZADOR_INCLUDE = {
 const EVENTO_INCLUDE = {
   organizador: { include: ORGANIZADOR_INCLUDE },
   modalidades: { include: { categorias: true } },
-  // Card de cupons do admin: quantos o organizador ja criou contra o limite.
+  // Card de cupons do admin: quantos o organizador ja criou contra o limite,
+  // e cada cupom com as inscricoes pagas que usaram ele.
   _count: { select: { cupons: true } },
+  cupons: {
+    orderBy: { createdAt: 'asc' },
+    select: {
+      id: true,
+      codigo: true,
+      percentualDesconto: true,
+      quantidadeMaxima: true,
+      ativo: true,
+      _count: {
+        select: { inscricoes: { where: { status: StatusInscricao.CONFIRMADA } } },
+      },
+    },
+  },
 } as const;
 
 // Sem 0/O, 1/l/I: a senha e lida na tela e repassada ao atleta por telefone.
@@ -210,12 +224,22 @@ export class AdminService {
     });
   }
 
-  async definirLimiteCupons(id: string, limiteCupons: number) {
+  async definirLimiteCupons(
+    id: string,
+    config: { limiteCupons?: number; usosPorCupom?: number },
+  ) {
     await this.getEventoOuFalhar(id);
+
+    if (config.limiteCupons === undefined && config.usosPorCupom === undefined) {
+      throw new BadRequestException('Informe o limite de cupons ou os usos por cupom.');
+    }
 
     return this.prisma.evento.update({
       where: { id },
-      data: { limiteCupons },
+      data: {
+        ...(config.limiteCupons !== undefined ? { limiteCupons: config.limiteCupons } : {}),
+        ...(config.usosPorCupom !== undefined ? { usosPorCupom: config.usosPorCupom } : {}),
+      },
       include: EVENTO_INCLUDE,
     });
   }

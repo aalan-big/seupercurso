@@ -97,3 +97,54 @@ describe('AdminService.alterarCpfUsuario', () => {
     expect(auditLog.log).not.toHaveBeenCalled();
   });
 });
+
+describe('AdminService.definirLimiteCupons', () => {
+  let service: AdminService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      evento: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'evento-1' }),
+        update: jest.fn().mockResolvedValue({ id: 'evento-1' }),
+      },
+    };
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        AdminService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: OrganizadorService, useValue: {} },
+        { provide: AuditLogService, useValue: { log: jest.fn() } },
+      ],
+    }).compile();
+
+    service = moduleRef.get(AdminService);
+  });
+
+  it('muda so o que veio: usos por cupom sem mexer no limite de cupons', async () => {
+    await service.definirLimiteCupons('evento-1', { usosPorCupom: 30 });
+
+    expect(prisma.evento.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'evento-1' },
+        data: { usosPorCupom: 30 },
+      }),
+    );
+  });
+
+  it('muda os dois juntos', async () => {
+    await service.definirLimiteCupons('evento-1', { limiteCupons: 20, usosPorCupom: 2 });
+
+    expect(prisma.evento.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { limiteCupons: 20, usosPorCupom: 2 } }),
+    );
+  });
+
+  it('recusa pedido sem nenhum dos dois', async () => {
+    await expect(service.definirLimiteCupons('evento-1', {})).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(prisma.evento.update).not.toHaveBeenCalled();
+  });
+});

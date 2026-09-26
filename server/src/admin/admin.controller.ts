@@ -189,7 +189,7 @@ export class AdminController {
   @HttpCode(HttpStatus.OK)
   @Post('eventos/:id/limite-cupons')
   definirLimiteCupons(@Param('id') id: string, @Body() dto: LimiteCuponsDto) {
-    return this.adminService.definirLimiteCupons(id, dto.limiteCupons);
+    return this.adminService.definirLimiteCupons(id, dto);
   }
 
   @Get('usuarios')

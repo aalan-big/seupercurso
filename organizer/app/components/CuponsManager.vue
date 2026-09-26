@@ -47,10 +47,11 @@ async function onSalvarDescontoIdoso() {
 // do banco, usado so enquanto o evento ainda nao trouxe o campo.
 const limiteCupons = computed(() => props.evento.limiteCupons ?? 10)
 const cuponsRestantes = computed(() => Math.max(0, limiteCupons.value - cupons.value.length))
+const usosPorCupom = computed(() => props.evento.usosPorCupom ?? 1)
 const sucessoCupom = ref('')
 
 const mostrarFormCupom = ref(false)
-const novoCupom = reactive({ codigo: '', percentualDesconto: '', quantidadeMaxima: '', validoAte: '' })
+const novoCupom = reactive({ codigo: '', percentualDesconto: '', validoAte: '' })
 
 async function onCriarCupom() {
   erro.value = ''
@@ -66,12 +67,10 @@ async function onCriarCupom() {
     await criarCupom(props.eventoId, {
       codigo: novoCupom.codigo,
       percentualDesconto: percentual,
-      quantidadeMaxima: novoCupom.quantidadeMaxima ? Number(novoCupom.quantidadeMaxima) : undefined,
       validoAte: novoCupom.validoAte || undefined
     })
     novoCupom.codigo = ''
     novoCupom.percentualDesconto = ''
-    novoCupom.quantidadeMaxima = ''
     novoCupom.validoAte = ''
     mostrarFormCupom.value = false
     sucessoCupom.value = cuponsRestantes.value > 0
@@ -155,6 +154,7 @@ function formatarData(iso: string | null) {
         <template v-if="cuponsRestantes > 0">
           Você pode criar mais <strong>{{ cuponsRestantes }}</strong> cupom(ns) neste evento
           ({{ cupons.length }} de {{ limiteCupons }} usados).
+          Cada cupom pode ser usado por <strong>{{ usosPorCupom }}</strong> {{ usosPorCupom === 1 ? 'pessoa' : 'pessoas' }}.
         </template>
         <template v-else>
           <strong>Limite de cupons atingido</strong> ({{ cupons.length }} de {{ limiteCupons }}).
@@ -222,13 +222,6 @@ function formatarData(iso: string | null) {
               max="100"
               step="0.01"
               placeholder="Desconto (%)"
-              class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
-            />
-            <input
-              v-model="novoCupom.quantidadeMaxima"
-              type="number"
-              min="1"
-              placeholder="Limite de usos (opcional)"
               class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
             <input

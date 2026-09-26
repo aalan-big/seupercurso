@@ -10,10 +10,10 @@ export interface CupomOrganizador {
   createdAt: string
 }
 
+// Sem limite de usos: cada cupom sai com os usos do evento (Evento.usosPorCupom).
 export interface CupomInput {
   codigo: string
   percentualDesconto: number
-  quantidadeMaxima?: number
   validoAte?: string
 }
 

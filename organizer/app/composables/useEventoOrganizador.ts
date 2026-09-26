@@ -91,6 +91,8 @@ export interface EventoOrganizador {
   vagasServidorPublico?: number | null
   // Quantos cupons o evento aceita; so o admin do Seu Percurso muda.
   limiteCupons?: number
+  // Usos de cada cupom novo; tambem so o admin muda.
+  usosPorCupom?: number
   createdAt: string
   updatedAt: string
   modalidades?: ModalidadeOrganizador[]

@@ -289,6 +289,9 @@ model Evento {
   // Quantos cupons o organizador pode criar; so o admin muda (trava contra
   // cupom em massa para derrubar a comissao da plataforma).
   limiteCupons            Int          @default(10)
+  // Usos de cada cupom novo (o organizador nao escolhe). Com o limite acima,
+  // no maximo limiteCupons x usosPorCupom inscricoes saem com desconto.
+  usosPorCupom            Int          @default(1)
   status                  StatusEvento @default(RASCUNHO)
   motivoRejeicao          String?
   createdAt               DateTime     @default(now())
