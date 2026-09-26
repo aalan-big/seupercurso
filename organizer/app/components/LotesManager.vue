@@ -210,31 +210,31 @@ async function onSalvarPreco(loteId: string, modalidadeId: string) {
               />
               <div class="min-w-0">
                 <label class="mb-1 block text-xs font-semibold text-slate-500">Início da venda (horário de Brasília)</label>
-                <div class="flex gap-2">
+                <div class="grid grid-cols-[minmax(0,1fr)_6.5rem] gap-2">
                   <input
                     v-model="edicaoLote.inicioData"
                     type="date"
-                    class="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+                    class="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
                   />
                   <input
                     v-model="edicaoLote.inicioHora"
                     type="time"
-                    class="w-28 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+                    class="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
                   />
                 </div>
               </div>
               <div class="min-w-0">
                 <label class="mb-1 block text-xs font-semibold text-slate-500">Fim da venda (horário de Brasília)</label>
-                <div class="flex gap-2">
+                <div class="grid grid-cols-[minmax(0,1fr)_6.5rem] gap-2">
                   <input
                     v-model="edicaoLote.fimData"
                     type="date"
-                    class="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+                    class="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
                   />
                   <input
                     v-model="edicaoLote.fimHora"
                     type="time"
-                    class="w-28 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+                    class="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
                   />
                 </div>
               </div>
@@ -354,31 +354,31 @@ async function onSalvarPreco(loteId: string, modalidadeId: string) {
             />
             <div class="min-w-0">
               <label class="mb-1 block text-xs font-semibold text-slate-500">Início da venda (horário de Brasília)</label>
-              <div class="flex gap-2">
+              <div class="grid grid-cols-[minmax(0,1fr)_6.5rem] gap-2">
                 <input
                   v-model="novoLote.inicioData"
                   type="date"
-                  class="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+                  class="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
                 />
                 <input
                   v-model="novoLote.inicioHora"
                   type="time"
-                  class="w-28 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+                  class="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
                 />
               </div>
             </div>
             <div class="min-w-0">
               <label class="mb-1 block text-xs font-semibold text-slate-500">Fim da venda (horário de Brasília)</label>
-              <div class="flex gap-2">
+              <div class="grid grid-cols-[minmax(0,1fr)_6.5rem] gap-2">
                 <input
                   v-model="novoLote.fimData"
                   type="date"
-                  class="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+                  class="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
                 />
                 <input
                   v-model="novoLote.fimHora"
                   type="time"
-                  class="w-28 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+                  class="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
                 />
               </div>
             </div>
