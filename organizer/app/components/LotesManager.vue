@@ -14,11 +14,19 @@ const erro = ref('')
 const salvando = ref(false)
 
 const mostrarFormLote = ref(false)
-const novoLote = reactive({ nome: '', quantidade: '', inicioVenda: '', fimVenda: '' })
+// Dia e hora no horario de Brasilia; a hora ja vem com o dia inteiro.
+const novoLote = reactive({
+  nome: '',
+  quantidade: '',
+  inicioData: '',
+  inicioHora: '00:00',
+  fimData: '',
+  fimHora: '23:59'
+})
 
 async function onCriarLote() {
   erro.value = ''
-  if (!novoLote.nome || !novoLote.inicioVenda || !novoLote.fimVenda) {
+  if (!novoLote.nome || !novoLote.inicioData || !novoLote.fimData) {
     erro.value = 'Informe nome e a janela de venda do lote.'
     return
   }
@@ -28,13 +36,15 @@ async function onCriarLote() {
     await criarLote(props.eventoId, {
       nome: novoLote.nome,
       quantidade: novoLote.quantidade ? Number(novoLote.quantidade) : undefined,
-      inicioVenda: novoLote.inicioVenda,
-      fimVenda: novoLote.fimVenda
+      inicioVenda: deCamposBrasilia(novoLote.inicioData, novoLote.inicioHora),
+      fimVenda: deCamposBrasilia(novoLote.fimData, novoLote.fimHora, true)
     })
     novoLote.nome = ''
     novoLote.quantidade = ''
-    novoLote.inicioVenda = ''
-    novoLote.fimVenda = ''
+    novoLote.inicioData = ''
+    novoLote.inicioHora = '00:00'
+    novoLote.fimData = ''
+    novoLote.fimHora = '23:59'
     mostrarFormLote.value = false
   } catch (e) {
     erro.value = extrairErro(e)
@@ -56,14 +66,35 @@ async function onRemoverLote(loteId: string) {
 }
 
 const loteEditandoId = ref<string | null>(null)
-const edicaoLote = reactive({ nome: '', quantidade: '', inicioVenda: '', fimVenda: '' })
+const edicaoLote = reactive({
+  nome: '',
+  quantidade: '',
+  inicioData: '',
+  inicioHora: '',
+  fimData: '',
+  fimHora: '',
+  // Como estava ao abrir: data que nao foi mexida volta identica ao servidor,
+  // sem arredondar segundos de lote que ja esta vendendo.
+  inicioOriginal: { iso: '', data: '', hora: '' },
+  fimOriginal: { iso: '', data: '', hora: '' }
+})
 
 function abrirEdicao(lote: LoteOrganizador) {
   loteEditandoId.value = lote.id
   edicaoLote.nome = lote.nome
   edicaoLote.quantidade = lote.quantidade ? String(lote.quantidade) : ''
-  edicaoLote.inicioVenda = lote.inicioVenda.slice(0, 10)
-  edicaoLote.fimVenda = lote.fimVenda.slice(0, 10)
+  const inicio = paraCamposBrasilia(lote.inicioVenda)
+  const fim = paraCamposBrasilia(lote.fimVenda)
+  edicaoLote.inicioData = inicio.data
+  edicaoLote.inicioHora = inicio.hora
+  edicaoLote.fimData = fim.data
+  edicaoLote.fimHora = fim.hora
+  edicaoLote.inicioOriginal = { iso: lote.inicioVenda, ...inicio }
+  edicaoLote.fimOriginal = { iso: lote.fimVenda, ...fim }
+}
+
+function dataEditada(data: string, hora: string, original: { iso: string; data: string; hora: string }, fim = false) {
+  return data === original.data && hora === original.hora ? original.iso : deCamposBrasilia(data, hora, fim)
 }
 
 function cancelarEdicao() {
@@ -72,7 +103,7 @@ function cancelarEdicao() {
 
 async function onSalvarEdicao(loteId: string) {
   erro.value = ''
-  if (!edicaoLote.nome || !edicaoLote.inicioVenda || !edicaoLote.fimVenda) {
+  if (!edicaoLote.nome || !edicaoLote.inicioData || !edicaoLote.fimData) {
     erro.value = 'Informe nome e a janela de venda do lote.'
     return
   }
@@ -82,8 +113,8 @@ async function onSalvarEdicao(loteId: string) {
     await atualizarLote(props.eventoId, loteId, {
       nome: edicaoLote.nome,
       quantidade: edicaoLote.quantidade ? Number(edicaoLote.quantidade) : undefined,
-      inicioVenda: edicaoLote.inicioVenda,
-      fimVenda: edicaoLote.fimVenda
+      inicioVenda: dataEditada(edicaoLote.inicioData, edicaoLote.inicioHora, edicaoLote.inicioOriginal),
+      fimVenda: dataEditada(edicaoLote.fimData, edicaoLote.fimHora, edicaoLote.fimOriginal, true)
     })
     loteEditandoId.value = null
   } catch (e) {
@@ -138,9 +169,6 @@ async function onSalvarPreco(loteId: string, modalidadeId: string) {
   }
 }
 
-function formatarData(iso: string) {
-  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' })
-}
 </script>
 
 <template>
@@ -181,20 +209,34 @@ function formatarData(iso: string) {
                 class="col-span-2 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
               />
               <div class="min-w-0">
-                <label class="mb-1 block text-xs font-semibold text-slate-500">Início da venda</label>
-                <input
-                  v-model="edicaoLote.inicioVenda"
-                  type="date"
-                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
-                />
+                <label class="mb-1 block text-xs font-semibold text-slate-500">Início da venda (horário de Brasília)</label>
+                <div class="flex gap-2">
+                  <input
+                    v-model="edicaoLote.inicioData"
+                    type="date"
+                    class="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+                  />
+                  <input
+                    v-model="edicaoLote.inicioHora"
+                    type="time"
+                    class="w-28 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+                  />
+                </div>
               </div>
               <div class="min-w-0">
-                <label class="mb-1 block text-xs font-semibold text-slate-500">Fim da venda</label>
-                <input
-                  v-model="edicaoLote.fimVenda"
-                  type="date"
-                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
-                />
+                <label class="mb-1 block text-xs font-semibold text-slate-500">Fim da venda (horário de Brasília)</label>
+                <div class="flex gap-2">
+                  <input
+                    v-model="edicaoLote.fimData"
+                    type="date"
+                    class="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+                  />
+                  <input
+                    v-model="edicaoLote.fimHora"
+                    type="time"
+                    class="w-28 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+                  />
+                </div>
               </div>
               <input
                 v-model="edicaoLote.quantidade"
@@ -227,7 +269,7 @@ function formatarData(iso: string) {
             <div>
               <p class="font-bold text-slate-800">{{ lote.nome }}</p>
               <p class="mt-0.5 text-xs text-slate-400">
-                Vendas de {{ formatarData(lote.inicioVenda) }} até {{ formatarData(lote.fimVenda) }}
+                Vendas de {{ formatarDataHoraBrasilia(lote.inicioVenda) }} até {{ formatarDataHoraBrasilia(lote.fimVenda) }}
                 <template v-if="lote.quantidade"> · {{ lote.quantidade }} vagas</template>
               </p>
             </div>
@@ -311,20 +353,34 @@ function formatarData(iso: string) {
               class="col-span-2 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
             <div class="min-w-0">
-              <label class="mb-1 block text-xs font-semibold text-slate-500">Início da venda</label>
-              <input
-                v-model="novoLote.inicioVenda"
-                type="date"
-                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
-              />
+              <label class="mb-1 block text-xs font-semibold text-slate-500">Início da venda (horário de Brasília)</label>
+              <div class="flex gap-2">
+                <input
+                  v-model="novoLote.inicioData"
+                  type="date"
+                  class="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+                />
+                <input
+                  v-model="novoLote.inicioHora"
+                  type="time"
+                  class="w-28 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+                />
+              </div>
             </div>
             <div class="min-w-0">
-              <label class="mb-1 block text-xs font-semibold text-slate-500">Fim da venda</label>
-              <input
-                v-model="novoLote.fimVenda"
-                type="date"
-                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
-              />
+              <label class="mb-1 block text-xs font-semibold text-slate-500">Fim da venda (horário de Brasília)</label>
+              <div class="flex gap-2">
+                <input
+                  v-model="novoLote.fimData"
+                  type="date"
+                  class="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+                />
+                <input
+                  v-model="novoLote.fimHora"
+                  type="time"
+                  class="w-28 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+                />
+              </div>
             </div>
             <input
               v-model="novoLote.quantidade"

@@ -17,6 +17,7 @@ import {
 import { calcularValorInscricao } from '../common/calcular-valor-inscricao';
 import { calcularIdade } from '../common/calcular-idade';
 import { contarUsosCupom } from '../common/contar-usos-cupom';
+import { formatarDataHoraBrasilia } from '../common/formatar-data-brasilia';
 import {
   FILTRO_SERVIDOR_EM_USO,
   FILTRO_SERVIDOR_LIVRE,
@@ -1058,11 +1059,40 @@ export class InscricaoService {
 
     if (!disponivel) {
       throw new BadRequestException(
-        'Não há vagas disponíveis pra essa modalidade no momento.',
+        await this.motivoSemLoteDisponivel(eventoId, modalidadeId, agora),
       );
     }
 
     return disponivel;
+  }
+
+  // So roda quando a compra ja vai ser recusada. Antes a mensagem era sempre
+  // "nao ha vagas", e venda que ainda nao abriu parecia esgotada.
+  private async motivoSemLoteDisponivel(
+    eventoId: string,
+    modalidadeId: string,
+    agora: Date,
+  ): Promise<string> {
+    const generica = 'Não há vagas disponíveis pra essa modalidade no momento.';
+    const lotes = await this.prisma.lote.findMany({
+      where: { eventoId, precos: { some: { modalidadeId } } },
+      select: { inicioVenda: true, fimVenda: true },
+      orderBy: { inicioVenda: 'asc' },
+    });
+    const temData = (d: unknown) => d instanceof Date && !isNaN(d.getTime());
+    const validos = (lotes || []).filter((l) => temData(l.inicioVenda) && temData(l.fimVenda));
+    if (validos.length === 0) return generica;
+
+    const aberto = validos.some((l) => l.inicioVenda <= agora && l.fimVenda >= agora);
+    const proximo = validos.find((l) => l.inicioVenda > agora);
+    const quando = proximo ? formatarDataHoraBrasilia(proximo.inicioVenda) : '';
+
+    if (!aberto && proximo) return `As vendas desta modalidade abrem em ${quando}.`;
+    if (aberto && proximo) return `As vagas do lote atual esgotaram. O próximo lote abre em ${quando}.`;
+    if (!aberto && validos.every((l) => l.fimVenda < agora)) {
+      return 'As vendas desta modalidade foram encerradas.';
+    }
+    return generica;
   }
 
   // Mesmo padrão de resolverLoteDisponivel, mas pro limite de vagas da

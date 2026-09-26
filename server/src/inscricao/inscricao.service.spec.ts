@@ -182,6 +182,54 @@ describe('InscricaoService', () => {
       );
     });
 
+    describe('mensagem quando nao ha lote para vender', () => {
+      const horas = (h: number) => new Date(Date.now() + h * 3_600_000);
+
+      it('venda que ainda nao abriu diz quando abre (horario de Brasilia)', async () => {
+        const abre = new Date('2099-10-01T13:00:00.000Z'); // 10:00 em Brasilia
+        prisma.lote.findMany
+          .mockResolvedValueOnce([]) // nenhum lote vigente
+          .mockResolvedValueOnce([{ inicioVenda: abre, fimVenda: new Date('2099-10-30T02:59:59Z') }]);
+
+        await expect(service.create(usuarioId, dto)).rejects.toThrow(
+          'As vendas desta modalidade abrem em 01/10/2099 às 10:00.',
+        );
+      });
+
+      it('lote atual esgotado com proximo lote agendado', async () => {
+        prisma.lote.findMany
+          .mockResolvedValueOnce([{ ...loteDisponivel, quantidade: 10, _count: { inscricoes: 10 } }])
+          .mockResolvedValueOnce([
+            { inicioVenda: horas(-24), fimVenda: horas(24) },
+            { inicioVenda: new Date('2099-12-01T03:00:00Z'), fimVenda: new Date('2099-12-10T02:59:59Z') },
+          ]);
+
+        await expect(service.create(usuarioId, dto)).rejects.toThrow(
+          'As vagas do lote atual esgotaram. O próximo lote abre em 01/12/2099 às 00:00.',
+        );
+      });
+
+      it('todos os lotes ja fecharam', async () => {
+        prisma.lote.findMany
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([{ inicioVenda: horas(-72), fimVenda: horas(-1) }]);
+
+        await expect(service.create(usuarioId, dto)).rejects.toThrow(
+          'As vendas desta modalidade foram encerradas.',
+        );
+      });
+
+      it('lote aberto e esgotado sem proximo continua com a mensagem de vagas', async () => {
+        prisma.lote.findMany
+          .mockResolvedValueOnce([{ ...loteDisponivel, quantidade: 10, _count: { inscricoes: 10 } }])
+          .mockResolvedValueOnce([{ inicioVenda: horas(-24), fimVenda: horas(24) }]);
+
+        await expect(service.create(usuarioId, dto)).rejects.toThrow(
+          'Não há vagas disponíveis pra essa modalidade no momento.',
+        );
+      });
+    });
+
     it('lanca BadRequestException se o lote ja esgotou as vagas', async () => {
       prisma.lote.findMany.mockResolvedValue([
         { ...loteDisponivel, quantidade: 10, _count: { inscricoes: 10 } },
