@@ -187,6 +187,7 @@ async function onSubmit(payload: Record<string, unknown>, _arquivoRegulamento: F
 
       <div v-if="abaAtiva === 'descontos'" class="mt-6 max-w-2xl">
         <CuponsManager :evento-id="id" :evento="eventoSelecionado" />
+        <FuncionariosManager v-if="eventoSelecionado.permiteFuncionarios" class="mt-8" :evento-id="id" />
       </div>
 
       <div v-if="abaAtiva === 'cronometragem'" class="mt-6">

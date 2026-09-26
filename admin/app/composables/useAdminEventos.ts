@@ -17,6 +17,12 @@ export interface EventoAdmin {
   vagasServidorPublico?: number | null
   limiteCupons?: number
   usosPorCupom?: number
+  permiteFuncionarios?: boolean
+  percentualFuncionarios?: string | null
+  vagasFuncionarios?: number | null
+  nomeEmpresaFuncionarios?: string | null
+  // So vem no detalhe do evento e na resposta do card de funcionarios
+  resumoFuncionarios?: { naLista: number; inscritos: number; percentualTravado: boolean }
   _count?: { cupons: number }
   cupons?: {
     id: string
@@ -87,5 +93,15 @@ export function useAdminEventos() {
     })
   }
 
-  return { eventos, fetchLista, buscar, aprovar, rejeitar, suspender, configurarServidorPublico, definirLimiteCupons }
+  async function configurarFuncionarios(
+    id: string,
+    config: { liberado: boolean; percentual?: number; vagas: number | null; nomeEmpresa: string | null }
+  ) {
+    return api<EventoAdmin>(`/admin/eventos/${id}/funcionarios`, {
+      method: 'POST',
+      body: config
+    })
+  }
+
+  return { eventos, fetchLista, buscar, aprovar, rejeitar, suspender, configurarServidorPublico, definirLimiteCupons, configurarFuncionarios }
 }

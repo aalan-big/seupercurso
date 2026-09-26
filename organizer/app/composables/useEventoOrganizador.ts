@@ -93,6 +93,9 @@ export interface EventoOrganizador {
   limiteCupons?: number
   // Usos de cada cupom novo; tambem so o admin muda.
   usosPorCupom?: number
+  // Desconto para funcionarios: liberado e configurado so pelo admin.
+  permiteFuncionarios?: boolean
+  percentualFuncionarios?: string | null
   createdAt: string
   updatedAt: string
   modalidades?: ModalidadeOrganizador[]

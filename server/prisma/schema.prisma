@@ -292,6 +292,14 @@ model Evento {
   // Usos de cada cupom novo (o organizador nao escolhe). Com o limite acima,
   // no maximo limiteCupons x usosPorCupom inscricoes saem com desconto.
   usosPorCupom            Int          @default(1)
+  // Desconto para funcionarios da empresa organizadora. Separado do servidor
+  // publico: aqui o atleta paga com desconto e a comissao da plataforma sai
+  // sobre o preco cheio. So o admin liga e define o percentual (ate 90%), que
+  // trava depois da primeira inscricao com o desconto.
+  permiteFuncionarios     Boolean      @default(false)
+  percentualFuncionarios  Decimal?     @db.Decimal(5, 2)
+  vagasFuncionarios       Int?
+  nomeEmpresaFuncionarios String?
   status                  StatusEvento @default(RASCUNHO)
   motivoRejeicao          String?
   createdAt               DateTime     @default(now())
@@ -305,6 +313,7 @@ model Evento {
   solicitacoesArte   SolicitacaoArte[]
   servidoresPublicos ServidorPublico[]
   modelosCamisa      ModeloCamisa[]
+  funcionarios       FuncionarioEmpresa[]
 
   @@index([status, dataInicio])
 }
@@ -507,6 +516,9 @@ model Inscricao {
   kitEntregueEm     DateTime?
   isServidorPublico Boolean         @default(false)
   matriculaServidor String?
+  isFuncionario        Boolean  @default(false)
+  matriculaFuncionario String?
+  percentualFuncionario Decimal? @db.Decimal(5, 2)
   dataInscricao     DateTime        @default(now())
   status            StatusInscricao @default(PENDENTE_PAGAMENTO)
 
@@ -521,6 +533,7 @@ model Inscricao {
   certificado     Certificado?
   resultado       Resultado?
   servidorPublico ServidorPublico?
+  funcionario     FuncionarioEmpresa?
 
   @@index([status])
   @@index([pedidoId])
@@ -746,4 +759,25 @@ model ServidorPublico {
   @@unique([eventoId, cpf])
   @@index([eventoId, matricula])
   @@index([eventoId, cpf])
+}
+
+/// Lista de funcionarios da empresa organizadora com direito ao desconto do
+/// evento (Evento.percentualFuncionarios). Cada matricula vale uma inscricao;
+/// inscricao cancelada ou expirada devolve a matricula.
+model FuncionarioEmpresa {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventoId    String    @db.Uuid
+  cpf         String    // Apenas digitos (11 caracteres)
+  matricula   String
+  nome        String?
+  inscricaoId String?   @unique @db.Uuid
+  utilizadoEm DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  evento    Evento     @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+  inscricao Inscricao? @relation(fields: [inscricaoId], references: [id], onDelete: SetNull)
+
+  @@unique([eventoId, cpf])
+  @@index([eventoId, matricula])
 }

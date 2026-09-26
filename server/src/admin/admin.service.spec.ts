@@ -148,3 +148,106 @@ describe('AdminService.definirLimiteCupons', () => {
     expect(prisma.evento.update).not.toHaveBeenCalled();
   });
 });
+
+describe('AdminService.configurarFuncionarios', () => {
+  let service: AdminService;
+  let prisma: any;
+
+  const eventoBase = {
+    id: 'evento-1',
+    permiteFuncionarios: false,
+    percentualFuncionarios: null as string | null,
+  };
+
+  beforeEach(async () => {
+    prisma = {
+      evento: {
+        findUnique: jest.fn().mockResolvedValue(eventoBase),
+        update: jest.fn().mockImplementation(({ data }: any) => ({ id: 'evento-1', ...data })),
+      },
+      funcionarioEmpresa: { count: jest.fn().mockResolvedValue(0) },
+    };
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        AdminService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: OrganizadorService, useValue: {} },
+        { provide: AuditLogService, useValue: { log: jest.fn() } },
+      ],
+    }).compile();
+
+    service = moduleRef.get(AdminService);
+  });
+
+  it('libera com percentual, vagas e nome da empresa', async () => {
+    const res = await service.configurarFuncionarios('evento-1', {
+      liberado: true,
+      percentual: 50,
+      vagas: 100,
+      nomeEmpresa: '  Dakota  ',
+    });
+
+    expect(prisma.evento.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          permiteFuncionarios: true,
+          percentualFuncionarios: 50,
+          vagasFuncionarios: 100,
+          nomeEmpresaFuncionarios: 'Dakota',
+        },
+      }),
+    );
+    expect(res.resumoFuncionarios).toEqual({ naLista: 0, inscritos: 0, percentualTravado: false });
+  });
+
+  it('nao libera sem percentual', async () => {
+    await expect(
+      service.configurarFuncionarios('evento-1', { liberado: true }),
+    ).rejects.toThrow('Informe o percentual');
+    expect(prisma.evento.update).not.toHaveBeenCalled();
+  });
+
+  it('percentual trava depois da primeira inscricao', async () => {
+    prisma.evento.findUnique.mockResolvedValue({
+      ...eventoBase,
+      permiteFuncionarios: true,
+      percentualFuncionarios: '50',
+    });
+    prisma.funcionarioEmpresa.count.mockResolvedValue(1);
+
+    await expect(
+      service.configurarFuncionarios('evento-1', { liberado: true, percentual: 30 }),
+    ).rejects.toThrow(/travado em 50%/);
+    expect(prisma.evento.update).not.toHaveBeenCalled();
+  });
+
+  it('com percentual travado, ainda pode desligar e reenviar o mesmo percentual', async () => {
+    prisma.evento.findUnique.mockResolvedValue({
+      ...eventoBase,
+      permiteFuncionarios: true,
+      percentualFuncionarios: '50',
+    });
+    prisma.funcionarioEmpresa.count.mockResolvedValue(3);
+
+    await service.configurarFuncionarios('evento-1', { liberado: false, percentual: 50 });
+
+    expect(prisma.evento.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ permiteFuncionarios: false }),
+      }),
+    );
+  });
+
+  it('vagas vazias viram sem limite', async () => {
+    prisma.evento.findUnique.mockResolvedValue({ ...eventoBase, percentualFuncionarios: '40' });
+
+    await service.configurarFuncionarios('evento-1', { liberado: true, vagas: null });
+
+    expect(prisma.evento.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ vagasFuncionarios: null }),
+      }),
+    );
+  });
+});

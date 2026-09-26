@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ArrowLeft, Ban, FileText, CheckCircle, Landmark, Ticket } from 'lucide-vue-next'
+import { ArrowLeft, Ban, FileText, CheckCircle, Landmark, Ticket, BriefcaseBusiness, Lock } from 'lucide-vue-next'
 import type { EventoAdmin } from '../../composables/useAdminEventos'
 
 const route = useRoute()
 const config = useRuntimeConfig()
-const { buscar, aprovar, rejeitar, suspender, configurarServidorPublico, definirLimiteCupons } = useAdminEventos()
+const { buscar, aprovar, rejeitar, suspender, configurarServidorPublico, definirLimiteCupons, configurarFuncionarios } = useAdminEventos()
 
 const evento = ref<EventoAdmin | null>(null)
 const carregando = ref(true)
@@ -47,6 +47,57 @@ async function onSalvarServidorPublico() {
 }
 
 // Limite de cupons do evento: o organizador so cria ate esse numero.
+// Desconto para funcionarios da empresa organizadora (separado do servidor
+// publico). O resumo so vem no detalhe e no salvar deste card; as outras acoes
+// devolvem o evento sem ele, entao fica guardado a parte.
+const formFuncionarios = reactive({ liberado: false, percentual: '', vagas: '', nomeEmpresa: '' })
+const resumoFuncionarios = ref<{ naLista: number; inscritos: number; percentualTravado: boolean } | null>(null)
+const salvandoFuncionarios = ref(false)
+
+watch(
+  evento,
+  (ev) => {
+    if (!ev) return
+    formFuncionarios.liberado = !!ev.permiteFuncionarios
+    formFuncionarios.percentual = ev.percentualFuncionarios ? String(Number(ev.percentualFuncionarios)) : ''
+    formFuncionarios.vagas = ev.vagasFuncionarios ? String(ev.vagasFuncionarios) : ''
+    formFuncionarios.nomeEmpresa = ev.nomeEmpresaFuncionarios || ''
+    if (ev.resumoFuncionarios) resumoFuncionarios.value = ev.resumoFuncionarios
+  },
+  { immediate: true }
+)
+
+async function onSalvarFuncionarios() {
+  erro.value = ''
+  sucesso.value = ''
+  const percentual = formFuncionarios.percentual ? Number(formFuncionarios.percentual) : undefined
+  if (percentual !== undefined && (!Number.isFinite(percentual) || percentual < 1 || percentual > 90)) {
+    erro.value = 'O percentual de desconto deve ser entre 1% e 90%.'
+    return
+  }
+  if (formFuncionarios.liberado && percentual === undefined) {
+    erro.value = 'Informe o percentual de desconto para liberar o recurso.'
+    return
+  }
+  salvandoFuncionarios.value = true
+  try {
+    evento.value = await configurarFuncionarios(route.params.id as string, {
+      liberado: formFuncionarios.liberado,
+      // Travado: nao reenvia, para o servidor nao recusar o salvar inteiro
+      ...(resumoFuncionarios.value?.percentualTravado ? {} : { percentual }),
+      vagas: formFuncionarios.vagas ? Number(formFuncionarios.vagas) : null,
+      nomeEmpresa: formFuncionarios.nomeEmpresa.trim() || null
+    })
+    sucesso.value = formFuncionarios.liberado
+      ? 'Desconto para funcionários liberado para este evento.'
+      : 'Desconto para funcionários desligado para novas inscrições.'
+  } catch (e) {
+    erro.value = extrairErro(e)
+  } finally {
+    salvandoFuncionarios.value = false
+  }
+}
+
 // Usos por cupom: quantas pessoas cada cupom NOVO atende (os ja criados nao mudam).
 const editandoLimiteCupons = ref(false)
 const novoLimiteCupons = ref(10)
@@ -273,6 +324,95 @@ async function confirmarSuspensao() {
             </button>
           </div>
         </div>
+      </div>
+
+      <!-- Desconto para funcionarios da empresa organizadora -->
+      <div class="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="flex items-start gap-3">
+            <BriefcaseBusiness :size="24" class="shrink-0 text-slate-600" />
+            <div>
+              <h2 class="text-sm font-bold uppercase tracking-wide text-slate-800">Desconto para funcionários</h2>
+              <p class="text-xs text-slate-500 mt-0.5">
+                O organizador sobe a lista de funcionários (CPF + matrícula) e cada um tem o desconto definido aqui.
+                A taxa da plataforma continua sobre o preço cheio. Não soma com cupom nem com desconto de idoso.
+              </p>
+            </div>
+          </div>
+          <span
+            class="self-start sm:self-auto rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-wider"
+            :class="evento.permiteFuncionarios ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-slate-100 text-slate-600'"
+          >
+            {{ evento.permiteFuncionarios ? 'Liberado para o Organizador' : 'Bloqueado' }}
+          </span>
+        </div>
+
+        <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-100 pt-4">
+          <div class="sm:col-span-2">
+            <label class="flex items-center gap-2 text-xs font-semibold cursor-pointer bg-slate-50 p-2.5 rounded-xl border border-slate-200 w-fit">
+              <input v-model="formFuncionarios.liberado" type="checkbox" class="h-4 w-4 rounded accent-emerald-600" />
+              <span class="text-slate-800 font-bold">Liberar desconto para funcionários neste evento</span>
+            </label>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wide text-slate-600 mb-1.5">Nome da empresa (aparece para o atleta)</label>
+            <input
+              v-model="formFuncionarios.nomeEmpresa"
+              type="text"
+              maxlength="80"
+              placeholder="Ex: Dakota"
+              class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-xs font-semibold focus:border-emerald-600 focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wide text-slate-600 mb-1.5">Percentual de desconto (1% a 90%)</label>
+            <div class="flex items-center gap-2">
+              <input
+                v-model="formFuncionarios.percentual"
+                type="number"
+                min="1"
+                max="90"
+                step="0.01"
+                placeholder="Ex: 50"
+                :disabled="resumoFuncionarios?.percentualTravado"
+                class="w-28 rounded-xl border border-slate-300 px-3 py-2.5 text-xs font-semibold focus:border-emerald-600 focus:outline-none disabled:bg-slate-100 disabled:text-slate-500"
+              />
+              <span class="text-xs text-slate-500">%</span>
+            </div>
+            <p v-if="resumoFuncionarios?.percentualTravado" class="mt-1.5 flex items-center gap-1 text-[11px] font-bold text-amber-700">
+              <Lock :size="12" /> Travado: já existem {{ resumoFuncionarios.inscritos }} inscrição(ões) com esse desconto.
+            </p>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wide text-slate-600 mb-1.5">Limite de vagas com desconto (opcional)</label>
+            <input
+              v-model="formFuncionarios.vagas"
+              type="number"
+              min="1"
+              placeholder="Vazio = sem limite"
+              class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-xs font-semibold focus:border-emerald-600 focus:outline-none"
+            />
+          </div>
+
+          <div class="flex items-end">
+            <button
+              type="button"
+              :disabled="salvandoFuncionarios"
+              class="w-full rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-black uppercase tracking-wide text-white transition hover:bg-slate-800 disabled:opacity-50"
+              @click="onSalvarFuncionarios"
+            >
+              {{ salvandoFuncionarios ? 'Salvando...' : 'Salvar Configuração' }}
+            </button>
+          </div>
+        </div>
+
+        <p v-if="resumoFuncionarios" class="mt-4 border-t border-slate-100 pt-3 text-xs font-semibold text-slate-500">
+          Na lista do organizador: <span class="text-slate-900">{{ resumoFuncionarios.naLista }}</span> ·
+          Inscritos com desconto: <span class="text-slate-900">{{ resumoFuncionarios.inscritos }}</span>
+        </p>
       </div>
 
       <!-- Limite de cupons do evento (trava contra cupom em massa) -->

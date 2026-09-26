@@ -29,6 +29,7 @@ import {
 } from '../auth/decorators/current-user.decorator';
 import { OrganizadorService } from './organizador.service';
 import { ServidorPublicoService } from './servidor-publico.service';
+import { FuncionarioEmpresaService } from './funcionario-empresa.service';
 import { CreateEventoDto } from './dto/create-evento.dto';
 import { UpdateEventoDto } from './dto/update-evento.dto';
 import { CreateModalidadeDto } from './dto/create-modalidade.dto';
@@ -50,6 +51,7 @@ export class OrganizadorController {
   constructor(
     private readonly organizadorService: OrganizadorService,
     private readonly servidorPublicoService: ServidorPublicoService,
+    private readonly funcionarioEmpresaService: FuncionarioEmpresaService,
   ) {}
 
   @HttpCode(HttpStatus.CREATED)
@@ -893,5 +895,44 @@ export class OrganizadorController {
     @Param('id') id: string,
   ) {
     return this.servidorPublicoService.removerNaoUtilizados(user.userId, id);
+  }
+
+  // Desconto para funcionarios (recurso separado do servidor publico)
+  @Post('eventos/:id/funcionarios/upload')
+  @UseInterceptors(
+    FileInterceptor('arquivo', {
+      storage: memoryStorage(),
+      limits: { fileSize: 25 * 1024 * 1024 },
+    }),
+  )
+  uploadListaFuncionarios(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('Envie o arquivo PDF ou planilha com os funcionários.');
+    return this.funcionarioEmpresaService.importarLista(
+      user.userId,
+      id,
+      file.buffer,
+      file.mimetype,
+      file.originalname,
+    );
+  }
+
+  @Get('eventos/:id/funcionarios')
+  listarFuncionarios(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.funcionarioEmpresaService.listar(user.userId, id);
+  }
+
+  @Delete('eventos/:id/funcionarios')
+  removerFuncionariosNaoUtilizados(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.funcionarioEmpresaService.removerNaoUtilizados(user.userId, id);
   }
 }

@@ -4,6 +4,8 @@ import { randomInt } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { OrganizadorService } from '../organizador/organizador.service';
+import { FILTRO_FUNCIONARIO_EM_USO } from '../common/funcionario-empresa-em-uso';
+import { FuncionariosConfigDto } from './dto/funcionarios-config.dto';
 import { Prisma } from '../generated/prisma/client';
 import {
   CategoriaAuditLog,
@@ -168,7 +170,65 @@ export class AdminService {
     if (!evento) {
       throw new NotFoundException('Evento não encontrado.');
     }
-    return evento;
+    return { ...evento, resumoFuncionarios: await this.resumoFuncionarios(id) };
+  }
+
+  /**
+   * Numeros do card de funcionarios. `inscritos` sao matriculas presas a uma
+   * inscricao pendente ou paga: a partir da primeira, o percentual trava.
+   */
+  private async resumoFuncionarios(eventoId: string) {
+    const [naLista, inscritos] = await Promise.all([
+      this.prisma.funcionarioEmpresa.count({ where: { eventoId } }),
+      this.prisma.funcionarioEmpresa.count({
+        where: { eventoId, ...FILTRO_FUNCIONARIO_EM_USO },
+      }),
+    ]);
+    return { naLista, inscritos, percentualTravado: inscritos > 0 };
+  }
+
+  async configurarFuncionarios(id: string, dto: FuncionariosConfigDto) {
+    const evento = await this.getEventoOuFalhar(id);
+    const resumo = await this.resumoFuncionarios(id);
+
+    const percentualAtual =
+      evento.percentualFuncionarios === null
+        ? null
+        : Number(evento.percentualFuncionarios);
+    const percentualNovo = dto.percentual ?? percentualAtual;
+
+    // Todo funcionario paga o mesmo ate o fim das vendas. Desligar para novas
+    // inscricoes continua permitido.
+    if (
+      resumo.percentualTravado &&
+      dto.percentual !== undefined &&
+      dto.percentual !== percentualAtual
+    ) {
+      throw new BadRequestException(
+        `O percentual está travado em ${percentualAtual}%: já existem ${resumo.inscritos} inscrição(ões) com esse desconto.`,
+      );
+    }
+
+    if (dto.liberado && !percentualNovo) {
+      throw new BadRequestException(
+        'Informe o percentual de desconto para liberar o recurso.',
+      );
+    }
+
+    const atualizado = await this.prisma.evento.update({
+      where: { id },
+      data: {
+        permiteFuncionarios: dto.liberado,
+        ...(dto.percentual !== undefined ? { percentualFuncionarios: dto.percentual } : {}),
+        ...(dto.vagas !== undefined ? { vagasFuncionarios: dto.vagas ?? null } : {}),
+        ...(dto.nomeEmpresa !== undefined
+          ? { nomeEmpresaFuncionarios: dto.nomeEmpresa?.trim() || null }
+          : {}),
+      },
+      include: EVENTO_INCLUDE,
+    });
+
+    return { ...atualizado, resumoFuncionarios: resumo };
   }
 
   async aprovarEvento(id: string) {
