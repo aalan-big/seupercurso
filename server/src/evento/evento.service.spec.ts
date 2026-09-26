@@ -41,7 +41,7 @@ describe('EventoService', () => {
   });
 
   describe('findPublicados', () => {
-    it('busca os eventos visiveis ordenados por dataInicio', async () => {
+    it('busca os eventos visiveis do mais recente cadastrado para o mais antigo', async () => {
       prisma.evento.findMany.mockResolvedValue([
         { id: 'evento-1', nome: 'Corrida de Verão', lotes: [] },
       ]);
@@ -51,7 +51,7 @@ describe('EventoService', () => {
       expect(prisma.evento.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { status: { in: STATUS_VISIVEIS } },
-          orderBy: { dataInicio: 'asc' },
+          orderBy: { createdAt: 'desc' },
         }),
       );
     });

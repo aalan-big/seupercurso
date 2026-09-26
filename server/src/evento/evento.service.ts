@@ -105,7 +105,8 @@ export class EventoService {
           },
         },
       },
-      orderBy: { dataInicio: 'asc' },
+      // Mais recente cadastrado primeiro na vitrine do site
+      orderBy: { createdAt: 'desc' },
     });
 
     return eventos.map(({ lotes, ...evento }) => {
