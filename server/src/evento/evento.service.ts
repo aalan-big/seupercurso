@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StatusEvento, StatusInscricao } from '../generated/prisma/enums';
 import { contarUsosCupom } from '../common/contar-usos-cupom';
+import { calcularSituacaoVendas } from '../common/situacao-vendas';
 
 const RESUMO_SELECT = {
   id: true,
@@ -131,6 +132,10 @@ export class EventoService {
       return {
         ...evento,
         valorApartirDe: valores.length > 0 ? Math.min(...valores) : null,
+        // So faz sentido para evento publicado; esgotado/finalizado ja tem aviso proprio
+        ...(evento.status === StatusEvento.PUBLICADO
+          ? calcularSituacaoVendas(lotes, agora)
+          : { situacaoVendas: null, vendasAbremEm: null }),
       };
     });
   }
@@ -291,6 +296,12 @@ export class EventoService {
 
     return {
       ...evento,
+      ...(evento.status === StatusEvento.PUBLICADO
+        ? calcularSituacaoVendas(evento.lotes)
+        : { situacaoVendas: null, vendasAbremEm: null }),
+      // Hora do servidor: a contagem regressiva nao depende do relogio do
+      // celular de quem esta vendo.
+      agoraServidor: new Date(),
       vagasRestantes:
         evento.capacidade === null
           ? null

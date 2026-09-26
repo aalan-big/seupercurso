@@ -23,6 +23,8 @@ function formatarPreco(valor: number | null) {
 
 const estaEsgotado = computed(() => props.evento.status === 'INSCRICOES_ENCERRADAS')
 const estaFinalizado = computed(() => props.evento.status === 'FINALIZADO')
+const vendasEmBreve = computed(() => props.evento.situacaoVendas === 'EM_BREVE' && !!props.evento.vendasAbremEm)
+const vendasEncerradas = computed(() => props.evento.situacaoVendas === 'ENCERRADAS')
 
 const copiado = ref(false)
 
@@ -149,6 +151,18 @@ async function compartilhar() {
             <span class="h-1.5 w-1.5 rounded-full bg-slate-400"></span> Evento Finalizado
           </span>
           <span
+            v-else-if="vendasEmBreve"
+            class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-amber-300"
+          >
+            <span class="h-1.5 w-1.5 rounded-full bg-amber-300"></span> Vendas abrem {{ formatarDataHoraCurtaBrasilia(props.evento.vendasAbremEm!) }}
+          </span>
+          <span
+            v-else-if="vendasEncerradas"
+            class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-300"
+          >
+            <span class="h-1.5 w-1.5 rounded-full bg-slate-400"></span> Vendas Encerradas
+          </span>
+          <span
             v-else
             class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-400"
           >
@@ -181,7 +195,7 @@ async function compartilhar() {
         </div>
 
         <span
-          v-if="!estaEsgotado && !estaFinalizado"
+          v-if="!estaEsgotado && !estaFinalizado && !vendasEmBreve && !vendasEncerradas"
           class="flex shrink-0 items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-[11px] font-extrabold uppercase tracking-wide text-primary transition group-hover:bg-warning group-hover:text-white"
         >
           Garantir Vaga <ArrowRight :size="14" />

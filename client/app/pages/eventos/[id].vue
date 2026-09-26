@@ -806,6 +806,77 @@ function formatarCpf(val: string | null | undefined) {
     .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
 }
 
+// Aviso de abertura de vendas. So bloqueia quando o servidor diz que nenhum
+// lote esta na janela (EM_BREVE/ENCERRADAS); na duvida ele responde ABERTAS e
+// o checkout segue como antes. A contagem usa a hora do servidor, nao a do
+// celular, e ao zerar recarrega o evento para o checkout aparecer sozinho.
+const vendasFechadas = computed(() => {
+  const s = eventoSelecionado.value?.situacaoVendas
+  return (s === 'EM_BREVE' && !!eventoSelecionado.value?.vendasAbremEm) || s === 'ENCERRADAS'
+})
+const diferencaRelogio = ref(0)
+const agoraCorrigido = ref(Date.now())
+let timerAbertura: ReturnType<typeof setInterval> | null = null
+let recarregandoAbertura = false
+
+watch(
+  () => eventoSelecionado.value?.agoraServidor,
+  (agoraServidor) => {
+    if (agoraServidor) diferencaRelogio.value = new Date(agoraServidor).getTime() - Date.now()
+  },
+  { immediate: true }
+)
+
+const faltaParaAbrir = computed(() => {
+  const abre = eventoSelecionado.value?.vendasAbremEm
+  if (eventoSelecionado.value?.situacaoVendas !== 'EM_BREVE' || !abre) return null
+  return Math.max(0, new Date(abre).getTime() - agoraCorrigido.value)
+})
+
+const contagemAbertura = computed(() => {
+  const ms = faltaParaAbrir.value
+  if (ms === null) return ''
+  const total = Math.floor(ms / 1000)
+  const dias = Math.floor(total / 86400)
+  const horas = Math.floor((total % 86400) / 3600)
+  const minutos = Math.floor((total % 3600) / 60)
+  const segundos = total % 60
+  const hms = [horas, minutos, segundos].map((n) => String(n).padStart(2, '0')).join(':')
+  return dias > 0 ? `${dias} dia${dias > 1 ? 's' : ''} e ${hms}` : hms
+})
+
+function pararTimerAbertura() {
+  if (timerAbertura) {
+    clearInterval(timerAbertura)
+    timerAbertura = null
+  }
+}
+
+watch(
+  vendasFechadas,
+  (fechadas) => {
+    pararTimerAbertura()
+    if (!import.meta.client || !fechadas || eventoSelecionado.value?.situacaoVendas !== 'EM_BREVE') return
+    timerAbertura = setInterval(async () => {
+      agoraCorrigido.value = Date.now() + diferencaRelogio.value
+      if (faltaParaAbrir.value === 0 && !recarregandoAbertura) {
+        recarregandoAbertura = true
+        try {
+          await fetchEvento(eventoId)
+        } catch {
+          // Rede falhou: tenta de novo no proximo tique
+        } finally {
+          // Espera um pouco antes de tentar de novo se o servidor ainda disser EM_BREVE
+          setTimeout(() => { recarregandoAbertura = false }, 5000)
+        }
+      }
+    }, 1000)
+  },
+  { immediate: true }
+)
+
+onBeforeUnmount(pararTimerAbertura)
+
 function formatarData(iso: string) {
   if (!iso) return ''
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' })
@@ -1274,6 +1345,49 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
             <p class="text-sm font-semibold text-slate-500 max-w-md mx-auto">
               {{ eventoSelecionado.status === 'INSCRICOES_ENCERRADAS' ? 'As vagas e inscrições para este evento foram esgotadas pelo organizador.' : 'Este evento já foi realizado e encerrado.' }}
             </p>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-center gap-4 text-xs font-semibold text-slate-600 pt-3 border-t border-slate-100">
+            <span class="flex items-center gap-1.5"><Calendar class="w-4 h-4 text-orange-500" /> {{ formatarData(eventoSelecionado.dataInicio) }}</span>
+            <span class="flex items-center gap-1.5"><MapPin class="w-4 h-4 text-orange-500" /> {{ eventoSelecionado.local }} - {{ eventoSelecionado.cidade }}/{{ eventoSelecionado.estado }}</span>
+          </div>
+
+          <div class="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
+            <NuxtLink to="/" class="px-6 py-3 bg-orange-600 hover:bg-orange-500 text-white font-bold text-sm rounded-xl transition shadow-lg">
+              Ver Outros Eventos Abertos
+            </NuxtLink>
+          </div>
+        </div>
+
+        <!-- Vendas ainda nao abriram / ja encerraram (janelas dos lotes) -->
+        <div v-else-if="vendasFechadas" class="max-w-2xl mx-auto bg-white border border-slate-200 rounded-3xl p-8 sm:p-10 shadow-xl text-center space-y-6 text-slate-800">
+          <div
+            class="w-16 h-16 rounded-full flex items-center justify-center mx-auto border"
+            :class="eventoSelecionado.situacaoVendas === 'EM_BREVE' ? 'bg-amber-100 text-amber-600 border-amber-200' : 'bg-slate-100 text-slate-500 border-slate-200'"
+          >
+            <Clock class="w-9 h-9" />
+          </div>
+
+          <div class="space-y-2">
+            <span
+              class="inline-block px-3.5 py-1 rounded-full text-xs font-black uppercase tracking-wider border"
+              :class="eventoSelecionado.situacaoVendas === 'EM_BREVE' ? 'bg-amber-100 text-amber-900 border-amber-200' : 'bg-slate-100 text-slate-700 border-slate-200'"
+            >
+              {{ eventoSelecionado.situacaoVendas === 'EM_BREVE' ? 'Vendas em breve' : 'Vendas encerradas' }}
+            </span>
+            <h1 class="text-2xl sm:text-3xl font-black text-slate-900">{{ eventoSelecionado.nome }}</h1>
+            <p v-if="eventoSelecionado.situacaoVendas === 'EM_BREVE'" class="text-sm font-semibold text-slate-500 max-w-md mx-auto">
+              As inscrições abrem em <strong class="text-slate-800">{{ formatarDataHoraBrasilia(eventoSelecionado.vendasAbremEm!) }}</strong> (horário de Brasília).
+            </p>
+            <p v-else class="text-sm font-semibold text-slate-500 max-w-md mx-auto">
+              O período de inscrições deste evento terminou.
+            </p>
+          </div>
+
+          <div v-if="contagemAbertura" class="rounded-2xl bg-amber-50 border border-amber-200 p-4">
+            <p class="text-[11px] font-black uppercase tracking-wider text-amber-800">Faltam</p>
+            <p class="text-2xl font-black text-amber-900 tabular-nums">{{ contagemAbertura }}</p>
+            <p class="mt-1 text-[11px] text-amber-800">Esta página libera a inscrição sozinha quando chegar a hora.</p>
           </div>
 
           <div class="flex flex-wrap items-center justify-center gap-4 text-xs font-semibold text-slate-600 pt-3 border-t border-slate-100">

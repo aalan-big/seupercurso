@@ -62,6 +62,40 @@ describe('EventoService', () => {
       );
     });
 
+    it('evento publicado com lote que ainda nao abriu sai como EM_BREVE', async () => {
+      const abre = new Date(Date.now() + 48 * 3_600_000);
+      prisma.evento.findMany.mockResolvedValue([
+        {
+          id: 'evento-1',
+          nome: 'Corrida',
+          status: StatusEvento.PUBLICADO,
+          lotes: [
+            {
+              inicioVenda: abre,
+              fimVenda: new Date(abre.getTime() + 3_600_000),
+              precos: [{ valor: '60' }],
+            },
+          ],
+        },
+      ]);
+
+      const [evento] = await service.findPublicados();
+
+      expect(evento.situacaoVendas).toBe('EM_BREVE');
+      expect(evento.vendasAbremEm).toEqual(abre);
+      expect(evento.valorApartirDe).toBe(60);
+    });
+
+    it('evento esgotado nao recebe situacao de vendas', async () => {
+      prisma.evento.findMany.mockResolvedValue([
+        { id: 'evento-1', nome: 'Corrida', status: StatusEvento.INSCRICOES_ENCERRADAS, lotes: [] },
+      ]);
+
+      const [evento] = await service.findPublicados();
+
+      expect(evento.situacaoVendas).toBeNull();
+    });
+
     it('calcula valorApartirDe como o menor preço entre os lotes ativos', async () => {
       prisma.evento.findMany.mockResolvedValue([
         {
@@ -124,7 +158,14 @@ describe('EventoService', () => {
           where: { id: UUID_EVENTO, status: { in: STATUS_VISIVEIS } },
         }),
       );
-      expect(resultado).toEqual({ ...evento, vagasRestantes: null });
+      expect(resultado).toEqual({
+        ...evento,
+        vagasRestantes: null,
+        // Campos novos do aviso de abertura de vendas (evento sem status aqui)
+        situacaoVendas: null,
+        vendasAbremEm: null,
+        agoraServidor: expect.any(Date),
+      });
 
       // Id ja e um UUID: nao ha por que varrer a tabela procurando prefixo.
       expect(prisma.evento.findMany).not.toHaveBeenCalled();

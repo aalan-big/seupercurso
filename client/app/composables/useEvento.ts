@@ -21,6 +21,10 @@ export interface EventoResumo {
   permiteServidorPublico?: boolean
   vagasServidorPublico?: number | null
   valorApartirDe: number | null
+  // Pelas janelas dos lotes (servidor). null fora de evento publicado; na
+  // duvida o servidor responde ABERTAS.
+  situacaoVendas?: 'ABERTAS' | 'EM_BREVE' | 'ENCERRADAS' | null
+  vendasAbremEm?: string | null
 }
 
 export interface ModeloCamisaEvento {
@@ -78,6 +82,8 @@ export interface LoteEvento {
 }
 
 export interface EventoDetalhe extends EventoResumo {
+  // Hora do servidor quando respondeu, para a contagem regressiva
+  agoraServidor?: string
   modalidades: ModalidadeEvento[]
   lotes: LoteEvento[]
   modelosCamisa?: ModeloCamisaEvento[]
