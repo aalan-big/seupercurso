@@ -15,6 +15,8 @@ export interface EventoAdmin {
   motivoRejeicao: string | null
   permiteServidorPublico?: boolean
   vagasServidorPublico?: number | null
+  limiteCupons?: number
+  _count?: { cupons: number }
   createdAt: string
   organizador: {
     id: string
@@ -68,5 +70,12 @@ export function useAdminEventos() {
     })
   }
 
-  return { eventos, fetchLista, buscar, aprovar, rejeitar, suspender, configurarServidorPublico }
+  async function definirLimiteCupons(id: string, limiteCupons: number) {
+    return api<EventoAdmin>(`/admin/eventos/${id}/limite-cupons`, {
+      method: 'POST',
+      body: { limiteCupons }
+    })
+  }
+
+  return { eventos, fetchLista, buscar, aprovar, rejeitar, suspender, configurarServidorPublico, definirLimiteCupons }
 }

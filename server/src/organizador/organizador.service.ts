@@ -1812,7 +1812,16 @@ export class OrganizadorService {
 
   async criarCupom(usuarioId: string, eventoId: string, dto: CreateCupomDto) {
     const organizador = await this.getOrganizadorAprovadoOuFalhar(usuarioId);
-    await this.getEventoDoOrganizadorOuFalhar(organizador.id, eventoId);
+    const evento = await this.getEventoDoOrganizadorOuFalhar(organizador.id, eventoId);
+
+    // Trava contra cupom em massa: desconto derruba a base da comissao. O
+    // limite e por evento e so o admin muda (Evento.limiteCupons).
+    const cuponsCriados = await this.prisma.cupom.count({ where: { eventoId } });
+    if (cuponsCriados >= evento.limiteCupons) {
+      throw new BadRequestException(
+        `Este evento já tem ${cuponsCriados} cupom(ns), o limite liberado é ${evento.limiteCupons}. Para criar mais, fale com a equipe do Seu Percurso.`,
+      );
+    }
 
     try {
       return await this.prisma.cupom.create({

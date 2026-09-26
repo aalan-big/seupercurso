@@ -55,6 +55,68 @@ describe('OrganizadorService', () => {
     service = moduleRef.get(OrganizadorService);
   });
 
+  describe('criarCupom (limite por evento)', () => {
+    const dtoCupom = { codigo: 'assessoria', percentualDesconto: 10 };
+
+    beforeEach(() => {
+      prisma.evento.findUnique.mockResolvedValue({
+        id: eventoId,
+        organizadorId,
+        limiteCupons: 10,
+      });
+      prisma.cupom = {
+        count: jest.fn().mockResolvedValue(9),
+        create: jest.fn().mockResolvedValue({ id: 'cupom-novo' }),
+      };
+    });
+
+    it('cria enquanto ainda ha espaco no limite', async () => {
+      await service.criarCupom(usuarioId, eventoId, dtoCupom);
+
+      expect(prisma.cupom.count).toHaveBeenCalledWith({ where: { eventoId } });
+      expect(prisma.cupom.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ eventoId, codigo: 'ASSESSORIA' }),
+        }),
+      );
+    });
+
+    it('recusa quando o evento ja chegou no limite', async () => {
+      prisma.cupom.count.mockResolvedValue(10);
+
+      await expect(
+        service.criarCupom(usuarioId, eventoId, dtoCupom),
+      ).rejects.toThrow(/limite liberado é 10.*equipe do Seu Percurso/);
+      expect(prisma.cupom.create).not.toHaveBeenCalled();
+    });
+
+    it('respeita o limite que o admin liberou para o evento', async () => {
+      prisma.evento.findUnique.mockResolvedValue({
+        id: eventoId,
+        organizadorId,
+        limiteCupons: 15,
+      });
+      prisma.cupom.count.mockResolvedValue(12);
+
+      await service.criarCupom(usuarioId, eventoId, dtoCupom);
+
+      expect(prisma.cupom.create).toHaveBeenCalled();
+    });
+
+    it('limite 0 bloqueia qualquer cupom novo', async () => {
+      prisma.evento.findUnique.mockResolvedValue({
+        id: eventoId,
+        organizadorId,
+        limiteCupons: 0,
+      });
+      prisma.cupom.count.mockResolvedValue(0);
+
+      await expect(
+        service.criarCupom(usuarioId, eventoId, dtoCupom),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
   describe('deletarModeloCamisa', () => {
     beforeEach(() => {
       prisma.modeloCamisa.findFirst.mockResolvedValue({

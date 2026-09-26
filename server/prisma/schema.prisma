@@ -286,6 +286,9 @@ model Evento {
   capacidade              Int?
   permiteServidorPublico  Boolean      @default(false)
   vagasServidorPublico    Int?
+  // Quantos cupons o organizador pode criar; so o admin muda (trava contra
+  // cupom em massa para derrubar a comissao da plataforma).
+  limiteCupons            Int          @default(10)
   status                  StatusEvento @default(RASCUNHO)
   motivoRejeicao          String?
   createdAt               DateTime     @default(now())

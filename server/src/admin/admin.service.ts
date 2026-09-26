@@ -32,6 +32,8 @@ const ORGANIZADOR_INCLUDE = {
 const EVENTO_INCLUDE = {
   organizador: { include: ORGANIZADOR_INCLUDE },
   modalidades: { include: { categorias: true } },
+  // Card de cupons do admin: quantos o organizador ja criou contra o limite.
+  _count: { select: { cupons: true } },
 } as const;
 
 // Sem 0/O, 1/l/I: a senha e lida na tela e repassada ao atleta por telefone.
@@ -204,6 +206,16 @@ export class AdminService {
         permiteServidorPublico: liberado,
         vagasServidorPublico: vagas ?? null,
       },
+      include: EVENTO_INCLUDE,
+    });
+  }
+
+  async definirLimiteCupons(id: string, limiteCupons: number) {
+    await this.getEventoOuFalhar(id);
+
+    return this.prisma.evento.update({
+      where: { id },
+      data: { limiteCupons },
       include: EVENTO_INCLUDE,
     });
   }

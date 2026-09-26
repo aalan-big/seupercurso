@@ -18,6 +18,7 @@ import { AdminService } from './admin.service';
 import { NotificacaoAdminService } from './notificacao-admin.service';
 import { MotivoDto } from './dto/motivo.dto';
 import { ComissaoDto } from './dto/comissao.dto';
+import { LimiteCuponsDto } from './dto/limite-cupons.dto';
 import { ServidorPublicoConfigDto } from './dto/servidor-publico-config.dto';
 import { AlterarEmailDto } from './dto/alterar-email.dto';
 import { AlterarCpfDto } from './dto/alterar-cpf.dto';
@@ -183,6 +184,12 @@ export class AdminController {
       dto.liberado,
       dto.vagas,
     );
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('eventos/:id/limite-cupons')
+  definirLimiteCupons(@Param('id') id: string, @Body() dto: LimiteCuponsDto) {
+    return this.adminService.definirLimiteCupons(id, dto.limiteCupons);
   }
 
   @Get('usuarios')

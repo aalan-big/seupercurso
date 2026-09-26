@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ArrowLeft, Ban, FileText, CheckCircle, Landmark } from 'lucide-vue-next'
+import { ArrowLeft, Ban, FileText, CheckCircle, Landmark, Ticket } from 'lucide-vue-next'
 import type { EventoAdmin } from '../../composables/useAdminEventos'
 
 const route = useRoute()
 const config = useRuntimeConfig()
-const { buscar, aprovar, rejeitar, suspender, configurarServidorPublico } = useAdminEventos()
+const { buscar, aprovar, rejeitar, suspender, configurarServidorPublico, definirLimiteCupons } = useAdminEventos()
 
 const evento = ref<EventoAdmin | null>(null)
 const carregando = ref(true)
@@ -43,6 +43,37 @@ async function onSalvarServidorPublico() {
     erro.value = extrairErro(e)
   } finally {
     liberandoServidor.value = false
+  }
+}
+
+// Limite de cupons do evento: o organizador so cria ate esse numero.
+const editandoLimiteCupons = ref(false)
+const novoLimiteCupons = ref(10)
+const salvandoLimiteCupons = ref(false)
+
+function abrirEdicaoLimiteCupons() {
+  if (!evento.value) return
+  novoLimiteCupons.value = evento.value.limiteCupons ?? 10
+  editandoLimiteCupons.value = true
+}
+
+async function salvarLimiteCupons() {
+  erro.value = ''
+  sucesso.value = ''
+  const valor = Number(novoLimiteCupons.value)
+  if (!Number.isInteger(valor) || valor < 0 || valor > 1000) {
+    erro.value = 'O limite de cupons deve ser um número inteiro entre 0 e 1000.'
+    return
+  }
+  salvandoLimiteCupons.value = true
+  try {
+    evento.value = await definirLimiteCupons(route.params.id as string, valor)
+    sucesso.value = `Limite de cupons do evento atualizado para ${valor}.`
+    editandoLimiteCupons.value = false
+  } catch (e) {
+    erro.value = extrairErro(e)
+  } finally {
+    salvandoLimiteCupons.value = false
   }
 }
 
@@ -232,6 +263,60 @@ async function confirmarSuspensao() {
             >
               {{ liberandoServidor ? 'Salvando...' : 'Salvar Configuração' }}
             </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Limite de cupons do evento (trava contra cupom em massa) -->
+      <div class="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="flex items-start gap-3">
+          <Ticket :size="24" class="shrink-0 text-slate-600" />
+          <div class="min-w-0 flex-1">
+            <h2 class="text-sm font-bold uppercase tracking-wide text-slate-800">Limite de cupons</h2>
+            <p class="mt-0.5 text-xs text-slate-500">
+              Quantos cupons de desconto o organizador pode criar neste evento. Os cupons já criados continuam valendo se você baixar o limite.
+            </p>
+
+            <p class="mt-3 text-xs font-semibold text-slate-500">
+              Cupons criados: <span class="text-slate-900">{{ evento._count?.cupons ?? 0 }}</span>
+            </p>
+
+            <div v-if="!editandoLimiteCupons" class="mt-2 flex items-center gap-3">
+              <span class="text-xl font-black text-slate-900">{{ evento.limiteCupons ?? 10 }}</span>
+              <button
+                type="button"
+                class="text-xs font-bold uppercase tracking-wide text-secondary hover:underline"
+                @click="abrirEdicaoLimiteCupons"
+              >
+                Alterar
+              </button>
+            </div>
+
+            <div v-else class="mt-2 flex flex-wrap items-center gap-2">
+              <input
+                v-model.number="novoLimiteCupons"
+                type="number"
+                min="0"
+                max="1000"
+                step="1"
+                class="w-24 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+              />
+              <button
+                type="button"
+                :disabled="salvandoLimiteCupons"
+                class="rounded-xl bg-slate-900 px-4 py-2 text-xs font-black uppercase tracking-wide text-white transition hover:bg-slate-800 disabled:opacity-50"
+                @click="salvarLimiteCupons"
+              >
+                {{ salvandoLimiteCupons ? 'Salvando...' : 'Salvar' }}
+              </button>
+              <button
+                type="button"
+                class="rounded-xl px-4 py-2 text-xs font-bold uppercase tracking-wide text-slate-500 hover:bg-slate-100"
+                @click="editandoLimiteCupons = false"
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
         </div>
       </div>
