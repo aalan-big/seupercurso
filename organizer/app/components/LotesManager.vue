@@ -263,6 +263,10 @@ async function onSalvarPreco(loteId: string, modalidadeId: string) {
                 Cancelar
               </button>
             </div>
+            <!-- O erro geral fica no topo da aba e passava despercebido aqui embaixo -->
+            <p v-if="erro" class="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+              {{ erro }}
+            </p>
           </div>
 
           <div v-else class="flex items-center justify-between gap-3">

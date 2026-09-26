@@ -1640,14 +1640,15 @@ export class OrganizadorService {
     await this.getEventoDoOrganizadorOuFalhar(organizador.id, eventoId);
     await this.getModalidadeDoEventoOuFalhar(eventoId, modalidadeId);
 
+    // Tudo ou nada: com inscricao na modalidade a exclusao falha, e antes os
+    // precos ja tinham sido apagados — a modalidade seguia no ar sem preco.
     try {
-      await this.prisma.loteModalidadePreco.deleteMany({
-        where: { modalidadeId },
-      });
-      await this.prisma.categoria.deleteMany({ where: { modalidadeId } });
-      return await this.prisma.modalidade.delete({
-        where: { id: modalidadeId },
-      });
+      const [, , removida] = await this.prisma.$transaction([
+        this.prisma.loteModalidadePreco.deleteMany({ where: { modalidadeId } }),
+        this.prisma.categoria.deleteMany({ where: { modalidadeId } }),
+        this.prisma.modalidade.delete({ where: { id: modalidadeId } }),
+      ]);
+      return removida;
     } catch (error) {
       throw this.tratarErroDeVinculo(
         error,
@@ -1789,9 +1790,15 @@ export class OrganizadorService {
     await this.getEventoDoOrganizadorOuFalhar(organizador.id, eventoId);
     await this.getLoteDoEventoOuFalhar(eventoId, loteId);
 
+    // Os dois juntos: antes os precos saiam primeiro e, se o lote tinha
+    // inscricao, a exclusao do lote falhava mas os precos ja tinham ido — o lote
+    // ficava sem preco e ninguem mais conseguia comprar.
     try {
-      await this.prisma.loteModalidadePreco.deleteMany({ where: { loteId } });
-      return await this.prisma.lote.delete({ where: { id: loteId } });
+      const [, removido] = await this.prisma.$transaction([
+        this.prisma.loteModalidadePreco.deleteMany({ where: { loteId } }),
+        this.prisma.lote.delete({ where: { id: loteId } }),
+      ]);
+      return removido;
     } catch (error) {
       throw this.tratarErroDeVinculo(
         error,

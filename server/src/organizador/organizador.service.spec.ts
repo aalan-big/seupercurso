@@ -6,6 +6,7 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { MercadoPagoOAuthService } from '../pagamento/mercadopago/mercadopago-oauth.service';
 import { EmailService } from '../email/email.service';
 import { StatusOrganizador } from '../generated/prisma/enums';
+import { Prisma } from '../generated/prisma/client';
 
 describe('OrganizadorService', () => {
   let service: OrganizadorService;
@@ -149,6 +150,60 @@ describe('OrganizadorService', () => {
       await expect(
         service.criarCupom(usuarioId, eventoId, dtoCupom),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('remover lote/modalidade com inscricao', () => {
+    const erroFk = () =>
+      new Prisma.PrismaClientKnownRequestError('Foreign key constraint failed', {
+        code: 'P2003',
+        clientVersion: 'test',
+      });
+
+    beforeEach(() => {
+      prisma.lote = {
+        findUnique: jest.fn().mockResolvedValue({ id: 'lote-1', eventoId }),
+        delete: jest.fn().mockReturnValue('op-delete-lote'),
+      };
+      prisma.modalidade = {
+        findUnique: jest.fn().mockResolvedValue({ id: 'mod-1', eventoId }),
+        delete: jest.fn().mockReturnValue('op-delete-modalidade'),
+      };
+      prisma.loteModalidadePreco = { deleteMany: jest.fn().mockReturnValue('op-delete-precos') };
+      prisma.categoria.deleteMany = jest.fn().mockReturnValue('op-delete-categorias');
+      prisma.$transaction = jest.fn();
+    });
+
+    it('lote: apaga precos e lote na mesma transacao', async () => {
+      prisma.$transaction.mockResolvedValue([{ count: 1 }, { id: 'lote-1' }]);
+
+      const res = await service.removerLote(usuarioId, eventoId, 'lote-1');
+
+      expect(prisma.$transaction).toHaveBeenCalledWith(['op-delete-precos', 'op-delete-lote']);
+      expect(res).toEqual({ id: 'lote-1' });
+    });
+
+    it('lote com inscricao: recusa e nao apaga o preco fora da transacao', async () => {
+      prisma.$transaction.mockRejectedValue(erroFk());
+
+      await expect(service.removerLote(usuarioId, eventoId, 'lote-1')).rejects.toThrow(
+        ConflictException,
+      );
+      // deleteMany so monta a operacao; quem executa e a transacao, que falhou inteira
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('modalidade com inscricao: recusa sem apagar precos nem categorias', async () => {
+      prisma.$transaction.mockRejectedValue(erroFk());
+
+      await expect(service.removerModalidade(usuarioId, eventoId, 'mod-1')).rejects.toThrow(
+        ConflictException,
+      );
+      expect(prisma.$transaction).toHaveBeenCalledWith([
+        'op-delete-precos',
+        'op-delete-categorias',
+        'op-delete-modalidade',
+      ]);
     });
   });
 
