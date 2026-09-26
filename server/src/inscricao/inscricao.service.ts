@@ -16,6 +16,7 @@ import {
 } from '../generated/prisma/enums';
 import { calcularValorInscricao } from '../common/calcular-valor-inscricao';
 import { calcularIdade } from '../common/calcular-idade';
+import { contarUsosCupom } from '../common/contar-usos-cupom';
 import {
   FILTRO_SERVIDOR_EM_USO,
   FILTRO_SERVIDOR_LIVRE,
@@ -119,7 +120,7 @@ export class InscricaoService {
     }
 
     const cupomId = dto.cupomCodigo
-      ? await this.resolverCupomOuFalhar(lote.eventoId, dto.cupomCodigo)
+      ? await this.resolverCupomOuFalhar(lote.eventoId, dto.cupomCodigo, clienteId)
       : null;
 
     // validarElegibilidadeCategoria ja barrou perfil sem PF; o `!` so repete
@@ -278,6 +279,8 @@ export class InscricaoService {
     // Servidores ja aceitos neste carrinho: ainda nao estao no banco, entao a
     // contagem de vagas nao os enxerga sozinha.
     let servidoresNoCarrinho = 0;
+    // Mesma ideia para o limite de usos de cada cupom.
+    const cuponsNoCarrinho = new Map<string, number>();
 
     for (const item of dto.items) {
       let atletaNome: string;
@@ -379,8 +382,16 @@ export class InscricaoService {
       }
 
       const cupomId = item.cupomCodigo
-        ? await this.resolverCupomOuFalhar(lote.eventoId, item.cupomCodigo)
+        ? await this.resolverCupomOuFalhar(
+            lote.eventoId,
+            item.cupomCodigo,
+            clienteId,
+            cuponsNoCarrinho,
+          )
         : null;
+      if (cupomId) {
+        cuponsNoCarrinho.set(cupomId, (cuponsNoCarrinho.get(cupomId) ?? 0) + 1);
+      }
 
       let isServidorPublico = false;
       let matriculaServidor: string | null = null;
@@ -1112,7 +1123,17 @@ export class InscricaoService {
     }
   }
 
-  private async resolverCupomOuFalhar(eventoId: string, codigo: string) {
+  /**
+   * @param clienteId comprador: as pendentes dele nao ocupam o limite.
+   * @param cuponsNoCarrinho vezes que cada cupom ja entrou neste mesmo pedido;
+   *   esses itens ainda nao estao no banco e a contagem sozinha nao os enxerga.
+   */
+  private async resolverCupomOuFalhar(
+    eventoId: string,
+    codigo: string,
+    clienteId: string,
+    cuponsNoCarrinho?: Map<string, number>,
+  ) {
     const codigoLimpo = codigo.trim();
     if (!codigoLimpo) {
       throw new BadRequestException('Informe o código do cupom.');
@@ -1134,20 +1155,19 @@ export class InscricaoService {
     if (cupom.validoAte && cupom.validoAte < new Date()) {
       throw new BadRequestException('Este cupom expirou.');
     }
-    const usosEfetivos = await this.prisma.inscricao.count({
-      where: {
-        cupomId: cupom.id,
-        status: {
-          notIn: [StatusInscricao.CANCELADA, StatusInscricao.EXPIRADA],
-        },
-      },
-    });
+    const usosEfetivos = await contarUsosCupom(this.prisma, cupom.id, clienteId);
+    const usosNoCarrinho = cuponsNoCarrinho?.get(cupom.id) ?? 0;
 
     if (
       cupom.quantidadeMaxima !== null &&
-      usosEfetivos >= cupom.quantidadeMaxima
+      usosEfetivos + usosNoCarrinho >= cupom.quantidadeMaxima
     ) {
-      throw new BadRequestException('Este cupom já atingiu o limite máximo de usos.');
+      const restantes = Math.max(0, cupom.quantidadeMaxima - usosEfetivos);
+      throw new BadRequestException(
+        usosNoCarrinho > 0 && restantes > 0
+          ? `O cupom "${cupom.codigo}" só tem ${restantes} uso(s) disponível(is) e o pedido tem mais atletas com ele.`
+          : 'Este cupom já atingiu o limite máximo de usos.',
+      );
     }
 
     return cupom.id;

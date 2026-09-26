@@ -23,6 +23,9 @@ describe('EventoService', () => {
       findMany: jest.Mock;
       findFirst: jest.Mock;
     };
+    cupom: { findFirst: jest.Mock };
+    cliente: { findUnique: jest.Mock };
+    inscricao: { count: jest.Mock };
   };
 
   beforeEach(async () => {
@@ -31,6 +34,9 @@ describe('EventoService', () => {
         findMany: jest.fn(),
         findFirst: jest.fn(),
       },
+      cupom: { findFirst: jest.fn() },
+      cliente: { findUnique: jest.fn() },
+      inscricao: { count: jest.fn().mockResolvedValue(0) },
     };
 
     const moduleRef = await Test.createTestingModule({
@@ -145,6 +151,55 @@ describe('EventoService', () => {
         expect.objectContaining({
           where: { id: UUID_EVENTO, status: { in: STATUS_VISIVEIS } },
         }),
+      );
+    });
+  });
+
+  describe('validarCupom', () => {
+    const cupom = {
+      id: 'cupom-1',
+      codigo: 'BB10',
+      ativo: true,
+      validoAte: null,
+      percentualDesconto: '10',
+      quantidadeMaxima: 1,
+    };
+
+    beforeEach(() => {
+      prisma.cupom.findFirst.mockResolvedValue(cupom);
+    });
+
+    it('com login, nao conta as pendentes do proprio comprador', async () => {
+      prisma.cliente.findUnique.mockResolvedValue({ id: 'cliente-1' });
+
+      const res = await service.validarCupom(UUID_EVENTO, 'bb10', 'usuario-1');
+
+      expect(res).toEqual({ valido: true, codigo: 'BB10', percentualDesconto: 10 });
+      const where = prisma.inscricao.count.mock.calls[0][0].where;
+      expect(where.OR[1].clienteId).toEqual({ not: 'cliente-1' });
+    });
+
+    it('sem login, conta todas as pendentes recentes', async () => {
+      await service.validarCupom(UUID_EVENTO, 'BB10');
+
+      expect(prisma.cliente.findUnique).not.toHaveBeenCalled();
+      const where = prisma.inscricao.count.mock.calls[0][0].where;
+      expect(where.OR[1].clienteId).toBeUndefined();
+    });
+
+    it('recusa quando o limite ja foi atingido', async () => {
+      prisma.inscricao.count.mockResolvedValue(1);
+
+      await expect(service.validarCupom(UUID_EVENTO, 'BB10')).rejects.toThrow(
+        'Este cupom já atingiu o limite de usos.',
+      );
+    });
+
+    it('recusa codigo que nao existe no evento', async () => {
+      prisma.cupom.findFirst.mockResolvedValue(null);
+
+      await expect(service.validarCupom(UUID_EVENTO, 'BB')).rejects.toThrow(
+        NotFoundException,
       );
     });
   });

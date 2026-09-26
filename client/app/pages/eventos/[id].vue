@@ -183,6 +183,17 @@ async function aplicarCupom() {
   }
 }
 
+// Mexeu no codigo depois de aplicar: o desconto mostrado deixa de valer ate
+// aplicar de novo, senao a tela mostraria o desconto de um cupom e mandaria outro.
+watch(cupomCodigo, (novo) => {
+  if (
+    cupomAplicadoInfo.value &&
+    novo.trim().toUpperCase() !== cupomAplicadoInfo.value.codigo.toUpperCase()
+  ) {
+    cupomAplicadoInfo.value = null
+  }
+})
+
 function removerCupom() {
   cupomCodigo.value = ''
   cupomAplicadoInfo.value = null
@@ -297,6 +308,11 @@ onMounted(async () => {
   try {
     await fetchEvento(eventoId)
     recuperarEstadoCheckout()
+    // O codigo volta da sessao, mas o desconto nao: valida de novo para a tela
+    // mostrar o mesmo valor que sera cobrado.
+    if (cupomCodigo.value.trim()) {
+      aplicarCupom()
+    }
     normalizarCamisasNoCarrinho()
     if (eventoSelecionado.value) {
       if (eventoSelecionado.value.aceitaPix !== false) {
@@ -1034,6 +1050,15 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
     return
   }
 
+  // Cupom digitado sem "Aplicar" ia para a compra do mesmo jeito: com codigo
+  // errado a compra inteira falhava, e com codigo certo a tela mostrava o preco
+  // cheio mas cobrava com desconto. Agora so vai o cupom validado.
+  if (cupomCodigo.value.trim() && !cupomAplicadoInfo.value) {
+    erroInscricao.value = 'Você digitou um cupom mas não aplicou. Clique em "Aplicar" no campo do cupom (ou apague o código) antes de pagar.'
+    rolarParaErro()
+    return
+  }
+
   const semDocumento = atletasSemDocumentoIdoso()
   if (semDocumento.length > 0) {
     erroInscricao.value = `Envie um documento com foto (RG ou CNH) para comprovar a idade de: ${semDocumento.map((i) => i.nome).join(', ')}.`
@@ -1051,7 +1076,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
         tamanhoCamisa: comCamisa ? item.tamanhoCamisa : undefined,
         incluiCamisa: eventoSelecionado.value?.camisaOpcional ? !!item.incluiCamisa : undefined,
         modeloCamisaId: comCamisa ? (item.modeloCamisaId || undefined) : undefined,
-        cupomCodigo: cupomCodigo.value || undefined,
+        cupomCodigo: cupomAplicadoInfo.value?.codigo || undefined,
         dependenteId: item.dependenteId,
         matriculaServidor: isencaoServidorAtiva(item) ? item.matriculaServidor?.trim() : undefined,
         documentoIdosoUrl: item.documentoIdosoUrl || undefined,

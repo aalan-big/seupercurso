@@ -576,4 +576,103 @@ describe('InscricaoService', () => {
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
   });
+
+  describe('limite de usos do cupom', () => {
+    const cupomLimitado = {
+      id: 'cupom-1',
+      codigo: 'BB10',
+      ativo: true,
+      validoAte: null,
+      percentualDesconto: '10',
+      quantidadeMaxima: 1 as number | null,
+    };
+
+    const atletaComCupom = (cpf: string) => ({
+      categoriaId: 'categoria-1',
+      loteId: 'lote-1',
+      cupomCodigo: 'bb10',
+      atleta: {
+        nomeCompleto: `Atleta ${cpf}`,
+        cpf,
+        dataNascimento: '1990-01-01',
+        genero: 'FEMININO' as const,
+        pcd: false,
+      },
+    });
+
+    beforeEach(() => {
+      prisma.cupom.findFirst = jest.fn().mockResolvedValue(cupomLimitado);
+      prisma.cupom.findUnique.mockResolvedValue(cupomLimitado);
+      tx.pedido = { create: jest.fn().mockResolvedValue({ id: 'pedido-1' }) };
+      tx.inscricao = {
+        create: jest.fn().mockResolvedValue({ id: 'inscricao-nova' }),
+      };
+    });
+
+    it('nao conta as pendentes do proprio comprador nem as antigas', async () => {
+      await service.createBatch(usuarioId, { items: [atletaComCupom('11111111111')] });
+
+      const where = prisma.inscricao.count.mock.calls[0][0].where;
+      expect(where.cupomId).toBe('cupom-1');
+      expect(where.OR).toEqual([
+        { status: StatusInscricao.CONFIRMADA },
+        {
+          status: StatusInscricao.PENDENTE_PAGAMENTO,
+          dataInscricao: { gte: expect.any(Date) },
+          clienteId: { not: clienteId },
+        },
+      ]);
+      // Janela de reserva = validade do PIX (24h).
+      const limite: Date = where.OR[1].dataInscricao.gte;
+      const horas = (Date.now() - limite.getTime()) / 3_600_000;
+      expect(horas).toBeGreaterThan(23.9);
+      expect(horas).toBeLessThan(24.1);
+    });
+
+    it('aceita o cupom de 1 uso quando so ha tentativa do proprio comprador', async () => {
+      // A contagem ja exclui as pendentes dele, entao volta 0.
+      prisma.inscricao.count.mockResolvedValue(0);
+
+      await service.createBatch(usuarioId, { items: [atletaComCupom('11111111111')] });
+
+      expect(tx.cupom.update).toHaveBeenCalledTimes(1);
+      expect(tx.inscricao.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ cupomId: 'cupom-1' }),
+        }),
+      );
+    });
+
+    it('recusa quando o limite ja foi usado por outros', async () => {
+      prisma.inscricao.count.mockResolvedValue(1);
+
+      await expect(
+        service.createBatch(usuarioId, { items: [atletaComCupom('11111111111')] }),
+      ).rejects.toThrow('Este cupom já atingiu o limite máximo de usos.');
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('conta os atletas do proprio carrinho no limite do cupom', async () => {
+      prisma.inscricao.count.mockResolvedValue(0);
+
+      // Cupom de 1 uso com 2 atletas: o segundo nao cabe.
+      await expect(
+        service.createBatch(usuarioId, {
+          items: [atletaComCupom('11111111111'), atletaComCupom('22222222222')],
+        }),
+      ).rejects.toThrow(/só tem 1 uso/);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('cupom sem limite aceita o carrinho inteiro', async () => {
+      prisma.cupom.findFirst.mockResolvedValue({ ...cupomLimitado, quantidadeMaxima: null });
+      prisma.inscricao.count.mockResolvedValue(50);
+
+      await service.createBatch(usuarioId, {
+        items: [atletaComCupom('11111111111'), atletaComCupom('22222222222')],
+      });
+
+      expect(tx.inscricao.create).toHaveBeenCalledTimes(2);
+    });
+  });
 });

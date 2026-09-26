@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StatusEvento, StatusInscricao } from '../generated/prisma/enums';
+import { contarUsosCupom } from '../common/contar-usos-cupom';
 
 const RESUMO_SELECT = {
   id: true,
@@ -34,7 +35,7 @@ const RESUMO_SELECT = {
 export class EventoService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async validarCupom(eventoId: string, codigo: string) {
+  async validarCupom(eventoId: string, codigo: string, usuarioId?: string | null) {
     const codigoLimpo = (codigo || '').trim();
     if (!codigoLimpo) {
       throw new NotFoundException('Informe o código do cupom.');
@@ -59,14 +60,13 @@ export class EventoService {
       throw new NotFoundException('Este cupom expirou.');
     }
 
-    const usosEfetivos = await this.prisma.inscricao.count({
-      where: {
-        cupomId: cupom.id,
-        status: {
-          notIn: [StatusInscricao.CANCELADA, StatusInscricao.EXPIRADA],
-        },
-      },
-    });
+    const cliente = usuarioId
+      ? await this.prisma.cliente.findUnique({
+          where: { usuarioId },
+          select: { id: true },
+        })
+      : null;
+    const usosEfetivos = await contarUsosCupom(this.prisma, cupom.id, cliente?.id);
 
     if (
       cupom.quantidadeMaxima !== null &&
