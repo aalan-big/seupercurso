@@ -768,7 +768,7 @@ model ServidorPublico {
 model FuncionarioEmpresa {
   id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   eventoId    String    @db.Uuid
-  cpf         String    // Apenas digitos (11 caracteres)
+  cpf         String?   // Opcional (11 digitos): a chave e a matricula
   matricula   String
   nome        String?
   inscricaoId String?   @unique @db.Uuid
@@ -780,5 +780,5 @@ model FuncionarioEmpresa {
   inscricao Inscricao? @relation(fields: [inscricaoId], references: [id], onDelete: SetNull)
 
   @@unique([eventoId, cpf])
-  @@index([eventoId, matricula])
+  @@unique([eventoId, matricula])
 }

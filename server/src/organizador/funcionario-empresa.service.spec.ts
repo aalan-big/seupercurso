@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { FuncionarioEmpresaService } from './funcionario-empresa.service';
-import { ServidorPublicoParserService } from './servidor-publico-parser.service';
+import { FuncionarioEmpresaParserService } from './funcionario-empresa-parser.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StatusInscricao } from '../generated/prisma/enums';
 
@@ -41,8 +41,9 @@ describe('FuncionarioEmpresaService', () => {
       parseArquivo: jest.fn().mockResolvedValue({
         totalEncontrados: 2,
         linhasIgnoradas: 0,
-        servidores: [
-          { cpf: '11111111111', matricula: 'D100', nome: 'Ana' },
+        matriculasRepetidas: 0,
+        funcionarios: [
+          { cpf: '11111111111', matricula: 'D100', nome: 'Ana Souza' },
           { cpf: '22222222222', matricula: 'D200' },
         ],
       }),
@@ -52,7 +53,7 @@ describe('FuncionarioEmpresaService', () => {
       providers: [
         FuncionarioEmpresaService,
         { provide: PrismaService, useValue: prisma },
-        { provide: ServidorPublicoParserService, useValue: parser },
+        { provide: FuncionarioEmpresaParserService, useValue: parser },
       ],
     }).compile();
 
@@ -82,7 +83,7 @@ describe('FuncionarioEmpresaService', () => {
 
       expect(prisma.funcionarioEmpresa.createMany).toHaveBeenCalledWith({
         data: [
-          { eventoId, cpf: '11111111111', matricula: 'D100', nome: 'Ana' },
+          { eventoId, cpf: '11111111111', matricula: 'D100', nome: 'Ana Souza' },
           { eventoId, cpf: '22222222222', matricula: 'D200', nome: null },
         ],
         skipDuplicates: true,
@@ -90,8 +91,65 @@ describe('FuncionarioEmpresaService', () => {
       expect(res.novosInseridos).toBe(2);
     });
 
-    it('arquivo sem nenhum CPF + matricula valido e recusado', async () => {
-      parser.parseArquivo.mockResolvedValue({ totalEncontrados: 0, linhasIgnoradas: 5, servidores: [] });
+    it('grava lista so com matricula e nome, sem CPF', async () => {
+      parser.parseArquivo.mockResolvedValue({
+        totalEncontrados: 1,
+        linhasIgnoradas: 0,
+        matriculasRepetidas: 0,
+        funcionarios: [{ matricula: '18', nome: 'Jose Uchoa de Lima' }],
+      });
+
+      await service.importarLista(usuarioId, eventoId, Buffer.from('x'), 'text/csv', 'lista.csv');
+
+      expect(prisma.funcionarioEmpresa.createMany).toHaveBeenCalledWith({
+        data: [{ eventoId, cpf: null, matricula: '18', nome: 'Jose Uchoa de Lima' }],
+        skipDuplicates: true,
+      });
+      // Sem CPF no arquivo, a busca dos existentes e so pela matricula.
+      expect(prisma.funcionarioEmpresa.findMany.mock.calls[0][0].where.OR).toEqual([
+        { matricula: { in: ['18'] } },
+      ]);
+    });
+
+    it('reenvio acha o funcionario pela matricula e completa o nome', async () => {
+      parser.parseArquivo.mockResolvedValue({
+        totalEncontrados: 1,
+        linhasIgnoradas: 0,
+        matriculasRepetidas: 0,
+        funcionarios: [{ matricula: '18', nome: 'Jose Uchoa de Lima' }],
+      });
+      prisma.funcionarioEmpresa.findMany.mockResolvedValue([
+        { id: 'f1', cpf: null, matricula: '18', nome: null },
+      ]);
+
+      const res = await service.importarLista(usuarioId, eventoId, Buffer.from('x'));
+
+      expect(prisma.funcionarioEmpresa.createMany).not.toHaveBeenCalled();
+      expect(prisma.funcionarioEmpresa.updateMany.mock.calls[0][0].data).toEqual({
+        matricula: '18',
+        nome: 'Jose Uchoa de Lima',
+      });
+      expect(res.atualizados).toBe(1);
+    });
+
+    it('matricula ou CPF ja usado por outro funcionario nao derruba a importacao', async () => {
+      prisma.funcionarioEmpresa.findMany.mockResolvedValue([
+        { id: 'f1', cpf: '11111111111', matricula: 'VELHA', nome: 'Ana Souza' },
+      ]);
+      prisma.funcionarioEmpresa.updateMany.mockRejectedValue({ code: 'P2002' });
+
+      const res = await service.importarLista(usuarioId, eventoId, Buffer.from('x'));
+
+      expect(res.mensagem).toMatch(/1 ignorados por matrícula ou CPF já usado/);
+    });
+
+    it('arquivo sem nenhum funcionario valido e recusado', async () => {
+      parser.parseArquivo.mockResolvedValue({
+        totalEncontrados: 0,
+        linhasIgnoradas: 5,
+        matriculasRepetidas: 0,
+        funcionarios: [],
+      });
 
       await expect(
         service.importarLista(usuarioId, eventoId, Buffer.from('x')),

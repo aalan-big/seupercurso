@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { ServidorPublicoParserService } from './servidor-publico-parser.service';
+import { FuncionarioEmpresaParserService } from './funcionario-empresa-parser.service';
 import {
   FILTRO_FUNCIONARIO_EM_USO,
   FILTRO_FUNCIONARIO_LIVRE,
@@ -14,14 +14,14 @@ import {
 
 /**
  * Lista de funcionarios da empresa organizadora com direito ao desconto do
- * evento. Recurso separado do servidor publico: so reaproveita o leitor de
- * arquivo (PDF, Excel ou CSV com CPF e matricula).
+ * evento. Recurso separado do servidor publico, com leitor proprio: a chave e
+ * a matricula (ou contrato/cracha) e o CPF e opcional.
  */
 @Injectable()
 export class FuncionarioEmpresaService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly parser: ServidorPublicoParserService,
+    private readonly parser: FuncionarioEmpresaParserService,
   ) {}
 
   private async getEventoDoOrganizadorOuFalhar(usuarioId: string, eventoId: string) {
@@ -60,54 +60,81 @@ export class FuncionarioEmpresaService {
 
     if (resultado.totalEncontrados === 0) {
       throw new BadRequestException(
-        'Nenhum funcionário com CPF e matrícula válidos foi identificado no arquivo. Verifique se o arquivo tem texto selecionável ou envie em Excel/CSV.',
+        'Nenhum funcionário foi identificado no arquivo. Cada linha precisa da matrícula (ou contrato/crachá) e do nome completo; o CPF é opcional. Se for PDF, ele precisa ter texto selecionável; senão envie em Excel ou CSV.',
       );
     }
 
     const CHUNK_SIZE = 250;
-    const funcionarios = resultado.servidores;
+    const funcionarios = resultado.funcionarios;
     let novosInseridos = 0;
     let atualizados = 0;
     let ignoradosEmUso = 0;
+    let conflitos = 0;
 
     for (let i = 0; i < funcionarios.length; i += CHUNK_SIZE) {
       const chunk = funcionarios.slice(i, i + CHUNK_SIZE);
+      const cpfsDoChunk = chunk.map((f) => f.cpf).filter((c): c is string => !!c);
 
+      // A chave e a matricula. O CPF, quando vem, tambem acha o cadastro:
+      // listas antigas subidas com CPF continuam sendo corrigidas pelo reenvio.
       const existentes = await this.prisma.funcionarioEmpresa.findMany({
-        where: { eventoId, cpf: { in: chunk.map((f) => f.cpf) } },
+        where: {
+          eventoId,
+          OR: [
+            { matricula: { in: chunk.map((f) => f.matricula) } },
+            ...(cpfsDoChunk.length ? [{ cpf: { in: cpfsDoChunk } }] : []),
+          ],
+        },
         select: { id: true, cpf: true, matricula: true, nome: true },
       });
-      const existentesPorCpf = new Map(existentes.map((e) => [e.cpf, e]));
+      const porMatricula = new Map(existentes.map((e) => [e.matricula.toUpperCase(), e]));
+      const porCpf = new Map(existentes.filter((e) => e.cpf).map((e) => [e.cpf, e]));
+      const acharExistente = (f: (typeof chunk)[number]) =>
+        porMatricula.get(f.matricula.toUpperCase()) ?? (f.cpf ? porCpf.get(f.cpf) : undefined);
 
-      const novos = chunk.filter((f) => !existentesPorCpf.has(f.cpf));
+      const novos = chunk.filter((f) => !acharExistente(f));
       if (novos.length > 0) {
         const res = await this.prisma.funcionarioEmpresa.createMany({
           data: novos.map((f) => ({
             eventoId,
-            cpf: f.cpf,
+            cpf: f.cpf || null,
             matricula: f.matricula,
             nome: f.nome || null,
           })),
           skipDuplicates: true,
         });
         novosInseridos += res.count;
+        conflitos += novos.length - res.count;
       }
 
       // Reenviar corrige quem ainda nao usou o desconto; quem ja esta inscrito
-      // fica com a matricula que valeu na inscricao.
+      // fica com os dados que valeram na inscricao.
       for (const f of chunk) {
-        const atual = existentesPorCpf.get(f.cpf);
+        const atual = acharExistente(f);
         if (!atual) continue;
 
-        const mudou = atual.matricula !== f.matricula || (f.nome && atual.nome !== f.nome);
+        const mudou =
+          atual.matricula !== f.matricula ||
+          (f.nome && atual.nome !== f.nome) ||
+          (f.cpf && atual.cpf !== f.cpf);
         if (!mudou) continue;
 
-        const { count } = await this.prisma.funcionarioEmpresa.updateMany({
-          where: { id: atual.id, ...FILTRO_FUNCIONARIO_LIVRE },
-          data: { matricula: f.matricula, ...(f.nome ? { nome: f.nome } : {}) },
-        });
-        if (count > 0) atualizados++;
-        else ignoradosEmUso++;
+        try {
+          const { count } = await this.prisma.funcionarioEmpresa.updateMany({
+            where: { id: atual.id, ...FILTRO_FUNCIONARIO_LIVRE },
+            data: {
+              matricula: f.matricula,
+              ...(f.nome ? { nome: f.nome } : {}),
+              ...(f.cpf ? { cpf: f.cpf } : {}),
+            },
+          });
+          if (count > 0) atualizados++;
+          else ignoradosEmUso++;
+        } catch (err: any) {
+          // Matricula ou CPF ja usado por outro funcionario do evento.
+          if (err?.code !== 'P2002') throw err;
+          conflitos++;
+        }
       }
     }
 
@@ -115,6 +142,12 @@ export class FuncionarioEmpresaService {
     if (atualizados > 0) detalhes.push(`${atualizados} corrigidos`);
     if (ignoradosEmUso > 0) {
       detalhes.push(`${ignoradosEmUso} não alterados por já estarem inscritos`);
+    }
+    if (conflitos > 0) {
+      detalhes.push(`${conflitos} ignorados por matrícula ou CPF já usado por outro funcionário`);
+    }
+    if (resultado.matriculasRepetidas > 0) {
+      detalhes.push(`${resultado.matriculasRepetidas} matrícula(s) repetida(s) no arquivo`);
     }
 
     return {

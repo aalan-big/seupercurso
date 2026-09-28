@@ -2,7 +2,7 @@
 // do servidor publico; so aparece quando o admin libera o evento.
 export interface FuncionarioLista {
   id: string
-  cpf: string
+  cpf: string | null
   matricula: string
   nome: string | null
   utilizadoEm: string | null
@@ -37,7 +37,7 @@ export function useFuncionariosOrganizador() {
       novosInseridos: number
       atualizados: number
       ignoradosEmUso: number
-      amostra: { cpf: string; matricula: string; nome?: string }[]
+      amostra: { cpf?: string; matricula: string; nome?: string }[]
       mensagem: string
     }>(`/organizadores/me/eventos/${eventoId}/funcionarios/upload`, {
       method: 'POST',

@@ -334,7 +334,7 @@ async function confirmarSuspensao() {
             <div>
               <h2 class="text-sm font-bold uppercase tracking-wide text-slate-800">Desconto para funcionários</h2>
               <p class="text-xs text-slate-500 mt-0.5">
-                O organizador sobe a lista de funcionários (CPF + matrícula) e cada um tem o desconto definido aqui.
+                O organizador sobe a lista de funcionários (matrícula e nome; CPF opcional) e cada um tem o desconto definido aqui.
                 A taxa da plataforma é calculada sobre o valor já com desconto. Não soma com cupom nem com desconto de idoso.
               </p>
             </div>

@@ -12,7 +12,7 @@ const carregando = ref(true)
 const enviando = ref(false)
 const erro = ref('')
 const sucesso = ref('')
-const amostra = ref<{ cpf: string; matricula: string; nome?: string }[]>([])
+const amostra = ref<{ cpf?: string; matricula: string; nome?: string }[]>([])
 const inputArquivoRef = ref<HTMLInputElement | null>(null)
 
 async function carregar() {
@@ -39,7 +39,7 @@ async function onArquivoSelecionado(e: Event) {
   try {
     const res = await uploadListaFuncionarios(props.eventoId, file)
     sucesso.value = res.mensagem
-    // Primeiras linhas lidas, pra conferir se CPF e matricula sairam certos
+    // Primeiras linhas lidas, pra conferir se matricula e nome sairam certos
     amostra.value = res.amostra || []
     await carregar()
   } catch (err) {
@@ -84,7 +84,8 @@ function formatarCpf(val: string | null | undefined) {
   <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
     <h2 class="text-sm font-bold uppercase tracking-wide text-slate-500">Desconto para funcionários</h2>
     <p class="mt-1 text-xs text-slate-400">
-      Suba a lista de funcionários (CPF e matrícula). Na inscrição, o funcionário informa a matrícula e recebe o desconto.
+      Suba a lista de funcionários com a matrícula (ou contrato/crachá) e o nome completo; o CPF é opcional.
+      Na inscrição, o funcionário informa a matrícula e recebe o desconto.
       O percentual é definido pela equipe do Seu Percurso e não soma com cupom nem com desconto de idoso.
     </p>
 
@@ -121,7 +122,7 @@ function formatarCpf(val: string | null | undefined) {
         <div class="flex flex-col items-center justify-center gap-2">
           <FileText :size="30" class="text-slate-400" />
           <p class="text-xs font-bold text-slate-700">Selecione o PDF ou a planilha com a lista de funcionários</p>
-          <p class="text-[11px] text-slate-400">Formatos aceitos: PDF, Excel (.xlsx, .xls), CSV ou TXT</p>
+          <p class="text-[11px] text-slate-400">Formatos aceitos: Excel (.xlsx), CSV, TXT ou PDF com texto (PDF digitalizado/foto não é lido)</p>
           <button
             type="button"
             :disabled="enviando"
@@ -141,7 +142,7 @@ function formatarCpf(val: string | null | undefined) {
       <div v-if="amostra.length" class="mt-3 rounded-xl border border-slate-200 p-3 text-xs">
         <p class="font-bold text-slate-700">Confira as primeiras linhas lidas do arquivo:</p>
         <ul class="mt-1 font-mono text-slate-600">
-          <li v-for="a in amostra" :key="a.cpf">{{ formatarCpf(a.cpf) }} · matrícula {{ a.matricula }}{{ a.nome ? ` · ${a.nome}` : '' }}</li>
+          <li v-for="a in amostra" :key="a.matricula">matrícula {{ a.matricula }}{{ a.nome ? ` · ${a.nome}` : '' }}{{ a.cpf ? ` · CPF ${formatarCpf(a.cpf)}` : '' }}</li>
         </ul>
       </div>
 
@@ -173,7 +174,7 @@ function formatarCpf(val: string | null | undefined) {
             <tbody class="divide-y divide-slate-100">
               <tr v-for="f in dados.funcionarios" :key="f.id">
                 <td class="px-3 py-2 font-mono font-bold text-slate-800">{{ f.matricula }}</td>
-                <td class="px-3 py-2 font-mono text-slate-600">{{ formatarCpf(f.cpf) }}</td>
+                <td class="px-3 py-2 font-mono text-slate-600">{{ formatarCpf(f.cpf) || '-' }}</td>
                 <td class="px-3 py-2 text-slate-700 truncate max-w-[150px]">{{ f.nome || '-' }}</td>
                 <td class="px-3 py-2 text-right">
                   <span
