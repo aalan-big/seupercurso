@@ -42,6 +42,18 @@ enum StatusOrganizador {
   SUSPENSO
 }
 
+// Esporte do evento: etiqueta do card no site ("Corrida de rua", "Trail run"...).
+enum TipoEsporte {
+  CORRIDA
+  TRAIL_RUN
+  CICLISMO
+  MOTOCROSS
+  CAMINHADA
+  TRIATHLON
+  FITNESS
+  OUTROS
+}
+
 enum StatusEvento {
   RASCUNHO
   AGUARDANDO_APROVACAO
@@ -284,6 +296,7 @@ model Evento {
   cidade                  String
   estado                  String
   capacidade              Int?
+  tipoEsporte             TipoEsporte  @default(CORRIDA)
   permiteServidorPublico  Boolean      @default(false)
   vagasServidorPublico    Int?
   // Quantos cupons o organizador pode criar; so o admin muda (trava contra

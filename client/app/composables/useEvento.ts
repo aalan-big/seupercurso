@@ -23,6 +23,7 @@ export interface EventoResumo {
   permiteFuncionarios?: boolean
   percentualFuncionarios?: string | number | null
   nomeEmpresaFuncionarios?: string | null
+  tipoEsporte?: string | null
   valorApartirDe: number | null
   // Pelas janelas dos lotes (servidor). null fora de evento publicado; na
   // duvida o servidor responde ABERTAS.

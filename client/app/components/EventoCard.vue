@@ -21,6 +21,21 @@ function formatarPreco(valor: number | null) {
   return Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
+// Mesmos tipos do formulario do organizador (TipoEsporte no banco).
+const ROTULO_ESPORTE: Record<string, string> = {
+  CORRIDA: 'Corrida de rua',
+  TRAIL_RUN: 'Trail run',
+  CICLISMO: 'Ciclismo / MTB',
+  MOTOCROSS: 'Motocross / Enduro',
+  CAMINHADA: 'Caminhada',
+  TRIATHLON: 'Natação / Triathlon',
+  FITNESS: 'Crossfit / Fitness',
+  OUTROS: 'Esporte',
+}
+const rotuloEsporte = computed(
+  () => ROTULO_ESPORTE[props.evento.tipoEsporte || 'CORRIDA'] ?? ROTULO_ESPORTE.CORRIDA
+)
+
 const estaEsgotado = computed(() => props.evento.status === 'INSCRICOES_ENCERRADAS')
 const estaFinalizado = computed(() => props.evento.status === 'FINALIZADO')
 const vendasEmBreve = computed(() => props.evento.situacaoVendas === 'EM_BREVE' && !!props.evento.vendasAbremEm)
@@ -122,7 +137,7 @@ async function compartilhar() {
     <div class="absolute inset-x-0 bottom-0 p-4 text-white sm:p-5">
       <div class="mb-2 flex flex-wrap items-center gap-2">
         <span class="rounded-full bg-warning px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white shadow">
-          Corrida de rua
+          {{ rotuloEsporte }}
         </span>
         <span class="flex items-center gap-1 text-xs font-bold text-white/90">
           <Calendar :size="13" /> {{ formatarData(props.evento.dataInicio) }}

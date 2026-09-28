@@ -69,6 +69,7 @@ export interface EventoOrganizador {
   retiradaKitInicio: string | null
   retiradaKitFim: string | null
   possuiCamisa: boolean
+  tipoEsporte?: string
   camisaOpcional?: boolean
   valorCamisaOpcional?: string | number | null
   limiteTrocaCamisaAté: string | null

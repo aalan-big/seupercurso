@@ -10,7 +10,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
-import { StatusEvento } from '../../generated/prisma/enums';
+import { StatusEvento, TipoEsporte } from '../../generated/prisma/enums';
 
 export class UpdateEventoDto {
   @IsOptional()
@@ -41,6 +41,10 @@ export class UpdateEventoDto {
   @IsOptional()
   @IsDateString()
   retiradaKitFim?: string;
+
+  @IsOptional()
+  @IsEnum(TipoEsporte, { message: 'Tipo do evento inválido.' })
+  tipoEsporte?: TipoEsporte;
 
   @IsOptional()
   @IsBoolean()

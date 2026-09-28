@@ -30,6 +30,7 @@ const RESUMO_SELECT = {
   percentualDescontoIdoso: true,
   permiteServidorPublico: true,
   vagasServidorPublico: true,
+  tipoEsporte: true,
   // Desconto para funcionarios: o site mostra o campo do contrato e o preco.
   permiteFuncionarios: true,
   percentualFuncionarios: true,

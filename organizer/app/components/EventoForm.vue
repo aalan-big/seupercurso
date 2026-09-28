@@ -86,7 +86,8 @@ const statusOpcoes = computed(() => {
   return opcoes
 })
 
-const tipoEsporteSelecionado = ref('CORRIDA')
+// Etiqueta do card no site. Antes ficava so na tela e nunca era salvo.
+const tipoEsporteSelecionado = ref(props.evento?.tipoEsporte ?? 'CORRIDA')
 
 function formatarMoedaParaInput(valor: number | string | null | undefined): string {
   if (valor === null || valor === undefined || valor === '') return ''
@@ -467,6 +468,7 @@ const temAlteracoes = computed(() => {
     form.retiradaKitFim !== (props.evento.retiradaKitFim?.slice(0, 16) ?? '') ||
     form.possuiCamisa !== (props.evento.possuiCamisa ?? true) ||
     form.camisaOpcional !== (props.evento.camisaOpcional ?? false) ||
+    tipoEsporteSelecionado.value !== (props.evento.tipoEsporte ?? 'CORRIDA') ||
     form.valorCamisaOpcional !== formatarMoedaParaInput(props.evento.valorCamisaOpcional) ||
     form.limiteTrocaCamisaAté !== (props.evento.limiteTrocaCamisaAté?.slice(0, 16) ?? '') ||
     form.camisasBloqueadas !== (props.evento.camisasBloqueadas ?? false) ||
@@ -500,6 +502,7 @@ watch(
       form.retiradaKitFim = ev.retiradaKitFim?.slice(0, 16) ?? ''
       form.possuiCamisa = ev.possuiCamisa ?? true
       form.camisaOpcional = ev.camisaOpcional ?? false
+      tipoEsporteSelecionado.value = ev.tipoEsporte ?? 'CORRIDA'
       form.valorCamisaOpcional = formatarMoedaParaInput(ev.valorCamisaOpcional)
       form.limiteTrocaCamisaAté = ev.limiteTrocaCamisaAté?.slice(0, 16) ?? ''
       retiradaKitInicioDisplay.value = converterIsoDatetimeParaDisplay(form.retiradaKitInicio)
@@ -560,6 +563,7 @@ function onSubmit() {
     retiradaKitLocal: form.retiradaKitLocal || undefined,
     retiradaKitInicio: form.retiradaKitInicio || undefined,
     retiradaKitFim: form.retiradaKitFim || undefined,
+    tipoEsporte: tipoEsporteSelecionado.value,
     possuiCamisa: form.possuiCamisa,
     camisaOpcional: form.possuiCamisa ? form.camisaOpcional : false,
     valorCamisaOpcional:
