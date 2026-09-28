@@ -294,7 +294,8 @@ model Evento {
   usosPorCupom            Int          @default(1)
   // Desconto para funcionarios da empresa organizadora. Separado do servidor
   // publico: aqui o atleta paga com desconto e a comissao da plataforma sai
-  // sobre o preco cheio. So o admin liga e define o percentual (ate 90%), que
+  // sobre o valor JA com desconto (ex.: 70 - 15% = 59,50 + 10% = 65,45), como
+  // no cupom e no idoso. So o admin liga e define o percentual (ate 90%), que
   // trava depois da primeira inscricao com o desconto.
   permiteFuncionarios     Boolean      @default(false)
   percentualFuncionarios  Decimal?     @db.Decimal(5, 2)

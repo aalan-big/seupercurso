@@ -13,8 +13,8 @@ export class FuncionariosConfigDto {
   @IsBoolean()
   liberado: boolean;
 
-  // Ate 90%: acima disso o valor pago pode nao cobrir a comissao da
-  // plataforma, que sai sobre o preco cheio.
+  // Ate 90%. A comissao da plataforma sai sobre o valor ja com desconto
+  // (ex.: 70 - 15% = 59,50 + 10% = 65,45), igual ao cupom e ao idoso.
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(1)
