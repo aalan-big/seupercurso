@@ -151,6 +151,7 @@ export interface InscricaoItemInput {
   cupomCodigo?: string
   dependenteId?: string
   matriculaServidor?: string
+  matriculaFuncionario?: string
   atleta?: {
     nomeCompleto: string
     cpf: string
@@ -267,12 +268,23 @@ export function useInscricao() {
     )
   }
 
+  async function validarFuncionario(eventoId: string, matricula: string, nome: string, cpf: string) {
+    return await api<{ valido: boolean; matricula: string; percentual: number; mensagem: string }>(
+      '/inscricoes/validar-funcionario',
+      {
+        method: 'POST',
+        body: { eventoId, matricula, nome, cpf }
+      }
+    )
+  }
+
   return {
     minhasInscricoes,
     criar,
     criarBatch,
     uploadDocumentoIdoso,
     validarServidorPublico,
+    validarFuncionario,
     fetchMinhas,
     cancelar,
     atualizarTamanhoCamisa,

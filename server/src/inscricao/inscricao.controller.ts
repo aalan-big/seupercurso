@@ -28,6 +28,7 @@ import { UpdateTamanhoCamisaDto } from './dto/update-tamanho-camisa.dto';
 import { TrocarCategoriaDto } from './dto/trocar-categoria.dto';
 import { TransferirInscricaoDto } from './dto/transferir-inscricao.dto';
 import { ValidarServidorDto } from './dto/validar-servidor.dto';
+import { ValidarFuncionarioDto } from './dto/validar-funcionario.dto';
 
 @Controller('inscricoes')
 export class InscricaoController {
@@ -39,6 +40,16 @@ export class InscricaoController {
   @Post('validar-servidor')
   validarServidor(@Body() dto: ValidarServidorDto) {
     return this.inscricaoService.validarServidor(dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @Post('validar-funcionario')
+  validarFuncionario(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ValidarFuncionarioDto,
+  ) {
+    return this.inscricaoService.validarFuncionario(user.userId, dto);
   }
 
   @UseGuards(JwtAuthGuard)

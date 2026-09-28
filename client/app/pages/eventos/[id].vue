@@ -29,7 +29,8 @@ import {
   Camera,
   Eye,
   Landmark,
-  IdCard
+  IdCard,
+  BadgeCheck
 } from 'lucide-vue-next'
 import type { ModeloCamisaEvento } from '../../composables/useEvento'
 
@@ -41,7 +42,7 @@ const apiBase = config.public.apiBase as string
 
 const { token, user } = useAuth()
 const { eventoSelecionado, fetchEvento } = useEvento()
-const { minhasInscricoes, fetchMinhas, criarBatch, uploadDocumentoIdoso, validarServidorPublico, pagarInscricao } = useInscricao()
+const { minhasInscricoes, fetchMinhas, criarBatch, uploadDocumentoIdoso, validarServidorPublico, validarFuncionario, pagarInscricao } = useInscricao()
 const { cliente, fetchMe: fetchClienteMe } = useCliente()
 const { dependentes, fetchDependentes } = useDependente()
 
@@ -95,6 +96,11 @@ interface ItemCarrinho {
   servidorValidado?: boolean
   servidorValidando?: boolean
   servidorErro?: string
+  // Desconto para funcionarios da empresa organizadora (contrato/cracha).
+  matriculaFuncionario?: string
+  funcionarioValidado?: boolean
+  funcionarioValidando?: boolean
+  funcionarioErro?: string
 }
 
 // Modal Lightbox de fotos de modelos de camisa
@@ -519,6 +525,7 @@ function temDescontoIdoso(item: ItemCarrinho) {
   const ev = eventoSelecionado.value
   if (!ev?.aplicaDescontoIdoso || !ev.percentualDescontoIdoso) return false
   if (isencaoServidorAtiva(item)) return false
+  if (descontoFuncionarioAtivo(item)) return false
   return calcularIdade(item.dataNascimento, ev.dataInicio) >= 60
 }
 
@@ -719,6 +726,53 @@ async function validarMatriculaServidor(item: ItemCarrinho) {
   }
 }
 
+const percentualFuncionarios = computed(() => Number(eventoSelecionado.value?.percentualFuncionarios || 0))
+
+// Campo do contrato: evento com o desconto liberado, e nunca junto com a
+// isencao de servidor (o servidor ja sai de graca).
+function mostrarCampoFuncionario(item: ItemCarrinho) {
+  return !!eventoSelecionado.value?.permiteFuncionarios &&
+    percentualFuncionarios.value > 0 &&
+    !!item.categoriaId &&
+    !isencaoServidorAtiva(item)
+}
+
+function descontoFuncionarioAtivo(item: ItemCarrinho) {
+  return mostrarCampoFuncionario(item) && !!item.funcionarioValidado
+}
+
+async function validarContratoFuncionario(item: ItemCarrinho) {
+  item.funcionarioErro = ''
+  if (!item.matriculaFuncionario || !item.matriculaFuncionario.trim()) {
+    item.funcionarioErro = 'Digite o número do seu contrato ou crachá.'
+    return
+  }
+  if (!token.value) {
+    item.funcionarioErro = 'Entre na sua conta para validar o contrato. Os atletas do carrinho continuam salvos.'
+    return
+  }
+  item.funcionarioValidando = true
+  try {
+    const res = await validarFuncionario(eventoId, item.matriculaFuncionario.trim(), item.nome, item.cpf)
+    if (res.valido) {
+      item.matriculaFuncionario = res.matricula
+      item.funcionarioValidado = true
+      item.funcionarioErro = ''
+    }
+  } catch (err: any) {
+    item.funcionarioValidado = false
+    item.funcionarioErro = extrairErro(err)
+  } finally {
+    item.funcionarioValidando = false
+  }
+}
+
+function removerContratoFuncionario(item: ItemCarrinho) {
+  item.funcionarioValidado = false
+  item.matriculaFuncionario = ''
+  item.funcionarioErro = ''
+}
+
 // A matricula validada vale para o CPF no evento inteiro, em qualquer
 // categoria: trocar de categoria nao obriga a validar de novo.
 const todosSaoServidoresIsentos = computed(
@@ -734,6 +788,16 @@ function calcularPrecoItem(item: ItemCarrinho) {
   if (isencaoServidorAtiva(item)) return 0
   const valorBase = precoBasePara(item.modalidadeId)
   let valor = valorBase
+
+  // Funcionario: so o percentual da empresa, sem idoso e sem cupom (o servidor
+  // recusa a mistura). A camisa opcional continua pelo preco cheio.
+  if (descontoFuncionarioAtivo(item)) {
+    valor -= valor * (percentualFuncionarios.value / 100)
+    if (eventoSelecionado.value?.camisaOpcional && item.incluiCamisa && eventoSelecionado.value.valorCamisaOpcional) {
+      valor += Number(eventoSelecionado.value.valorCamisaOpcional)
+    }
+    return Math.max(0, Number(valor.toFixed(2)))
+  }
 
   if (eventoSelecionado.value?.aplicaDescontoIdoso && eventoSelecionado.value.percentualDescontoIdoso) {
     const idade = calcularIdade(item.dataNascimento, eventoSelecionado.value.dataInicio)
@@ -1147,10 +1211,12 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
         tamanhoCamisa: comCamisa ? item.tamanhoCamisa : undefined,
         incluiCamisa: eventoSelecionado.value?.camisaOpcional ? !!item.incluiCamisa : undefined,
         modeloCamisaId: comCamisa ? (item.modeloCamisaId || undefined) : undefined,
-        cupomCodigo: cupomAplicadoInfo.value?.codigo || undefined,
+        // O cupom nao vale para quem leva o desconto de funcionario.
+        cupomCodigo: descontoFuncionarioAtivo(item) ? undefined : (cupomAplicadoInfo.value?.codigo || undefined),
         dependenteId: item.dependenteId,
         matriculaServidor: isencaoServidorAtiva(item) ? item.matriculaServidor?.trim() : undefined,
-        documentoIdosoUrl: item.documentoIdosoUrl || undefined,
+        matriculaFuncionario: descontoFuncionarioAtivo(item) ? item.matriculaFuncionario?.trim() : undefined,
+        documentoIdosoUrl: descontoFuncionarioAtivo(item) ? undefined : (item.documentoIdosoUrl || undefined),
         atleta: item.tipo === 'MANUAL'
           ? {
               nomeCompleto: item.nome,
@@ -1771,6 +1837,67 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                     </div>
                   </div>
 
+                  <!-- Desconto para funcionarios da empresa organizadora -->
+                  <div
+                    v-if="mostrarCampoFuncionario(item)"
+                    class="rounded-xl border p-4 space-y-3 transition mt-3"
+                    :class="item.funcionarioValidado ? 'bg-emerald-50 border-emerald-300' : 'bg-orange-50 border-orange-200'"
+                  >
+                    <div class="flex items-start gap-3">
+                      <BadgeCheck class="w-6 h-6 shrink-0" :class="item.funcionarioValidado ? 'text-emerald-600' : 'text-orange-600'" />
+                      <div class="flex-1 space-y-2">
+                        <div>
+                          <h4 class="text-xs font-black uppercase tracking-wider" :class="item.funcionarioValidado ? 'text-emerald-900' : 'text-orange-900'">
+                            É funcionário{{ eventoSelecionado?.nomeEmpresaFuncionarios ? ` da ${eventoSelecionado.nomeEmpresaFuncionarios}` : ' da empresa organizadora' }}? {{ percentualFuncionarios }}% de desconto
+                          </h4>
+                          <p class="text-xs text-slate-600 mt-0.5">
+                            Digite o número do contrato ou crachá de <strong>{{ item.nome.split(' ')[0] }}</strong>. O nome do cadastro precisa ser o mesmo da lista da empresa.
+                            Não acumula com cupom nem com desconto de idoso. Se não for funcionário, deixe em branco.
+                          </p>
+                        </div>
+
+                        <div v-if="!item.funcionarioValidado" class="flex flex-col sm:flex-row gap-2 pt-1">
+                          <input
+                            v-model="item.matriculaFuncionario"
+                            type="text"
+                            inputmode="numeric"
+                            placeholder="Número do contrato ou crachá..."
+                            class="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-800 focus:border-orange-500 focus:outline-none"
+                            @keydown.enter.prevent="validarContratoFuncionario(item)"
+                          />
+                          <button
+                            type="button"
+                            @click="validarContratoFuncionario(item)"
+                            :disabled="item.funcionarioValidando"
+                            class="px-5 py-2.5 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white text-xs font-black uppercase tracking-wider rounded-xl transition flex items-center justify-center gap-1.5 shadow-sm shrink-0"
+                          >
+                            <span v-if="item.funcionarioValidando" class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                            <span>{{ item.funcionarioValidando ? 'Validando...' : 'Validar Contrato' }}</span>
+                          </button>
+                        </div>
+
+                        <div v-else class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+                          <div class="flex items-center gap-2 text-xs font-bold text-emerald-800">
+                            <CheckCircle class="w-4 h-4 text-emerald-600 shrink-0" />
+                            <span>Contrato {{ item.matriculaFuncionario }} confirmado · {{ percentualFuncionarios }}% de desconto ✓</span>
+                          </div>
+                          <button
+                            type="button"
+                            @click="removerContratoFuncionario(item)"
+                            class="text-[11px] font-bold text-slate-500 hover:text-slate-700 underline text-left"
+                          >
+                            Remover desconto
+                          </button>
+                        </div>
+
+                        <div v-if="item.funcionarioErro" class="p-2.5 bg-red-100/70 border border-red-200 text-red-700 text-xs font-semibold rounded-xl flex items-center gap-2">
+                          <AlertTriangle class="w-4 h-4 shrink-0 text-red-600" />
+                          <span>{{ item.funcionarioErro }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   <!-- Desconto do idoso na Etapa 2 para quem não é servidor público -->
                   <div
                     v-if="temDescontoIdoso(item) && !itemIsServidorPublico(item)"
@@ -2041,6 +2168,12 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                       <Landmark class="inline w-3 h-3 -mt-0.5" /> Servidor Público
                     </span>
                     <span
+                      v-else-if="descontoFuncionarioAtivo(item)"
+                      class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200"
+                    >
+                      Funcionário · -{{ percentualFuncionarios }}%
+                    </span>
+                    <span
                       v-else-if="eventoSelecionado?.camisaOpcional && item.incluiCamisa"
                       class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-orange-100 text-orange-800 border border-orange-200"
                     >
@@ -2194,6 +2327,9 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
 
                 <div v-if="cupomAplicadoInfo" class="text-xs text-emerald-600 font-bold">
                   Cupom "{{ cupomAplicadoInfo.codigo }}" aplicado! Desconto de {{ cupomAplicadoInfo.percentualDesconto }}%.
+                  <span v-if="carrinho.some((i) => descontoFuncionarioAtivo(i))" class="block font-normal text-slate-500">
+                    Não vale para quem já tem o desconto de funcionário.
+                  </span>
                 </div>
                 <div v-if="erroCupom" class="text-xs text-red-600 font-semibold">
                   {{ erroCupom }}

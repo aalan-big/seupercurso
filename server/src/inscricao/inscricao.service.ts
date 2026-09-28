@@ -23,9 +23,16 @@ import {
   FILTRO_SERVIDOR_LIVRE,
   servidorEstaEmUso,
 } from '../common/servidor-publico-em-uso';
+import {
+  FILTRO_FUNCIONARIO_EM_USO,
+  FILTRO_FUNCIONARIO_LIVRE,
+  funcionarioEstaEmUso,
+} from '../common/funcionario-empresa-em-uso';
+import { nomesConferem } from '../common/nomes-conferem';
 import { CreateInscricaoDto } from './dto/create-inscricao.dto';
 import { CreateInscricaoBatchDto } from './dto/create-inscricao-batch.dto';
 import { ValidarServidorDto } from './dto/validar-servidor.dto';
+import { ValidarFuncionarioDto } from './dto/validar-funcionario.dto';
 import { EmailService } from '../email/email.service';
 
 @Injectable()
@@ -243,6 +250,37 @@ export class InscricaoService {
     };
   }
 
+  async validarFuncionario(usuarioId: string, dto: ValidarFuncionarioDto) {
+    const clienteId = await this.getClienteIdOuFalhar(usuarioId);
+    const evento = await this.prisma.evento.findUnique({
+      where: { id: dto.eventoId },
+      select: {
+        id: true,
+        permiteFuncionarios: true,
+        percentualFuncionarios: true,
+        vagasFuncionarios: true,
+      },
+    });
+    if (!evento) {
+      throw new NotFoundException('Evento não encontrado.');
+    }
+
+    const { funcionario, percentual } = await this.resolverFuncionarioOuFalhar(
+      evento,
+      dto.matricula,
+      { nome: dto.nome.trim(), cpf: dto.cpf.replace(/\D/g, '') },
+      clienteId,
+    );
+
+    // Sem o nome da lista, pelo mesmo motivo do servidor publico.
+    return {
+      valido: true,
+      matricula: funcionario.matricula,
+      percentual,
+      mensagem: `Contrato confirmado. Desconto de ${percentual}% liberado.`,
+    };
+  }
+
   // Nao exige mais e-mail confirmado: em 24/09 metade das tentativas de compra
   // parava nessa trava (189 contas sem confirmar em 3 dias). O pagamento passa
   // pelo Mercado Pago de qualquer jeito; o e-mail certo e conferido na tela de
@@ -274,6 +312,11 @@ export class InscricaoService {
       isServidorPublico?: boolean;
       matriculaServidor?: string | null;
       servidorPublicoId?: string | null;
+      isFuncionario?: boolean;
+      matriculaFuncionario?: string | null;
+      percentualFuncionario?: number | null;
+      funcionarioEmpresaId?: string | null;
+      inscricaoPendenteParaCancelar?: string | null;
     }> = [];
 
     const cpfsNoCarrinho = new Set<string>();
@@ -282,6 +325,8 @@ export class InscricaoService {
     let servidoresNoCarrinho = 0;
     // Mesma ideia para o limite de usos de cada cupom.
     const cuponsNoCarrinho = new Map<string, number>();
+    // E para os contratos de funcionario (vagas e o mesmo contrato duas vezes).
+    const funcionariosNoCarrinho = { quantidade: 0, matriculas: new Set<string>() };
 
     for (const item of dto.items) {
       let atletaNome: string;
@@ -456,14 +501,51 @@ export class InscricaoService {
         servidoresNoCarrinho++;
       }
 
+      let isFuncionario = false;
+      let matriculaFuncionario: string | null = null;
+      let percentualFuncionario: number | null = null;
+      let funcionarioEmpresaId: string | null = null;
+      let inscricaoPendenteParaCancelar: string | null = null;
+
+      // Desconto de funcionario: nao acumula com servidor, cupom nem idoso.
+      if (item.matriculaFuncionario?.trim()) {
+        if (isServidorPublico) {
+          throw new BadRequestException(
+            `${atletaNome} já tem a isenção de servidor público; o desconto de funcionário não se aplica junto.`,
+          );
+        }
+        if (cupomId) {
+          throw new BadRequestException(
+            `O desconto de funcionário não acumula com cupom. Remova o cupom para ${atletaNome}.`,
+          );
+        }
+
+        const resolvido = await this.resolverFuncionarioOuFalhar(
+          categoria.modalidade.evento,
+          item.matriculaFuncionario,
+          { nome: atletaNome, cpf: atletaCpf },
+          clienteId,
+          funcionariosNoCarrinho,
+        );
+
+        isFuncionario = true;
+        matriculaFuncionario = resolvido.funcionario.matricula;
+        percentualFuncionario = resolvido.percentual;
+        funcionarioEmpresaId = resolvido.funcionario.id;
+        inscricaoPendenteParaCancelar = resolvido.inscricaoPendenteParaCancelar;
+        funcionariosNoCarrinho.quantidade++;
+        funcionariosNoCarrinho.matriculas.add(matriculaFuncionario.toUpperCase());
+      }
+
       // Servidor público tem isenção total (100% gratuito); não usufrui do
       // desconto do idoso e não deve ser obrigado a comprovar documento do idoso.
+      // O funcionario tambem nao: o desconto dele substitui o do idoso.
       const documentoIdosoUrl = await this.resolverDocumentoIdoso(
         categoria.modalidade.evento,
         atletaDataNascimento,
         atletaNome,
-        item.documentoIdosoUrl,
-        !isServidorPublico,
+        isFuncionario ? undefined : item.documentoIdosoUrl,
+        !isServidorPublico && !isFuncionario,
       );
 
       const evento = categoria.modalidade.evento;
@@ -482,6 +564,7 @@ export class InscricaoService {
           cupomId,
           dataNascimentoAtleta: atletaDataNascimento,
           incluiCamisa: querCamisa,
+          percentualFuncionario,
         });
       }
 
@@ -509,6 +592,11 @@ export class InscricaoService {
         isServidorPublico,
         matriculaServidor,
         servidorPublicoId,
+        isFuncionario,
+        matriculaFuncionario,
+        percentualFuncionario,
+        funcionarioEmpresaId,
+        inscricaoPendenteParaCancelar,
       });
     }
 
@@ -522,6 +610,19 @@ export class InscricaoService {
 
       const inscricoesCriadas: any[] = [];
       for (const itemData of inscricoesParaCriar) {
+        // Tentativa anterior nao paga da mesma conta para o mesmo atleta: sem
+        // isso o contrato ficava preso nela e o funcionario nao conseguia
+        // tentar de novo (nada expira inscricao pendente sozinho).
+        if (itemData.inscricaoPendenteParaCancelar) {
+          await tx.inscricao.updateMany({
+            where: {
+              id: itemData.inscricaoPendenteParaCancelar,
+              status: StatusInscricao.PENDENTE_PAGAMENTO,
+            },
+            data: { status: StatusInscricao.CANCELADA },
+          });
+        }
+
         if (itemData.cupomId) {
           await tx.cupom.update({
             where: { id: itemData.cupomId },
@@ -552,6 +653,9 @@ export class InscricaoService {
               : null,
             isServidorPublico: itemData.isServidorPublico ?? false,
             matriculaServidor: itemData.matriculaServidor || null,
+            isFuncionario: itemData.isFuncionario ?? false,
+            matriculaFuncionario: itemData.matriculaFuncionario || null,
+            percentualFuncionario: itemData.percentualFuncionario ?? null,
             status: ehTotalmenteGratuito
               ? StatusInscricao.CONFIRMADA
               : StatusInscricao.PENDENTE_PAGAMENTO,
@@ -573,6 +677,22 @@ export class InscricaoService {
           if (count === 0) {
             throw new ConflictException(
               `A matrícula do servidor ${itemData.atletaNome} acabou de ser utilizada em outra inscrição gratuita.`,
+            );
+          }
+        }
+
+        // Mesma trava do servidor: so uma compra simultanea amarra o contrato.
+        if (itemData.funcionarioEmpresaId) {
+          const { count } = await tx.funcionarioEmpresa.updateMany({
+            where: { id: itemData.funcionarioEmpresaId, ...FILTRO_FUNCIONARIO_LIVRE },
+            data: {
+              inscricaoId: inscricao.id,
+              utilizadoEm: new Date(),
+            },
+          });
+          if (count === 0) {
+            throw new ConflictException(
+              `O contrato de ${itemData.atletaNome} acabou de ser utilizado em outra inscrição.`,
             );
           }
         }
@@ -854,6 +974,14 @@ export class InscricaoService {
     if (inscricao.kitEntregueEm) {
       throw new BadRequestException(
         'O kit desta inscrição já foi retirado e ela não pode mais ser transferida.',
+      );
+    }
+
+    // O desconto e da pessoa da lista: transferido, iria para quem nao e
+    // funcionario pagando o preco de funcionario.
+    if (inscricao.isFuncionario) {
+      throw new BadRequestException(
+        'Inscrições com desconto de funcionário são pessoais e não podem ser transferidas.',
       );
     }
 
@@ -1151,6 +1279,106 @@ export class InscricaoService {
         'Não há mais vagas disponíveis para este evento.',
       );
     }
+  }
+
+  /**
+   * Confere o contrato/cracha na lista de funcionarios do evento. A lista do RH
+   * costuma vir so com contrato e nome: com CPF na lista vale o CPF; sem ele, o
+   * nome do atleta precisa conferir com o da lista (nomesConferem).
+   *
+   * Se o contrato estiver preso numa tentativa nao paga da mesma conta e do
+   * mesmo atleta, devolve o id dela para ser cancelada na gravacao.
+   */
+  private async resolverFuncionarioOuFalhar(
+    evento: {
+      id: string;
+      permiteFuncionarios: boolean;
+      percentualFuncionarios: unknown;
+      vagasFuncionarios: number | null;
+    },
+    matricula: string,
+    atleta: { nome: string; cpf: string },
+    clienteId: string,
+    noCarrinho: { quantidade: number; matriculas: Set<string> } = {
+      quantidade: 0,
+      matriculas: new Set(),
+    },
+  ) {
+    const percentual = Number(evento.percentualFuncionarios ?? 0);
+    if (!evento.permiteFuncionarios || !(percentual > 0)) {
+      throw new BadRequestException(
+        'O desconto para funcionários não está liberado para este evento.',
+      );
+    }
+
+    const matriculaLimpa = matricula.trim();
+    if (!matriculaLimpa) {
+      throw new BadRequestException('Informe o número do contrato/crachá.');
+    }
+    if (noCarrinho.matriculas.has(matriculaLimpa.toUpperCase())) {
+      throw new ConflictException(
+        `O contrato "${matriculaLimpa}" foi informado para mais de um atleta no mesmo pedido.`,
+      );
+    }
+
+    const funcionario = await this.prisma.funcionarioEmpresa.findFirst({
+      where: {
+        eventoId: evento.id,
+        matricula: { equals: matriculaLimpa, mode: 'insensitive' },
+      },
+      include: {
+        inscricao: {
+          select: { id: true, status: true, clienteId: true, atletaCpf: true },
+        },
+      },
+    });
+
+    const confere =
+      !!funcionario &&
+      (funcionario.cpf
+        ? funcionario.cpf === atleta.cpf
+        : funcionario.nome
+          ? nomesConferem(funcionario.nome, atleta.nome)
+          : true);
+
+    // Uma mensagem so para "nao existe" e "nome nao confere": separar diria a
+    // quem testa numeros quais contratos existem.
+    if (!funcionario || !confere) {
+      throw new NotFoundException(
+        `Contrato "${matriculaLimpa}" não encontrado na lista de funcionários deste evento para ${atleta.nome}. Confira o número e se o nome do cadastro é o mesmo da empresa.`,
+      );
+    }
+
+    let inscricaoPendenteParaCancelar: string | null = null;
+    if (funcionarioEstaEmUso(funcionario)) {
+      const atual = funcionario.inscricao!;
+      const tentativaAnteriorDoMesmoAtleta =
+        atual.status === StatusInscricao.PENDENTE_PAGAMENTO &&
+        atual.clienteId === clienteId &&
+        atual.atletaCpf === atleta.cpf;
+      if (!tentativaAnteriorDoMesmoAtleta) {
+        throw new ConflictException(
+          `O contrato "${matriculaLimpa}" já foi utilizado em outra inscrição neste evento.`,
+        );
+      }
+      inscricaoPendenteParaCancelar = atual.id;
+    }
+
+    if (evento.vagasFuncionarios !== null) {
+      const emUso = await this.prisma.funcionarioEmpresa.count({
+        where: { eventoId: evento.id, ...FILTRO_FUNCIONARIO_EM_USO },
+      });
+      // A tentativa que sera cancelada devolve a propria vaga.
+      const ocupadas =
+        emUso - (inscricaoPendenteParaCancelar ? 1 : 0) + noCarrinho.quantidade;
+      if (ocupadas >= evento.vagasFuncionarios) {
+        throw new BadRequestException(
+          `As vagas com desconto para funcionários deste evento (${evento.vagasFuncionarios} vagas) já foram esgotadas.`,
+        );
+      }
+    }
+
+    return { funcionario, percentual, inscricaoPendenteParaCancelar };
   }
 
   /**

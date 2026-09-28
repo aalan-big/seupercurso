@@ -199,6 +199,28 @@ describe('PagamentoService', () => {
       );
     });
 
+    it('cobra o funcionário com o percentual gravado na inscrição', async () => {
+      prisma.inscricao.findMany.mockResolvedValue([
+        inscricaoPadrao,
+        {
+          ...inscricaoPadrao,
+          id: 'inscricao-funcionario',
+          isFuncionario: true,
+          percentualFuncionario: '50',
+        },
+      ]);
+
+      await service.create(usuarioId, { pedidoId: 'pedido-1', metodo: 'PIX' as const });
+
+      // 60 cheio + 30 do funcionario = 90 de base, e a comissao sobre os 90.
+      expect(gateway.gerarCobrancaPix).toHaveBeenCalledWith(
+        expect.objectContaining({ valor: 90.9 }),
+      );
+      expect(prisma.pagamento.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ comissaoPlataforma: 9 }),
+      });
+    });
+
     it('recusa gerar cobrança quando o pedido não tem valor a pagar', async () => {
       prisma.inscricao.findMany.mockResolvedValue([
         { ...inscricaoPadrao, isServidorPublico: true },

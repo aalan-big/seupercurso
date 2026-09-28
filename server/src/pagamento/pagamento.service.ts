@@ -225,6 +225,9 @@ export class PagamentoService {
           inscricao.cliente.pf?.dataNascimento,
         incluiCamisa: inscricao.incluiCamisa,
         valorCamisa: inscricao.valorCamisa,
+        percentualFuncionario: inscricao.isFuncionario
+          ? inscricao.percentualFuncionario
+          : null,
       });
     }
 

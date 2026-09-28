@@ -20,6 +20,9 @@ export interface EventoResumo {
   percentualDescontoIdoso?: string | number | null
   permiteServidorPublico?: boolean
   vagasServidorPublico?: number | null
+  permiteFuncionarios?: boolean
+  percentualFuncionarios?: string | number | null
+  nomeEmpresaFuncionarios?: string | null
   valorApartirDe: number | null
   // Pelas janelas dos lotes (servidor). null fora de evento publicado; na
   // duvida o servidor responde ABERTAS.

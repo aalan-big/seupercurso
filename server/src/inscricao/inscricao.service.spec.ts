@@ -723,4 +723,304 @@ describe('InscricaoService', () => {
       expect(tx.inscricao.create).toHaveBeenCalledTimes(2);
     });
   });
+
+  describe('desconto para funcionarios', () => {
+    const categoriaFuncionario = {
+      ...categoriaPadrao,
+      servidorPublico: false,
+      modalidade: {
+        ...categoriaPadrao.modalidade,
+        evento: {
+          ...categoriaPadrao.modalidade.evento,
+          permiteFuncionarios: true,
+          percentualFuncionarios: '50',
+          vagasFuncionarios: null as number | null,
+        },
+      },
+    };
+
+    const atletaFuncionario = (
+      cpf: string,
+      nomeCompleto = 'José Uchôa de Lima',
+      matriculaFuncionario = '18',
+    ) => ({
+      categoriaId: 'categoria-1',
+      loteId: 'lote-1',
+      matriculaFuncionario,
+      atleta: {
+        nomeCompleto,
+        cpf,
+        dataNascimento: '1990-01-01',
+        genero: 'MASCULINO' as const,
+        pcd: false,
+      },
+    });
+
+    // Lista da Dakota: so contrato e nome, sem CPF.
+    const linhaLista = (extra: Record<string, unknown> = {}) => ({
+      id: 'func-18',
+      eventoId,
+      matricula: '18',
+      nome: 'Jose Uchoa de Lima',
+      cpf: null,
+      inscricaoId: null,
+      inscricao: null,
+      ...extra,
+    });
+
+    beforeEach(() => {
+      prisma.categoria.findUnique.mockResolvedValue(categoriaFuncionario);
+      prisma.funcionarioEmpresa = {
+        findFirst: jest.fn().mockResolvedValue(linhaLista()),
+        count: jest.fn().mockResolvedValue(0),
+      };
+      tx.pedido = { create: jest.fn().mockResolvedValue({ id: 'pedido-1' }) };
+      tx.inscricao = {
+        create: jest.fn().mockResolvedValue({ id: 'inscricao-nova' }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      };
+      tx.funcionarioEmpresa = {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      };
+    });
+
+    it('aplica o desconto, grava o percentual e amarra o contrato', async () => {
+      const res = await service.createBatch(usuarioId, {
+        items: [atletaFuncionario('11111111111')],
+      });
+
+      // Preco 60 com 50% de funcionario.
+      expect(res.valorTotal).toBe(30);
+      expect(tx.inscricao.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          isFuncionario: true,
+          matriculaFuncionario: '18',
+          percentualFuncionario: 50,
+          status: StatusInscricao.PENDENTE_PAGAMENTO,
+        }),
+      });
+      expect(tx.funcionarioEmpresa.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: 'func-18' }),
+          data: expect.objectContaining({ inscricaoId: 'inscricao-nova' }),
+        }),
+      );
+    });
+
+    it('recusa quando o nome do atleta nao confere com o da lista', async () => {
+      await expect(
+        service.createBatch(usuarioId, {
+          items: [atletaFuncionario('11111111111', 'Pedro Alves')],
+        }),
+      ).rejects.toThrow(NotFoundException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('recusa contrato que nao esta na lista', async () => {
+      prisma.funcionarioEmpresa.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.createBatch(usuarioId, { items: [atletaFuncionario('11111111111')] }),
+      ).rejects.toThrow(NotFoundException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('com CPF na lista, vale o CPF', async () => {
+      prisma.funcionarioEmpresa.findFirst.mockResolvedValue(
+        linhaLista({ cpf: '99999999999' }),
+      );
+
+      await expect(
+        service.createBatch(usuarioId, { items: [atletaFuncionario('11111111111')] }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('recusa contrato ja usado por outra conta', async () => {
+      prisma.funcionarioEmpresa.findFirst.mockResolvedValue(
+        linhaLista({
+          inscricaoId: 'inscricao-outra',
+          inscricao: {
+            id: 'inscricao-outra',
+            status: StatusInscricao.CONFIRMADA,
+            clienteId: 'outro-cliente',
+            atletaCpf: '22222222222',
+          },
+        }),
+      );
+
+      await expect(
+        service.createBatch(usuarioId, { items: [atletaFuncionario('11111111111')] }),
+      ).rejects.toThrow(ConflictException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('pendente de outra conta tambem bloqueia', async () => {
+      prisma.funcionarioEmpresa.findFirst.mockResolvedValue(
+        linhaLista({
+          inscricaoId: 'inscricao-outra',
+          inscricao: {
+            id: 'inscricao-outra',
+            status: StatusInscricao.PENDENTE_PAGAMENTO,
+            clienteId: 'outro-cliente',
+            atletaCpf: '11111111111',
+          },
+        }),
+      );
+
+      await expect(
+        service.createBatch(usuarioId, { items: [atletaFuncionario('11111111111')] }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('nova tentativa da mesma conta cancela a anterior nao paga', async () => {
+      prisma.funcionarioEmpresa.findFirst.mockResolvedValue(
+        linhaLista({
+          inscricaoId: 'inscricao-antiga',
+          inscricao: {
+            id: 'inscricao-antiga',
+            status: StatusInscricao.PENDENTE_PAGAMENTO,
+            clienteId,
+            atletaCpf: '11111111111',
+          },
+        }),
+      );
+
+      const res = await service.createBatch(usuarioId, {
+        items: [atletaFuncionario('11111111111')],
+      });
+
+      expect(res.valorTotal).toBe(30);
+      expect(tx.inscricao.updateMany).toHaveBeenCalledWith({
+        where: { id: 'inscricao-antiga', status: StatusInscricao.PENDENTE_PAGAMENTO },
+        data: { status: StatusInscricao.CANCELADA },
+      });
+    });
+
+    it('nao acumula com cupom', async () => {
+      prisma.cupom.findFirst = jest.fn().mockResolvedValue({
+        id: 'cupom-1',
+        codigo: 'PROMO',
+        ativo: true,
+        validoAte: null,
+        quantidadeMaxima: null,
+      });
+
+      await expect(
+        service.createBatch(usuarioId, {
+          items: [{ ...atletaFuncionario('11111111111'), cupomCodigo: 'PROMO' }],
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('recusa o mesmo contrato para dois atletas do carrinho', async () => {
+      await expect(
+        service.createBatch(usuarioId, {
+          items: [
+            atletaFuncionario('11111111111'),
+            atletaFuncionario('22222222222'),
+          ],
+        }),
+      ).rejects.toThrow(ConflictException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('respeita o limite de vagas contando o proprio carrinho', async () => {
+      prisma.categoria.findUnique.mockResolvedValue({
+        ...categoriaFuncionario,
+        modalidade: {
+          ...categoriaFuncionario.modalidade,
+          evento: { ...categoriaFuncionario.modalidade.evento, vagasFuncionarios: 1 },
+        },
+      });
+      prisma.funcionarioEmpresa.findFirst
+        .mockResolvedValueOnce(linhaLista())
+        .mockResolvedValueOnce(
+          linhaLista({ id: 'func-20', matricula: '20', nome: 'Ana Claudia de Queiroz Lopes' }),
+        );
+
+      await expect(
+        service.createBatch(usuarioId, {
+          items: [
+            atletaFuncionario('11111111111'),
+            atletaFuncionario('22222222222', 'Ana Claudia Lopes', '20'),
+          ],
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('recusa quando o desconto nao esta liberado no evento', async () => {
+      prisma.categoria.findUnique.mockResolvedValue({
+        ...categoriaFuncionario,
+        modalidade: {
+          ...categoriaFuncionario.modalidade,
+          evento: { ...categoriaFuncionario.modalidade.evento, permiteFuncionarios: false },
+        },
+      });
+
+      await expect(
+        service.createBatch(usuarioId, { items: [atletaFuncionario('11111111111')] }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('desfaz o pedido se outra compra amarrou o contrato no meio do caminho', async () => {
+      tx.funcionarioEmpresa.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(
+        service.createBatch(usuarioId, { items: [atletaFuncionario('11111111111')] }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('atleta sem contrato no mesmo evento paga preco cheio', async () => {
+      const { matriculaFuncionario: _, ...semContrato } = atletaFuncionario('11111111111');
+
+      const res = await service.createBatch(usuarioId, { items: [semContrato] });
+
+      expect(res.valorTotal).toBe(60);
+      expect(prisma.funcionarioEmpresa.findFirst).not.toHaveBeenCalled();
+      expect(tx.inscricao.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ isFuncionario: false, percentualFuncionario: null }),
+      });
+    });
+
+    it('validar contrato devolve o percentual e nao devolve o nome da lista', async () => {
+      prisma.evento.findUnique.mockResolvedValue({
+        id: eventoId,
+        permiteFuncionarios: true,
+        percentualFuncionarios: '50',
+        vagasFuncionarios: null,
+      });
+
+      const res = await service.validarFuncionario(usuarioId, {
+        eventoId,
+        matricula: '18',
+        nome: 'José Uchôa de Lima',
+        cpf: '111.111.111-11',
+      });
+
+      expect(res.valido).toBe(true);
+      expect(res.percentual).toBe(50);
+      expect(JSON.stringify(res)).not.toContain('Uchoa');
+    });
+
+    it('inscricao com desconto de funcionario nao pode ser transferida', async () => {
+      prisma.inscricao.findUnique = jest.fn().mockResolvedValue({
+        id: 'inscricao-1',
+        clienteId,
+        status: StatusInscricao.CONFIRMADA,
+        kitEntregueEm: null,
+        isFuncionario: true,
+        categoria: {
+          modalidade: {
+            evento: { permiteTransferencia: true, camisasBloqueadas: false },
+          },
+        },
+      });
+
+      await expect(
+        service.transferirInscricao(usuarioId, 'inscricao-1', 'outro@exemplo.com'),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
 });

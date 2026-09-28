@@ -77,6 +77,12 @@ export class CreateInscricaoItemDto {
   @IsOptional()
   @IsString()
   matriculaServidor?: string;
+
+  /// Contrato/crachá do funcionário da empresa organizadora, quando o evento
+  /// tem desconto para funcionários. Não acumula com cupom nem idoso.
+  @IsOptional()
+  @IsString()
+  matriculaFuncionario?: string;
 }
 
 export class CreateInscricaoBatchDto {

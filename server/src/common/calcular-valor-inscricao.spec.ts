@@ -229,3 +229,51 @@ describe('auditoria da comissao da plataforma', () => {
     });
   });
 });
+
+describe('desconto para funcionarios', () => {
+  it('aplica o percentual gravado sobre a inscricao', async () => {
+    const valor = await calcularValorInscricao(prismaFalso({ preco: '70' }), {
+      ...ctx,
+      percentualFuncionario: '15',
+    });
+    // Exemplo do admin: 70 - 15% = 59,50 (a comissao entra no pagamento).
+    expect(valor).toBe(59.5);
+  });
+
+  it('nao acumula com o desconto do idoso', async () => {
+    const valor = await calcularValorInscricao(
+      prismaFalso({ preco: '100', aplicaDescontoIdoso: true, percentualDescontoIdoso: 50 }),
+      { ...ctx, dataNascimentoAtleta: new Date('1950-01-01'), percentualFuncionario: 30 },
+    );
+    expect(valor).toBe(70);
+  });
+
+  it('nao acumula com cupom', async () => {
+    const prisma = prismaFalso({ preco: '100' });
+    prisma.cupom.findUnique.mockResolvedValue({ ativo: true, percentualDesconto: 50 });
+    const valor = await calcularValorInscricao(prisma, {
+      ...ctx,
+      cupomId: 'cupom-1',
+      percentualFuncionario: 30,
+    });
+    expect(valor).toBe(70);
+  });
+
+  it('a camisa opcional sai pelo preco cheio', async () => {
+    const valor = await calcularValorInscricao(prismaFalso({ preco: '100' }), {
+      ...ctx,
+      incluiCamisa: true,
+      valorCamisa: '40',
+      percentualFuncionario: 50,
+    });
+    expect(valor).toBe(90);
+  });
+
+  it('sem percentual o preco nao muda', async () => {
+    const valor = await calcularValorInscricao(prismaFalso({ preco: '70' }), {
+      ...ctx,
+      percentualFuncionario: null,
+    });
+    expect(valor).toBe(70);
+  });
+});

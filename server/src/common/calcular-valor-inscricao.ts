@@ -16,6 +16,13 @@ interface ContextoValor {
    * entre o pedido e o pagamento, o atleta paga o que viu na tela.
    */
   valorCamisa?: number | string | { toString(): string } | null;
+  /**
+   * Desconto de funcionario gravado na inscricao (Inscricao.percentualFuncionario).
+   * Vale so sobre a inscricao (a camisa opcional sai cheia) e nao acumula com
+   * idoso nem cupom. O percentual e o gravado, nao o atual do evento: o atleta
+   * paga o que viu na tela.
+   */
+  percentualFuncionario?: number | string | { toString(): string } | null;
 }
 
 export async function calcularValorInscricao(
@@ -36,7 +43,11 @@ export async function calcularValorInscricao(
     },
   });
 
-  if (evento?.aplicaDescontoIdoso && evento.percentualDescontoIdoso) {
+  const percentualFuncionario = Number(ctx.percentualFuncionario ?? 0);
+
+  if (percentualFuncionario > 0) {
+    valor -= valor * (percentualFuncionario / 100);
+  } else if (evento?.aplicaDescontoIdoso && evento.percentualDescontoIdoso) {
     let dataNasc: Date | null = ctx.dataNascimentoAtleta || null;
     if (!dataNasc) {
       const cliente = await prisma.cliente.findUnique({
@@ -54,7 +65,7 @@ export async function calcularValorInscricao(
     }
   }
 
-  if (ctx.cupomId) {
+  if (ctx.cupomId && percentualFuncionario <= 0) {
     const cupom = await prisma.cupom.findUnique({ where: { id: ctx.cupomId } });
     if (cupom?.ativo) {
       valor -= valor * (Number(cupom.percentualDesconto) / 100);
