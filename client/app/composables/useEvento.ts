@@ -18,6 +18,8 @@ export interface EventoResumo {
   valorCamisaOpcional?: string | number | null
   aplicaDescontoIdoso?: boolean
   percentualDescontoIdoso?: string | number | null
+  aplicaDescontoPcd?: boolean
+  percentualDescontoPcd?: string | number | null
   permiteServidorPublico?: boolean
   vagasServidorPublico?: number | null
   permiteFuncionarios?: boolean

@@ -77,6 +77,8 @@ export interface EventoOrganizador {
   permiteTransferencia: boolean
   aplicaDescontoIdoso: boolean
   percentualDescontoIdoso: string | null
+  aplicaDescontoPcd?: boolean
+  percentualDescontoPcd?: string | null
   aceitaPix: boolean
   aceitaCartao: boolean
   comissaoPagaPeloAtleta: boolean
@@ -129,6 +131,8 @@ export interface EventoOrganizadorInput {
   capacidade?: number
   aplicaDescontoIdoso?: boolean
   percentualDescontoIdoso?: number
+  aplicaDescontoPcd?: boolean
+  percentualDescontoPcd?: number
 }
 
 export interface EventoOrganizadorUpdateInput extends Partial<EventoOrganizadorInput> {

@@ -1023,4 +1023,84 @@ describe('InscricaoService', () => {
       ).rejects.toThrow(BadRequestException);
     });
   });
+
+  describe('desconto PCD', () => {
+    const { mkdirSync, writeFileSync, rmSync } = require('fs');
+    const { join } = require('path');
+    const pasta = join(process.cwd(), 'uploads', 'documentos');
+    const arquivo = 'teste-laudo-pcd.jpg';
+
+    beforeAll(() => {
+      mkdirSync(pasta, { recursive: true });
+      writeFileSync(join(pasta, arquivo), 'x');
+    });
+    afterAll(() => {
+      rmSync(join(pasta, arquivo), { force: true });
+    });
+
+    const eventoPcd = {
+      ...categoriaPadrao.modalidade.evento,
+      aplicaDescontoIdoso: false,
+      percentualDescontoIdoso: null,
+      aplicaDescontoPcd: true,
+      percentualDescontoPcd: '50',
+    };
+    const atletaPcd = (extra: Record<string, unknown> = {}) => ({
+      categoriaId: 'categoria-1',
+      loteId: 'lote-1',
+      atleta: {
+        nomeCompleto: 'Atleta PCD',
+        cpf: '52998224725',
+        dataNascimento: '1990-01-01',
+        genero: 'FEMININO' as const,
+        pcd: true,
+      },
+      ...extra,
+    });
+
+    beforeEach(() => {
+      prisma.categoria.findUnique.mockResolvedValue({
+        ...categoriaPadrao,
+        servidorPublico: false,
+        modalidade: { ...categoriaPadrao.modalidade, evento: eventoPcd },
+      });
+      prisma.evento.findUnique.mockResolvedValue(eventoPcd);
+      tx.pedido = { create: jest.fn().mockResolvedValue({ id: 'pedido-1' }) };
+      tx.inscricao = { create: jest.fn().mockResolvedValue({ id: 'inscricao-nova' }) };
+    });
+
+    it('exige o documento do PCD', async () => {
+      await expect(
+        service.createBatch(usuarioId, { items: [atletaPcd()] }),
+      ).rejects.toThrow(/desconto PCD/);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('com documento, leva o desconto e marca a inscricao como PCD', async () => {
+      const res = await service.createBatch(usuarioId, {
+        items: [atletaPcd({ documentoIdosoUrl: `/uploads/documentos/${arquivo}` })],
+      });
+
+      expect(res.valorTotal).toBe(30);
+      expect(tx.inscricao.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          descontoPcd: true,
+          documentoIdosoUrl: `/uploads/documentos/${arquivo}`,
+          documentoIdosoStatus: 'PENDENTE',
+        }),
+      });
+    });
+
+    it('atleta que nao e PCD paga cheio e nao precisa de documento', async () => {
+      const item = atletaPcd();
+      item.atleta.pcd = false;
+
+      const res = await service.createBatch(usuarioId, { items: [item] });
+
+      expect(res.valorTotal).toBe(60);
+      expect(tx.inscricao.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ descontoPcd: false, documentoIdosoUrl: null }),
+      });
+    });
+  });
 });

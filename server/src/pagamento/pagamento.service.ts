@@ -223,6 +223,7 @@ export class PagamentoService {
           inscricao.atletaDataNascimento ||
           inscricao.dependente?.dataNascimento ||
           inscricao.cliente.pf?.dataNascimento,
+        atletaPcd: inscricao.descontoPcd,
         incluiCamisa: inscricao.incluiCamisa,
         valorCamisa: inscricao.valorCamisa,
         percentualFuncionario: inscricao.isFuncionario

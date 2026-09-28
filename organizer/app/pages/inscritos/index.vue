@@ -260,6 +260,18 @@ const documentoIdosoInfo: Record<string, { texto: string; classe: string }> = {
   REJEITADO: { texto: 'Idade não confirmada', classe: 'bg-red-100 text-red-800' }
 }
 
+// Mesmo documento e mesma conferencia; so muda o que ele comprova.
+const documentoPcdInfo: Record<string, { texto: string; classe: string }> = {
+  PENDENTE: { texto: 'PCD · conferir documento', classe: 'bg-amber-100 text-amber-800' },
+  APROVADO: { texto: 'PCD confirmado', classe: 'bg-emerald-100 text-emerald-800' },
+  REJEITADO: { texto: 'PCD não confirmado', classe: 'bg-red-100 text-red-800' }
+}
+
+function infoDocumento(inscrito: any) {
+  const mapa = inscrito.descontoPcd ? documentoPcdInfo : documentoIdosoInfo
+  return mapa[inscrito.documentoIdosoStatus || 'PENDENTE']
+}
+
 const conferindoDocumento = ref(false)
 const motivoRecusaIdoso = ref('')
 const mostrarRecusaIdoso = ref(false)
@@ -374,10 +386,10 @@ function formatarData(iso: string) {
         class="rounded-xl border border-slate-300 px-4 py-2.5 text-xs font-bold text-slate-800 focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
         @change="carregar"
       >
-        <option value="">Desconto idoso: todos</option>
+        <option value="">Desconto idoso/PCD: todos</option>
         <option value="PENDENTE">Documentos a conferir</option>
-        <option value="APROVADO">Idade confirmada</option>
-        <option value="REJEITADO">Idade não confirmada</option>
+        <option value="APROVADO">Documento confirmado</option>
+        <option value="REJEITADO">Documento não confirmado</option>
       </select>
 
       <input
@@ -438,10 +450,10 @@ function formatarData(iso: string) {
               <span
                 v-if="inscrito.documentoIdosoUrl"
                 class="mt-1 inline-block rounded-md px-1.5 py-0.5 text-[10px] font-black uppercase"
-                :class="documentoIdosoInfo[inscrito.documentoIdosoStatus || 'PENDENTE']?.classe"
-                title="Levou desconto do idoso — abra a inscrição para conferir o documento"
+                :class="infoDocumento(inscrito)?.classe"
+                :title="inscrito.descontoPcd ? 'Levou desconto PCD — abra a inscrição para conferir o documento' : 'Levou desconto do idoso — abra a inscrição para conferir o documento'"
               >
-                {{ documentoIdosoInfo[inscrito.documentoIdosoStatus || 'PENDENTE']?.texto }}
+                {{ infoDocumento(inscrito)?.texto }}
               </span>
             </td>
             <td class="px-4 py-3.5 text-slate-600 font-mono">{{ documentoCliente(inscrito) }}</td>
@@ -530,24 +542,29 @@ function formatarData(iso: string) {
             >
               <div class="flex items-center justify-between gap-2">
                 <p class="font-black text-slate-900 flex items-center gap-1.5">
-                  <AlertTriangle :size="14" /> Desconto do idoso
+                  <AlertTriangle :size="14" /> {{ atletaSelecionado.descontoPcd ? 'Desconto PCD' : 'Desconto do idoso' }}
                 </p>
                 <span
                   class="rounded-md px-2 py-0.5 text-[10px] font-black uppercase"
-                  :class="documentoIdosoInfo[atletaSelecionado.documentoIdosoStatus || 'PENDENTE']?.classe"
+                  :class="infoDocumento(atletaSelecionado)?.classe"
                 >
-                  {{ documentoIdosoInfo[atletaSelecionado.documentoIdosoStatus || 'PENDENTE']?.texto }}
+                  {{ infoDocumento(atletaSelecionado)?.texto }}
                 </span>
               </div>
 
               <p v-if="(atletaSelecionado.documentoIdosoStatus || 'PENDENTE') === 'PENDENTE'" class="text-slate-700">
-                O atleta enviou um documento com foto pra comprovar 60+ anos. Abra o documento e confira se a data de nascimento bate.
+                <template v-if="atletaSelecionado.descontoPcd">
+                  O atleta enviou um laudo ou documento pra comprovar a condição de PCD. Abra o documento e confira.
+                </template>
+                <template v-else>
+                  O atleta enviou um documento com foto pra comprovar 60+ anos. Abra o documento e confira se a data de nascimento bate.
+                </template>
               </p>
               <p v-else-if="atletaSelecionado.documentoIdosoStatus === 'REJEITADO'" class="text-red-800">
                 <strong>Motivo da recusa:</strong> {{ atletaSelecionado.documentoIdosoMotivo }}<br />
                 O comprador recebeu um e-mail com esse motivo e seu contato. Cobrar a diferença ou cancelar a inscrição fica a seu critério.
               </p>
-              <p v-else class="text-emerald-800">Idade conferida e confirmada.</p>
+              <p v-else class="text-emerald-800">{{ atletaSelecionado.descontoPcd ? 'Condição de PCD conferida e confirmada.' : 'Idade conferida e confirmada.' }}</p>
 
               <div class="flex flex-wrap items-center gap-2">
                 <a
@@ -565,7 +582,7 @@ function formatarData(iso: string) {
                     class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
                     @click="onConferirDocumentoIdoso('APROVADO')"
                   >
-                    <CheckCircle :size="14" /> Confirmar idade
+                    <CheckCircle :size="14" /> {{ atletaSelecionado.descontoPcd ? 'Confirmar PCD' : 'Confirmar idade' }}
                   </button>
                   <button
                     v-if="atletaSelecionado.documentoIdosoStatus !== 'REJEITADO'"
@@ -584,7 +601,7 @@ function formatarData(iso: string) {
                 <textarea
                   v-model="motivoRecusaIdoso"
                   rows="3"
-                  placeholder="Ex.: A data de nascimento do documento não confere com a informada na inscrição."
+                  :placeholder="atletaSelecionado.descontoPcd ? 'Ex.: O documento enviado não comprova a condição de PCD.' : 'Ex.: A data de nascimento do documento não confere com a informada na inscrição.'"
                   class="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-200"
                 ></textarea>
                 <button

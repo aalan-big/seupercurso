@@ -519,14 +519,33 @@ function removerAtleta(uid: string) {
   carrinho.value = carrinho.value.filter((item) => item.uid !== uid)
 }
 
-// O desconto do idoso e aplicado pela data que a propria pessoa digitou, entao
-// quem se qualifica precisa comprovar com documento — o servidor recusa sem ele.
-function temDescontoIdoso(item: ItemCarrinho) {
+// Desconto de perfil: idoso (60+ na data da prova) ou PCD. Nao acumulam: vale
+// o maior, e no empate o do idoso — a mesma regra do servidor. Os dois sao
+// declarados pela propria pessoa, entao exigem documento; o servidor recusa sem.
+function descontoPerfil(item: ItemCarrinho): { tipo: 'IDOSO' | 'PCD'; percentual: number } | null {
   const ev = eventoSelecionado.value
-  if (!ev?.aplicaDescontoIdoso || !ev.percentualDescontoIdoso) return false
-  if (isencaoServidorAtiva(item)) return false
-  if (descontoFuncionarioAtivo(item)) return false
-  return calcularIdade(item.dataNascimento, ev.dataInicio) >= 60
+  if (!ev) return null
+  if (isencaoServidorAtiva(item)) return null
+  if (descontoFuncionarioAtivo(item)) return null
+  const percentualIdoso = ev.aplicaDescontoIdoso ? Number(ev.percentualDescontoIdoso || 0) : 0
+  const percentualPcd = ev.aplicaDescontoPcd ? Number(ev.percentualDescontoPcd || 0) : 0
+  const idoso = percentualIdoso > 0 && !!item.dataNascimento && calcularIdade(item.dataNascimento, ev.dataInicio) >= 60
+  const pcd = percentualPcd > 0 && !!item.pcd
+  if (idoso && (!pcd || percentualIdoso >= percentualPcd)) return { tipo: 'IDOSO', percentual: percentualIdoso }
+  if (pcd) return { tipo: 'PCD', percentual: percentualPcd }
+  return null
+}
+
+function temDescontoIdoso(item: ItemCarrinho) {
+  return !!descontoPerfil(item)
+}
+
+function descontoEhPcd(item: ItemCarrinho) {
+  return descontoPerfil(item)?.tipo === 'PCD'
+}
+
+function percentualDescontoPerfil(item: ItemCarrinho) {
+  return descontoPerfil(item)?.percentual ?? 0
 }
 
 async function comprimirImagemSeNecessario(arquivo: File): Promise<File> {
@@ -799,11 +818,9 @@ function calcularPrecoItem(item: ItemCarrinho) {
     return Math.max(0, Number(valor.toFixed(2)))
   }
 
-  if (eventoSelecionado.value?.aplicaDescontoIdoso && eventoSelecionado.value.percentualDescontoIdoso) {
-    const idade = calcularIdade(item.dataNascimento, eventoSelecionado.value.dataInicio)
-    if (idade >= 60) {
-      valor -= valor * (Number(eventoSelecionado.value.percentualDescontoIdoso) / 100)
-    }
+  const desconto = descontoPerfil(item)
+  if (desconto) {
+    valor -= valor * (desconto.percentual / 100)
   }
 
   if (cupomAplicadoInfo.value) {
@@ -973,7 +990,7 @@ function avancar() {
       const semDocumento = atletasSemDocumentoIdoso()
       if (semDocumento.length > 0) {
         const nomes = semDocumento.map((i) => i.nome).join(', ')
-        erroInscricao.value = `Envie um documento com foto (RG ou CNH) para comprovar a idade de: ${nomes}.`
+        erroInscricao.value = `Envie o documento que comprova o desconto (idoso ou PCD) de: ${nomes}.`
         rolarParaErro()
         return
       }
@@ -1012,7 +1029,7 @@ function avancar() {
     const semDocumento = atletasSemDocumentoIdoso()
     if (semDocumento.length > 0) {
       const nomes = semDocumento.map((i) => i.nome).join(', ')
-      erroInscricao.value = `Envie um documento com foto (RG ou CNH) para comprovar o desconto de idoso de: ${nomes}.`
+      erroInscricao.value = `Envie o documento que comprova o desconto (idoso ou PCD) de: ${nomes}.`
       rolarParaErro()
       return
     }
@@ -1196,7 +1213,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
 
   const semDocumento = atletasSemDocumentoIdoso()
   if (semDocumento.length > 0) {
-    erroInscricao.value = `Envie um documento com foto (RG ou CNH) para comprovar a idade de: ${semDocumento.map((i) => i.nome).join(', ')}.`
+    erroInscricao.value = `Envie o documento que comprova o desconto (idoso ou PCD) de: ${semDocumento.map((i) => i.nome).join(', ')}.`
     rolarParaErro()
     return
   }
@@ -1648,7 +1665,12 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                     :class="item.documentoIdosoUrl ? 'border-emerald-200 bg-emerald-50' : 'border-amber-300 bg-amber-50'"
                   >
                     <p class="text-[11px] font-bold" :class="item.documentoIdosoUrl ? 'text-emerald-900' : 'text-amber-900'">
-                      Desconto do idoso ({{ eventoSelecionado?.percentualDescontoIdoso }}%) — envie um documento com foto (RG ou CNH) pra comprovar a idade.
+                      <template v-if="descontoEhPcd(item)">
+                        Desconto PCD ({{ percentualDescontoPerfil(item) }}%) — envie um laudo ou documento que comprove a condição de PCD.
+                      </template>
+                      <template v-else>
+                        Desconto do idoso ({{ percentualDescontoPerfil(item) }}%) — envie um documento com foto (RG ou CNH) pra comprovar a idade.
+                      </template>
                       <span v-if="eventoSelecionado?.permiteServidorPublico" class="block font-normal mt-0.5 text-slate-600">
                         (Não obrigatório se o atleta for servidor público da lista oficial: a inscrição dele sai de graça).
                       </span>
@@ -1852,7 +1874,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                           </h4>
                           <p class="text-xs text-slate-600 mt-0.5">
                             Digite o número do contrato ou crachá de <strong>{{ item.nome.split(' ')[0] }}</strong>. O nome do cadastro precisa ser o mesmo da lista da empresa.
-                            Não acumula com cupom nem com desconto de idoso. Se não for funcionário, deixe em branco.
+                            Não acumula com cupom nem com desconto de idoso ou PCD. Se não for funcionário, deixe em branco.
                           </p>
                         </div>
 
@@ -1908,10 +1930,15 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                       <IdCard class="w-5 h-5 shrink-0" :class="item.documentoIdosoUrl ? 'text-emerald-600' : 'text-amber-600'" />
                       <div class="flex-1 space-y-1.5">
                         <p class="text-xs font-black uppercase tracking-wider" :class="item.documentoIdosoUrl ? 'text-emerald-900' : 'text-amber-900'">
-                          Desconto 60+ (Idoso) · {{ eventoSelecionado?.percentualDescontoIdoso }}% OFF
+                          {{ descontoEhPcd(item) ? 'Desconto PCD' : 'Desconto 60+ (Idoso)' }} · {{ percentualDescontoPerfil(item) }}% OFF
                         </p>
                         <p class="text-xs" :class="item.documentoIdosoUrl ? 'text-emerald-800' : 'text-amber-800'">
-                          Para validar o desconto por idade de <strong>{{ item.nome.split(' ')[0] }}</strong>, anexe uma foto do documento oficial (RG ou CNH).
+                          <template v-if="descontoEhPcd(item)">
+                            Para validar o desconto PCD de <strong>{{ item.nome.split(' ')[0] }}</strong>, anexe o laudo ou um documento que comprove a condição de PCD.
+                          </template>
+                          <template v-else>
+                            Para validar o desconto por idade de <strong>{{ item.nome.split(' ')[0] }}</strong>, anexe uma foto do documento oficial (RG ou CNH).
+                          </template>
                         </p>
 
                         <DocumentoIdosoUpload
@@ -2268,10 +2295,10 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                   <IdCard class="w-6 h-6 shrink-0 text-amber-600" />
                   <div class="flex-1 space-y-1">
                     <h4 class="text-xs font-black uppercase tracking-wider text-amber-900">
-                      Comprovante de Idade (Desconto 60+) Obrigatório
+                      Comprovante do Desconto (Idoso ou PCD) Obrigatório
                     </h4>
                     <p class="text-xs text-amber-800">
-                      Para confirmar o desconto de {{ eventoSelecionado?.percentualDescontoIdoso }}% para atletas 60+, anexe um documento oficial com foto (RG ou CNH) antes de concluir o pagamento.
+                      Para confirmar o desconto, anexe antes de concluir o pagamento: documento oficial com foto (RG ou CNH) para idosos 60+, ou laudo/documento que comprove a condição de PCD.
                     </p>
                   </div>
                 </div>
@@ -2284,7 +2311,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                   >
                     <div class="flex items-center justify-between">
                       <span class="text-xs font-bold text-slate-900">
-                        {{ item.nome }} · {{ calcularIdade(item.dataNascimento, eventoSelecionado?.dataInicio || '') }} anos
+                        {{ item.nome }} · {{ descontoEhPcd(item) ? `PCD (${percentualDescontoPerfil(item)}%)` : `${calcularIdade(item.dataNascimento, eventoSelecionado?.dataInicio || '')} anos` }}
                       </span>
                       <span v-if="item.documentoIdosoUrl" class="text-xs font-bold text-emerald-600 flex items-center gap-1">
                         <CheckCircle class="w-4 h-4" /> Comprovante Enviado

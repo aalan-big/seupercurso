@@ -1,6 +1,6 @@
 import { PrismaService } from '../prisma/prisma.service';
 import { resolverPreco } from './resolver-preco';
-import { calcularIdade } from './calcular-idade';
+import { resolverDescontoPerfil } from './desconto-perfil';
 
 interface ContextoValor {
   loteId: string;
@@ -9,6 +9,12 @@ interface ContextoValor {
   eventoId: string;
   cupomId?: string | null;
   dataNascimentoAtleta?: Date | null;
+  /**
+   * Atleta PCD para o desconto PCD do evento. No pagamento vem de
+   * Inscricao.descontoPcd (o que valeu na criacao, com documento), nao do
+   * cadastro: marcar PCD depois nao baixa o preco de um pedido ja criado.
+   */
+  atletaPcd?: boolean;
   incluiCamisa?: boolean;
   /**
    * Valor da camisa gravado na inscricao. Quando informado (inclusive null),
@@ -37,6 +43,8 @@ export async function calcularValorInscricao(
     select: {
       aplicaDescontoIdoso: true,
       percentualDescontoIdoso: true,
+      aplicaDescontoPcd: true,
+      percentualDescontoPcd: true,
       dataInicio: true,
       camisaOpcional: true,
       valorCamisaOpcional: true,
@@ -47,9 +55,10 @@ export async function calcularValorInscricao(
 
   if (percentualFuncionario > 0) {
     valor -= valor * (percentualFuncionario / 100);
-  } else if (evento?.aplicaDescontoIdoso && evento.percentualDescontoIdoso) {
+  } else if (evento) {
+    // Idoso ou PCD, o maior (nao acumulam). Mesma regra da criacao.
     let dataNasc: Date | null = ctx.dataNascimentoAtleta || null;
-    if (!dataNasc) {
+    if (!dataNasc && evento.aplicaDescontoIdoso && evento.percentualDescontoIdoso) {
       const cliente = await prisma.cliente.findUnique({
         where: { id: ctx.clienteId },
         include: { pf: true },
@@ -57,11 +66,12 @@ export async function calcularValorInscricao(
       dataNasc = cliente?.pf?.dataNascimento || null;
     }
 
-    if (dataNasc) {
-      const idade = calcularIdade(dataNasc, evento.dataInicio);
-      if (idade >= 60) {
-        valor -= valor * (Number(evento.percentualDescontoIdoso) / 100);
-      }
+    const desconto = resolverDescontoPerfil(evento, {
+      dataNascimento: dataNasc,
+      pcd: !!ctx.atletaPcd,
+    });
+    if (desconto) {
+      valor -= valor * (desconto.percentual / 100);
     }
   }
 

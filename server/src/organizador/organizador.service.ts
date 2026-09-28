@@ -1157,7 +1157,7 @@ export class OrganizadorService {
 
     if (!inscricao.documentoIdosoUrl) {
       throw new BadRequestException(
-        'Esta inscrição não tem documento do idoso para conferir.',
+        'Esta inscrição não tem documento de desconto (idoso ou PCD) para conferir.',
       );
     }
 
@@ -1205,6 +1205,7 @@ export class OrganizadorService {
           emailOrganizador: contaOrg?.usuario?.email || null,
           telefoneOrganizador:
             contaOrg?.pj?.celularComercial || contaOrg?.pf?.celular || null,
+          pcd: inscricao.descontoPcd,
         });
       } catch (err) {
         this.auditLogService.log({
@@ -1249,7 +1250,7 @@ export class OrganizadorService {
       { header: 'Modelo da camisa', key: 'modeloCamisa', width: 22 },
       { header: 'Tamanho da camisa', key: 'tamanhoCamisa', width: 15 },
       { header: 'Status', key: 'status', width: 18 },
-      { header: 'Desconto idoso', key: 'descontoIdoso', width: 24 },
+      { header: 'Desconto idoso/PCD', key: 'descontoIdoso', width: 28 },
       { header: 'Data da inscricao', key: 'dataInscricao', width: 20 },
     ];
 
@@ -1257,6 +1258,11 @@ export class OrganizadorService {
       PENDENTE: 'Documento a conferir',
       APROVADO: 'Idade confirmada',
       REJEITADO: 'Idade nao confirmada',
+    };
+    const documentoPcdLabel: Record<string, string> = {
+      PENDENTE: 'Documento a conferir',
+      APROVADO: 'PCD confirmado',
+      REJEITADO: 'PCD nao confirmado',
     };
 
     planilha.getRow(1).font = { bold: true };
@@ -1303,7 +1309,9 @@ export class OrganizadorService {
         tamanhoCamisa,
         status: statusLabel[inscricao.status] ?? inscricao.status,
         descontoIdoso: inscricao.documentoIdosoUrl
-          ? documentoIdosoLabel[inscricao.documentoIdosoStatus ?? 'PENDENTE']
+          ? inscricao.descontoPcd
+            ? `PCD: ${documentoPcdLabel[inscricao.documentoIdosoStatus ?? 'PENDENTE']}`
+            : documentoIdosoLabel[inscricao.documentoIdosoStatus ?? 'PENDENTE']
           : '',
         dataInscricao: inscricao.dataInscricao.toLocaleString('pt-BR', {
           timeZone: 'America/Sao_Paulo',

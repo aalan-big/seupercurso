@@ -77,6 +77,10 @@ export class UpdateEventoDto {
 
   @IsOptional()
   @IsBoolean()
+  aplicaDescontoPcd?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
   aceitaPix?: boolean;
 
   @IsOptional()
@@ -96,6 +100,12 @@ export class UpdateEventoDto {
   @Min(0.01)
   @Max(100)
   percentualDescontoIdoso?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0.01)
+  @Max(100)
+  percentualDescontoPcd?: number;
 
   @IsOptional()
   @IsDateString()

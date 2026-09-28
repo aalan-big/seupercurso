@@ -348,7 +348,11 @@ export class EmailService {
     nomeOrganizador: string;
     emailOrganizador: string | null;
     telefoneOrganizador: string | null;
+    /** Documento do desconto PCD, e nao da idade. */
+    pcd?: boolean;
   }) {
+    const oQueComprova = params.pcd ? 'a condição de PCD' : 'a idade';
+    const nomeDesconto = params.pcd ? 'desconto PCD' : 'desconto do idoso';
     const nomeComprador = this.escapeHtml(params.nomeComprador);
     const nomeAtleta = this.escapeHtml(params.nomeAtleta);
     const nomeEvento = this.escapeHtml(params.nomeEvento);
@@ -373,8 +377,8 @@ export class EmailService {
     const conteudoHtml = `
       <p style="font-size: 16px; font-weight: 700; color: #0f172a; margin-top: 0;">Olá, ${nomeComprador}!</p>
       <p style="color: #475569;">
-        O organizador do evento <strong>${nomeEvento}</strong> analisou o documento enviado para comprovar a idade de
-        <strong>${nomeAtleta}</strong> (desconto do idoso) e <strong>não conseguiu confirmá-la</strong>.
+        O organizador do evento <strong>${nomeEvento}</strong> analisou o documento enviado para comprovar ${oQueComprova} de
+        <strong>${nomeAtleta}</strong> (${nomeDesconto}) e <strong>não conseguiu confirmar</strong>.
       </p>
       <div class="card">
         <p style="margin: 0 0 6px; font-size: 12px; font-weight: 800; text-transform: uppercase; color: #64748b;">Motivo informado</p>
@@ -389,19 +393,19 @@ export class EmailService {
         ${contatoHtml || '<p style="margin: 0; color: #64748b;">Contato disponível na página do evento.</p>'}
       </div>
       <p style="font-size: 12px; color: #94a3b8; margin-top: 24px;">
-        Se a idade não for comprovada, a participação no evento fica a critério do organizador.
+        Se ${oQueComprova} não for comprovada, a participação no evento fica a critério do organizador.
       </p>
     `;
 
     const html = this.renderBaseTemplate({
       tituloHeader: 'Documento não confirmado',
-      subtituloHeader: `Desconto do idoso · ${nomeEvento}`,
+      subtituloHeader: `${params.pcd ? 'Desconto PCD' : 'Desconto do idoso'} · ${nomeEvento}`,
       conteudoHtml,
     });
 
     return this.enviarMail(
       params.emailComprador,
-      `[${params.nomeEvento}] Documento do desconto do idoso não confirmado`,
+      `[${params.nomeEvento}] Documento do ${nomeDesconto} não confirmado`,
       html,
       params.emailOrganizador || undefined,
     );

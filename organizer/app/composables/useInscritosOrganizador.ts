@@ -13,6 +13,8 @@ export interface InscritoOrganizador {
   documentoIdosoStatus?: 'PENDENTE' | 'APROVADO' | 'REJEITADO' | null
   documentoIdosoMotivo?: string | null
   documentoIdosoRevisadoEm?: string | null
+  /** O documento acima comprova PCD (desconto PCD), e nao a idade. */
+  descontoPcd?: boolean
   cliente: {
     usuario: { email: string }
     pf: { nomeCompleto: string; cpf: string; celular: string } | null

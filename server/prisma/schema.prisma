@@ -278,6 +278,10 @@ model Evento {
   apiKeyCronometragem     String?      @unique
   aplicaDescontoIdoso     Boolean      @default(false)
   percentualDescontoIdoso Decimal?     @db.Decimal(5, 2)
+  // Desconto PCD, igual ao do idoso: o organizador liga e define o percentual,
+  // o atleta PCD manda documento na inscricao. Nao acumula com o do idoso.
+  aplicaDescontoPcd       Boolean      @default(false)
+  percentualDescontoPcd   Decimal?     @db.Decimal(5, 2)
   /// APOSENTADO — nada no codigo le mais este campo. Ele somava a comissao no
   /// preco da inscricao, enquanto `comissaoPagaPeloAtleta` a soma como taxa de
   /// servico no pagamento: os dois ligados cobravam duas vezes, e so este
@@ -521,6 +525,10 @@ model Inscricao {
   documentoIdosoStatus StatusDocumentoIdoso?
   documentoIdosoMotivo String?
   documentoIdosoRevisadoEm DateTime?
+  /// O documento acima comprova PCD, nao a idade: a inscricao levou o desconto
+  /// PCD. Um so documento por inscricao porque os descontos nao acumulam; a
+  /// conferencia do organizador e a mesma.
+  descontoPcd              Boolean   @default(false)
 
   numeroPeito       String?
   tamanhoCamisa     String?

@@ -16,6 +16,10 @@ import {
 } from '../generated/prisma/enums';
 import { calcularValorInscricao } from '../common/calcular-valor-inscricao';
 import { calcularIdade } from '../common/calcular-idade';
+import {
+  EventoDescontoPerfil,
+  resolverDescontoPerfil,
+} from '../common/desconto-perfil';
 import { contarUsosCupom } from '../common/contar-usos-cupom';
 import { formatarDataHoraBrasilia } from '../common/formatar-data-brasilia';
 import {
@@ -133,13 +137,14 @@ export class InscricaoService {
 
     // validarElegibilidadeCategoria ja barrou perfil sem PF; o `!` so repete
     // isso para o compilador.
-    const documentoIdosoUrl = await this.resolverDocumentoIdoso(
+    const documentoDesconto = await this.resolverDocumentoDesconto(
       categoria.modalidade.evento,
-      cliente.pf!.dataNascimento,
+      { dataNascimento: cliente.pf!.dataNascimento, pcd: cliente.pf!.pcd },
       cliente.pf!.nomeCompleto,
       dto.documentoIdosoUrl,
       !categoria.servidorPublico,
     );
+    const documentoIdosoUrl = documentoDesconto.url;
 
     const evento = categoria.modalidade.evento;
     const querCamisa =
@@ -152,6 +157,7 @@ export class InscricaoService {
       eventoId: lote.eventoId,
       cupomId,
       incluiCamisa: querCamisa,
+      atletaPcd: documentoDesconto.pcd,
     });
 
     const modeloCamisaId = querCamisa
@@ -183,6 +189,7 @@ export class InscricaoService {
           documentoIdosoStatus: documentoIdosoUrl
             ? StatusDocumentoIdoso.PENDENTE
             : null,
+          descontoPcd: documentoDesconto.pcd,
           status: StatusInscricao.PENDENTE_PAGAMENTO,
         },
       });
@@ -308,6 +315,7 @@ export class InscricaoService {
       atletaGenero: any;
       atletaPcd: boolean;
       documentoIdosoUrl: string | null;
+      descontoPcd: boolean;
       valor: number;
       isServidorPublico?: boolean;
       matriculaServidor?: string | null;
@@ -540,13 +548,15 @@ export class InscricaoService {
       // Servidor público tem isenção total (100% gratuito); não usufrui do
       // desconto do idoso e não deve ser obrigado a comprovar documento do idoso.
       // O funcionario tambem nao: o desconto dele substitui o do idoso.
-      const documentoIdosoUrl = await this.resolverDocumentoIdoso(
+      const documentoDesconto = await this.resolverDocumentoDesconto(
         categoria.modalidade.evento,
-        atletaDataNascimento,
+        { dataNascimento: atletaDataNascimento, pcd: atletaPcd },
         atletaNome,
         isFuncionario ? undefined : item.documentoIdosoUrl,
         !isServidorPublico && !isFuncionario,
       );
+      const documentoIdosoUrl = documentoDesconto.url;
+      const descontoPcd = documentoDesconto.pcd;
 
       const evento = categoria.modalidade.evento;
       const querCamisa =
@@ -563,6 +573,7 @@ export class InscricaoService {
           eventoId: lote.eventoId,
           cupomId,
           dataNascimentoAtleta: atletaDataNascimento,
+          atletaPcd: descontoPcd,
           incluiCamisa: querCamisa,
           percentualFuncionario,
         });
@@ -588,6 +599,7 @@ export class InscricaoService {
         atletaGenero,
         atletaPcd,
         documentoIdosoUrl,
+        descontoPcd,
         valor,
         isServidorPublico,
         matriculaServidor,
@@ -651,6 +663,7 @@ export class InscricaoService {
             documentoIdosoStatus: itemData.documentoIdosoUrl
               ? StatusDocumentoIdoso.PENDENTE
               : null,
+            descontoPcd: itemData.descontoPcd,
             isServidorPublico: itemData.isServidorPublico ?? false,
             matriculaServidor: itemData.matriculaServidor || null,
             isFuncionario: itemData.isFuncionario ?? false,
@@ -1055,25 +1068,21 @@ export class InscricaoService {
     return modelo.id;
   }
 
-  private async resolverDocumentoIdoso(
-    evento: {
-      aplicaDescontoIdoso: boolean;
-      percentualDescontoIdoso: unknown;
-      dataInicio: Date;
-    },
-    dataNascimento: Date,
+  private async resolverDocumentoDesconto(
+    evento: EventoDescontoPerfil,
+    atleta: { dataNascimento: Date; pcd: boolean },
     nomeAtleta: string,
     documentoIdosoUrl?: string,
     exigirDocumento: boolean = true,
-  ): Promise<string | null> {
-    const temDesconto =
-      evento.aplicaDescontoIdoso && Number(evento.percentualDescontoIdoso) > 0;
-    if (!temDesconto) return null;
-    if (calcularIdade(dataNascimento, evento.dataInicio) < 60) return null;
+  ): Promise<{ url: string | null; pcd: boolean }> {
+    const nenhum = { url: null, pcd: false };
+    const desconto = resolverDescontoPerfil(evento, atleta);
+    if (!desconto) return nenhum;
+    const pcd = desconto.tipo === 'PCD';
 
     const caminho = (documentoIdosoUrl || '').trim();
     if (!exigirDocumento && !caminho) {
-      return null;
+      return nenhum;
     }
 
     // Aceita so o que o proprio upload devolveu: um caminho qualquer viraria
@@ -1091,22 +1100,24 @@ export class InscricaoService {
       !nomeArquivo.includes('\\') &&
       !nomeArquivo.includes('..');
     if (!valido) {
-      if (!exigirDocumento) return null;
+      if (!exigirDocumento) return nenhum;
       throw new BadRequestException(
-        `${nomeAtleta} tem direito ao desconto do idoso neste evento. Envie um documento com foto (RG ou CNH) para comprovar a idade.`,
+        pcd
+          ? `${nomeAtleta} tem direito ao desconto PCD neste evento. Envie um laudo ou documento que comprove a condição de PCD.`
+          : `${nomeAtleta} tem direito ao desconto do idoso neste evento. Envie um documento com foto (RG ou CNH) para comprovar a idade.`,
       );
     }
 
     try {
       await access(join(process.cwd(), caminhoLimpo));
     } catch {
-      if (!exigirDocumento) return null;
+      if (!exigirDocumento) return nenhum;
       throw new BadRequestException(
         `O documento enviado para ${nomeAtleta} não foi encontrado. Envie o arquivo novamente.`,
       );
     }
 
-    return caminhoLimpo;
+    return { url: caminhoLimpo, pcd };
   }
 
   private validarElegibilidadeCategoria(

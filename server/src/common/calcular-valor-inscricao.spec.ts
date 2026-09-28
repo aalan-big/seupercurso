@@ -17,6 +17,8 @@ function prismaFalso(opcoes: {
   comissaoPagaPeloAtleta?: boolean;
   aplicaDescontoIdoso?: boolean;
   percentualDescontoIdoso?: number | null;
+  aplicaDescontoPcd?: boolean;
+  percentualDescontoPcd?: number | null;
   camisaOpcional?: boolean;
   valorCamisaOpcional?: number | string | null;
 }) {
@@ -28,6 +30,8 @@ function prismaFalso(opcoes: {
       findUnique: jest.fn().mockResolvedValue({
         aplicaDescontoIdoso: opcoes.aplicaDescontoIdoso ?? false,
         percentualDescontoIdoso: opcoes.percentualDescontoIdoso ?? null,
+        aplicaDescontoPcd: opcoes.aplicaDescontoPcd ?? false,
+        percentualDescontoPcd: opcoes.percentualDescontoPcd ?? null,
         camisaOpcional: opcoes.camisaOpcional ?? false,
         valorCamisaOpcional: opcoes.valorCamisaOpcional ?? null,
         dataInicio: new Date('2026-12-01'),
@@ -275,5 +279,29 @@ describe('desconto para funcionarios', () => {
       percentualFuncionario: null,
     });
     expect(valor).toBe(70);
+  });
+});
+
+describe('desconto PCD', () => {
+  it('aplica o percentual PCD so para quem levou o desconto PCD', async () => {
+    const prisma = prismaFalso({ preco: '100', aplicaDescontoPcd: true, percentualDescontoPcd: 50 });
+    expect(await calcularValorInscricao(prisma, { ...ctx, atletaPcd: true })).toBe(50);
+    expect(await calcularValorInscricao(prisma, { ...ctx, atletaPcd: false })).toBe(100);
+  });
+
+  it('PCD idoso nao acumula os dois descontos', async () => {
+    const prisma = prismaFalso({
+      preco: '100',
+      aplicaDescontoIdoso: true,
+      percentualDescontoIdoso: 50,
+      aplicaDescontoPcd: true,
+      percentualDescontoPcd: 50,
+    });
+    const valor = await calcularValorInscricao(prisma, {
+      ...ctx,
+      dataNascimentoAtleta: new Date('1950-01-01'),
+      atletaPcd: true,
+    });
+    expect(valor).toBe(50);
   });
 });

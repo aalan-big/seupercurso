@@ -28,6 +28,8 @@ const RESUMO_SELECT = {
   // inscricao e o atleta nao conseguia pagar.
   aplicaDescontoIdoso: true,
   percentualDescontoIdoso: true,
+  aplicaDescontoPcd: true,
+  percentualDescontoPcd: true,
   permiteServidorPublico: true,
   vagasServidorPublico: true,
   tipoEsporte: true,

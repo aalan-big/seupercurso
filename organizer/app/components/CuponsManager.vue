@@ -16,6 +16,11 @@ const percentualIdoso = ref(props.evento.percentualDescontoIdoso || '50')
 const salvandoIdoso = ref(false)
 const sucessoIdoso = ref(false)
 
+const descontoPcdAtivo = ref(props.evento.aplicaDescontoPcd ?? false)
+const percentualPcd = ref(props.evento.percentualDescontoPcd || '50')
+const salvandoPcd = ref(false)
+const sucessoPcd = ref(false)
+
 onMounted(async () => {
   try {
     await fetchCupons(props.eventoId)
@@ -40,6 +45,23 @@ async function onSalvarDescontoIdoso() {
     erro.value = extrairErro(e)
   } finally {
     salvandoIdoso.value = false
+  }
+}
+
+async function onSalvarDescontoPcd() {
+  erro.value = ''
+  sucessoPcd.value = false
+  salvandoPcd.value = true
+  try {
+    await atualizarEvento(props.eventoId, {
+      aplicaDescontoPcd: descontoPcdAtivo.value,
+      percentualDescontoPcd: descontoPcdAtivo.value ? Number(percentualPcd.value) : undefined
+    })
+    sucessoPcd.value = true
+  } catch (e) {
+    erro.value = extrairErro(e)
+  } finally {
+    salvandoPcd.value = false
   }
 }
 
@@ -139,6 +161,47 @@ function formatarData(iso: string | null) {
         @click="onSalvarDescontoIdoso"
       >
         {{ salvandoIdoso ? 'Salvando...' : 'Salvar' }}
+      </button>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 class="text-sm font-bold uppercase tracking-wide text-slate-500">Desconto PCD</h2>
+      <p class="mt-1 text-xs text-slate-400">
+        Aplica desconto automático pra inscritos PCD. O atleta envia um laudo ou documento na inscrição e ele aparece
+        na lista de inscritos pra você conferir, igual ao documento do idoso. Não acumula com o desconto do idoso: vale o maior.
+      </p>
+
+      <label class="mt-4 flex items-center gap-2 text-sm text-slate-700">
+        <input v-model="descontoPcdAtivo" type="checkbox" class="h-4 w-4 rounded border-slate-300 accent-warning focus:ring-warning/30" />
+        Aplicar desconto PCD neste evento
+      </label>
+
+      <div v-if="descontoPcdAtivo" class="mt-3 max-w-xs">
+        <label class="mb-1 block text-xs font-semibold text-slate-500">Percentual de desconto</label>
+        <div class="flex items-center gap-2">
+          <input
+            v-model="percentualPcd"
+            type="number"
+            min="0.01"
+            max="100"
+            step="0.01"
+            class="w-24 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+          />
+          <span class="text-sm text-slate-500">%</span>
+        </div>
+      </div>
+
+      <p v-if="sucessoPcd" class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-800 flex items-center gap-2 w-fit">
+        <CheckCircle :size="14" class="text-emerald-600" /> Salvo.
+      </p>
+
+      <button
+        type="button"
+        :disabled="salvandoPcd"
+        class="mt-4 rounded-xl bg-warning px-4 py-2 text-sm font-bold uppercase tracking-wide text-primary transition hover:brightness-95 disabled:opacity-50"
+        @click="onSalvarDescontoPcd"
+      >
+        {{ salvandoPcd ? 'Salvando...' : 'Salvar' }}
       </button>
     </div>
 
