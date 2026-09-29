@@ -16,6 +16,7 @@ import { WebhookResultadoDto } from './dto/webhook-resultado.dto';
 import { ImportarCsvResultadoDto } from './dto/importar-csv-resultado.dto';
 import { CriarSolicitacaoDto } from './dto/criar-solicitacao.dto';
 import { ItemPassagemDto } from './dto/enviar-passagem.dto';
+import { ImportarChipsDto } from './dto/importar-chips.dto';
 import { randomBytes } from 'crypto';
 
 @Injectable()
@@ -206,6 +207,18 @@ export class CronometragemService {
    * Lista os pedidos da cronometradora logada.
    */
   async listarSolicitacoes(cronometradoraId: string) {
+    const agora = new Date();
+    await this.prisma.solicitacaoCronometragem.updateMany({
+      where: {
+        cronometradoraId,
+        status: 'APROVADA',
+        OR: [{ validaAte: null }, { validaAte: { lt: agora } }],
+      },
+      data: {
+        status: 'EXPIRADA',
+      },
+    });
+
     const solicitacoes = await this.prisma.solicitacaoCronometragem.findMany({
       where: { cronometradoraId },
       include: {
@@ -220,24 +233,30 @@ export class CronometragemService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return solicitacoes.map((sol) => ({
-      id: sol.id,
-      prova: {
-        id: sol.evento.id,
-        nome: sol.evento.nome,
-        data: sol.evento.dataInicio.toISOString().slice(0, 10),
-        local: sol.evento.local || `${sol.evento.cidade}/${sol.evento.estado}`,
-        organizador:
-          sol.evento.organizador?.cliente?.pf?.nomeCompleto ||
-          sol.evento.organizador?.cliente?.pj?.nomeFantasia ||
-          null,
-      },
-      status: sol.status.toLowerCase(),
-      criada_em: sol.createdAt.toISOString(),
-      respondida_em: sol.respondidaEm ? sol.respondidaEm.toISOString() : null,
-      valida_ate: sol.validaAte ? sol.validaAte.toISOString() : null,
-      resposta: sol.resposta,
-    }));
+    return solicitacoes.map((sol) => {
+      let statusFormatado = sol.status.toLowerCase();
+      if (sol.status === 'APROVADA' && (!sol.validaAte || sol.validaAte < agora)) {
+        statusFormatado = 'expirada';
+      }
+      return {
+        id: sol.id,
+        prova: {
+          id: sol.evento.id,
+          nome: sol.evento.nome,
+          data: sol.evento.dataInicio.toISOString().slice(0, 10),
+          local: sol.evento.local || `${sol.evento.cidade}/${sol.evento.estado}`,
+          organizador:
+            sol.evento.organizador?.cliente?.pf?.nomeCompleto ||
+            sol.evento.organizador?.cliente?.pj?.nomeFantasia ||
+            null,
+        },
+        status: statusFormatado,
+        criada_em: sol.createdAt.toISOString(),
+        respondida_em: sol.respondidaEm ? sol.respondidaEm.toISOString() : null,
+        valida_ate: sol.validaAte ? sol.validaAte.toISOString() : null,
+        resposta: sol.resposta,
+      };
+    });
   }
 
   /**
@@ -250,7 +269,7 @@ export class CronometragemService {
       where: {
         cronometradoraId,
         status: 'APROVADA',
-        OR: [{ validaAte: null }, { validaAte: { gte: agora } }],
+        validaAte: { gte: agora },
       },
       include: {
         evento: {
@@ -291,13 +310,13 @@ export class CronometragemService {
         cronometradoraId,
         eventoId,
         status: 'APROVADA',
-        OR: [{ validaAte: null }, { validaAte: { gte: agora } }],
+        validaAte: { gte: agora },
       },
     });
 
     if (!solicitacao) {
       throw new ForbiddenException(
-        'Você não possui autorização aprovada para acessar os inscritos desta prova.',
+        'Você não possui autorização aprovada ou a validade do acesso expirou para acessar os inscritos desta prova.',
       );
     }
 
@@ -329,12 +348,41 @@ export class CronometragemService {
       orderBy: { dataInscricao: 'asc' },
     });
 
+    // 1. Checagem de número de peito: Bloquear download se houver atletas sem número de peito
+    const semPeito = inscricoes.filter((ins) => {
+      const p = ins.numeroPeito ? parseInt(ins.numeroPeito, 10) : NaN;
+      return isNaN(p) || p <= 0;
+    });
+
+    if (semPeito.length > 0) {
+      throw new BadRequestException(
+        `Não é possível baixar inscritos: existem ${semPeito.length} atleta(s) confirmado(s) sem número de peito atribuído. O organizador precisa definir os números de peito antes do download.`,
+      );
+    }
+
+    // 2. Checagem de chips: Obter chips cadastrados para a prova
     const chips = await this.prisma.chipsCronometragem.findMany({
       where: { eventoId },
     });
     const chipMap = new Map<number, string>();
     for (const c of chips) {
       chipMap.set(c.numeroPeito, c.tagEpc);
+    }
+
+    // Bloquear download se houver atletas sem chip RFID cadastrado
+    const semChip: number[] = [];
+    for (const ins of inscricoes) {
+      const peito = parseInt(ins.numeroPeito!, 10);
+      if (!chipMap.has(peito)) {
+        semChip.push(peito);
+      }
+    }
+
+    if (semChip.length > 0) {
+      const exemplos = semChip.slice(0, 5).join(', ');
+      throw new BadRequestException(
+        `Não é possível baixar inscritos: existem ${semChip.length} atleta(s) sem chip cadastrado (ex: peito(s) ${exemplos}${semChip.length > 5 ? '...' : ''}). O organizador ou cronometrador deve importar a planilha peito→chip antes do download.`,
+      );
     }
 
     const categoriasOut: any[] = [];
@@ -376,9 +424,6 @@ export class CronometragemService {
     }
 
     const atletasOut: any[] = [];
-    let autoPeito = 1;
-    const peitoUsados = new Set<number>();
-
     for (const ins of inscricoes) {
       const nome =
         ins.atletaNome ||
@@ -396,17 +441,8 @@ export class CronometragemService {
         ins.cliente?.pf?.genero ||
         null;
 
-      let peito = ins.numeroPeito ? parseInt(ins.numeroPeito, 10) : NaN;
-      if (isNaN(peito) || peito <= 0 || peitoUsados.has(peito)) {
-        while (peitoUsados.has(autoPeito)) {
-          autoPeito++;
-        }
-        peito = autoPeito;
-      }
-      peitoUsados.add(peito);
-
-      const tagEpc =
-        chipMap.get(peito) || `E${peito.toString().padStart(6, '0')}`;
+      const peito = parseInt(ins.numeroPeito!, 10);
+      const tagEpc = chipMap.get(peito)!;
 
       atletasOut.push({
         id: ins.id,
@@ -533,6 +569,18 @@ export class CronometragemService {
   async listarSolicitacoesDoEvento(usuarioId: string, eventoId: string) {
     await this.getEventoDoOrganizadorOuFalhar(usuarioId, eventoId);
 
+    const agora = new Date();
+    await this.prisma.solicitacaoCronometragem.updateMany({
+      where: {
+        eventoId,
+        status: 'APROVADA',
+        OR: [{ validaAte: null }, { validaAte: { lt: agora } }],
+      },
+      data: {
+        status: 'EXPIRADA',
+      },
+    });
+
     const solicitacoes = await this.prisma.solicitacaoCronometragem.findMany({
       where: { eventoId },
       include: {
@@ -541,20 +589,26 @@ export class CronometragemService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return solicitacoes.map((s) => ({
-      id: s.id,
-      cronometradora: {
-        id: s.cronometradora.id,
-        nome: s.cronometradora.nome,
-        documento: s.cronometradora.documento,
-      },
-      status: s.status.toLowerCase(),
-      mensagem: s.mensagem,
-      resposta: s.resposta,
-      valida_ate: s.validaAte ? s.validaAte.toISOString() : null,
-      criada_em: s.createdAt.toISOString(),
-      respondida_em: s.respondidaEm ? s.respondidaEm.toISOString() : null,
-    }));
+    return solicitacoes.map((s) => {
+      let statusFormatado = s.status.toLowerCase();
+      if (s.status === 'APROVADA' && (!s.validaAte || s.validaAte < agora)) {
+        statusFormatado = 'expirada';
+      }
+      return {
+        id: s.id,
+        cronometradora: {
+          id: s.cronometradora.id,
+          nome: s.cronometradora.nome,
+          documento: s.cronometradora.documento,
+        },
+        status: statusFormatado,
+        mensagem: s.mensagem,
+        resposta: s.resposta,
+        valida_ate: s.validaAte ? s.validaAte.toISOString() : null,
+        criada_em: s.createdAt.toISOString(),
+        respondida_em: s.respondidaEm ? s.respondidaEm.toISOString() : null,
+      };
+    });
   }
 
   async aprovarSolicitacao(usuarioId: string, solicitacaoId: string) {
@@ -567,12 +621,18 @@ export class CronometragemService {
       throw new NotFoundException('Solicitação não encontrada.');
     }
 
+    if (solicitacao.status !== 'PENDENTE') {
+      throw new ConflictException(
+        `Apenas solicitações com status PENDENTE podem ser aprovadas. Situação atual: ${solicitacao.status}.`,
+      );
+    }
+
     await this.getEventoDoOrganizadorOuFalhar(usuarioId, solicitacao.eventoId);
 
     const validaAte = new Date(solicitacao.evento.dataFim);
     validaAte.setDate(validaAte.getDate() + 7);
 
-    return this.prisma.solicitacaoCronometragem.update({
+    const atualizada = await this.prisma.solicitacaoCronometragem.update({
       where: { id: solicitacaoId },
       data: {
         status: 'APROVADA',
@@ -580,6 +640,20 @@ export class CronometragemService {
         validaAte,
       },
     });
+
+    await this.prisma.auditoriaCronometragem
+      .create({
+        data: {
+          usuarioId,
+          cronometradoraId: solicitacao.cronometradoraId,
+          eventoId: solicitacao.eventoId,
+          acao: 'aprovou',
+          detalhe: 'Solicitação de acesso aprovada pelo organizador',
+        },
+      })
+      .catch(() => null);
+
+    return atualizada;
   }
 
   async recusarSolicitacao(
@@ -596,9 +670,15 @@ export class CronometragemService {
       throw new NotFoundException('Solicitação não encontrada.');
     }
 
+    if (solicitacao.status !== 'PENDENTE') {
+      throw new ConflictException(
+        `Apenas solicitações com status PENDENTE podem ser recusadas. Situação atual: ${solicitacao.status}.`,
+      );
+    }
+
     await this.getEventoDoOrganizadorOuFalhar(usuarioId, solicitacao.eventoId);
 
-    return this.prisma.solicitacaoCronometragem.update({
+    const atualizada = await this.prisma.solicitacaoCronometragem.update({
       where: { id: solicitacaoId },
       data: {
         status: 'RECUSADA',
@@ -606,6 +686,20 @@ export class CronometragemService {
         respondidaEm: new Date(),
       },
     });
+
+    await this.prisma.auditoriaCronometragem
+      .create({
+        data: {
+          usuarioId,
+          cronometradoraId: solicitacao.cronometradoraId,
+          eventoId: solicitacao.eventoId,
+          acao: 'recusou',
+          detalhe: `Solicitação recusada pelo organizador. Resposta: ${resposta || 'Sem mensagem'}`,
+        },
+      })
+      .catch(() => null);
+
+    return atualizada;
   }
 
   async revogarSolicitacao(usuarioId: string, solicitacaoId: string) {
@@ -618,15 +712,189 @@ export class CronometragemService {
       throw new NotFoundException('Solicitação não encontrada.');
     }
 
+    if (solicitacao.status !== 'APROVADA') {
+      throw new ConflictException(
+        `Apenas solicitações com status APROVADA podem ser revogadas. Situação atual: ${solicitacao.status}.`,
+      );
+    }
+
     await this.getEventoDoOrganizadorOuFalhar(usuarioId, solicitacao.eventoId);
 
-    return this.prisma.solicitacaoCronometragem.update({
+    const atualizada = await this.prisma.solicitacaoCronometragem.update({
       where: { id: solicitacaoId },
       data: {
         status: 'REVOGADA',
         respondidaEm: new Date(),
       },
     });
+
+    await this.prisma.auditoriaCronometragem
+      .create({
+        data: {
+          usuarioId,
+          cronometradoraId: solicitacao.cronometradoraId,
+          eventoId: solicitacao.eventoId,
+          acao: 'revogou',
+          detalhe: 'Acesso da cronometradora revogado pelo organizador',
+        },
+      })
+      .catch(() => null);
+
+    return atualizada;
+  }
+
+  /**
+   * Importa lista de chips peito -> tag_epc para o evento
+   */
+  async importarChips(
+    usuarioId: string,
+    eventoId: string,
+    dto: ImportarChipsDto,
+  ) {
+    await this.getEventoDoOrganizadorOuFalhar(usuarioId, eventoId);
+
+    const itensParaProcessar: Array<{ numeroPeito: number; tagEpc: string }> = [];
+
+    // Se enviou array de chips estruturado
+    if (dto.chips && Array.isArray(dto.chips)) {
+      for (const c of dto.chips) {
+        if (c.numeroPeito && c.tagEpc) {
+          itensParaProcessar.push({
+            numeroPeito: Number(c.numeroPeito),
+            tagEpc: String(c.tagEpc).trim(),
+          });
+        }
+      }
+    }
+
+    // Se enviou conteúdo CSV em texto
+    if (dto.csvContent && dto.csvContent.trim()) {
+      const linhas = dto.csvContent.trim().split(/\r?\n/);
+      for (let i = 0; i < linhas.length; i++) {
+        const linha = linhas[i].trim();
+        if (!linha) continue;
+
+        const partes = linha.split(/[,;\t]/).map((p) => p.trim());
+        if (partes.length < 2) continue;
+
+        // Se for linha de cabeçalho
+        if (
+          i === 0 &&
+          (partes[0].toLowerCase().includes('peito') ||
+            partes[0].toLowerCase().includes('numero') ||
+            partes[1].toLowerCase().includes('epc') ||
+            partes[1].toLowerCase().includes('tag') ||
+            partes[1].toLowerCase().includes('chip'))
+        ) {
+          continue;
+        }
+
+        const numPeito = parseInt(partes[0], 10);
+        const tag = partes[1];
+
+        if (!isNaN(numPeito) && numPeito > 0 && tag) {
+          itensParaProcessar.push({
+            numeroPeito: numPeito,
+            tagEpc: tag,
+          });
+        }
+      }
+    }
+
+    if (itensParaProcessar.length === 0) {
+      throw new BadRequestException(
+        'Nenhum dado válido de chip (numero_peito, tag_epc) foi encontrado no arquivo ou texto enviado.',
+      );
+    }
+
+    // Checar duplicidades dentro do arquivo enviado
+    const peitosVistos = new Set<number>();
+    const tagsVistas = new Set<string>();
+    for (const item of itensParaProcessar) {
+      if (peitosVistos.has(item.numeroPeito)) {
+        throw new BadRequestException(
+          `O número de peito #${item.numeroPeito} aparece mais de uma vez no arquivo. Cada número de peito deve ser único.`,
+        );
+      }
+      peitosVistos.add(item.numeroPeito);
+
+      if (tagsVistas.has(item.tagEpc.toUpperCase())) {
+        throw new BadRequestException(
+          `A tag EPC "${item.tagEpc}" aparece mais de uma vez no arquivo. Cada tag de chip deve ser única.`,
+        );
+      }
+      tagsVistas.add(item.tagEpc.toUpperCase());
+    }
+
+    const substituir = dto.substituir !== false; // padrão true para planilha completa
+
+    if (substituir) {
+      await this.prisma.$transaction([
+        this.prisma.chipsCronometragem.deleteMany({ where: { eventoId } }),
+        this.prisma.chipsCronometragem.createMany({
+          data: itensParaProcessar.map((item) => ({
+            eventoId,
+            numeroPeito: item.numeroPeito,
+            tagEpc: item.tagEpc,
+          })),
+        }),
+      ]);
+    } else {
+      for (const item of itensParaProcessar) {
+        await this.prisma.chipsCronometragem.upsert({
+          where: {
+            eventoId_numeroPeito: {
+              eventoId,
+              numeroPeito: item.numeroPeito,
+            },
+          },
+          create: {
+            eventoId,
+            numeroPeito: item.numeroPeito,
+            tagEpc: item.tagEpc,
+          },
+          update: {
+            tagEpc: item.tagEpc,
+          },
+        });
+      }
+    }
+
+    return {
+      sucesso: true,
+      totalProcessados: itensParaProcessar.length,
+      substituidos: substituir,
+    };
+  }
+
+  async obterResumoChips(usuarioId: string, eventoId: string) {
+    await this.getEventoDoOrganizadorOuFalhar(usuarioId, eventoId);
+
+    const totalChips = await this.prisma.chipsCronometragem.count({
+      where: { eventoId },
+    });
+
+    const inscricoes = await this.prisma.inscricao.findMany({
+      where: {
+        categoria: { modalidade: { eventoId } },
+        status: 'CONFIRMADA',
+      },
+      select: {
+        id: true,
+        numeroPeito: true,
+      },
+    });
+
+    const totalInscritos = inscricoes.length;
+    const inscritosComPeito = inscricoes.filter(
+      (ins) => ins.numeroPeito && !isNaN(parseInt(ins.numeroPeito, 10)),
+    ).length;
+
+    return {
+      totalChips,
+      totalInscritos,
+      inscritosComPeito,
+    };
   }
 
   // =========================================================================

@@ -20,6 +20,7 @@ const props = withDefaults(
       | 'tag'
       | 'users'
       | 'pencil'
+      | 'timer'
     size?: string | number
     class?: string
   }>(),
@@ -162,6 +163,15 @@ const iconSize = computed(() => (typeof props.size === 'number' ? `${props.size}
     <g v-else-if="name === 'pencil'">
       <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
       <path d="m15 5 4 4" />
+    </g>
+
+    <!-- Timer / Cronometragem -->
+    <g v-else-if="name === 'timer'">
+      <circle cx="12" cy="14" r="8" />
+      <line x1="12" y1="14" x2="12" y2="10" />
+      <line x1="12" y1="14" x2="15" y2="14" />
+      <line x1="12" y1="2" x2="12" y2="6" />
+      <line x1="10" y1="2" x2="14" y2="2" />
     </g>
   </svg>
 </template>

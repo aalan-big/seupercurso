@@ -3,13 +3,15 @@ import { AdminAuthModule } from '../admin-auth/admin-auth.module';
 import { OrganizadorModule } from '../organizador/organizador.module';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
+import { AdminCronometragemController } from './admin-cronometragem.controller';
+import { AdminCronometragemService } from './admin-cronometragem.service';
 import { NotificacaoAdminModule } from './notificacao-admin.module';
 import { ClienteModule } from '../cliente/cliente.module';
 
 @Module({
   imports: [AdminAuthModule, OrganizadorModule, NotificacaoAdminModule, ClienteModule],
-  controllers: [AdminController],
-  providers: [AdminService],
+  controllers: [AdminController, AdminCronometragemController],
+  providers: [AdminService, AdminCronometragemService],
   exports: [NotificacaoAdminModule],
 })
 export class AdminModule {}
