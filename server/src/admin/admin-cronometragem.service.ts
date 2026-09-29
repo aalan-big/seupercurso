@@ -12,6 +12,20 @@ import {
 } from './dto/admin-cronometragem.dto';
 import { StatusCronometradora } from '../generated/prisma/enums';
 
+/**
+ * "2026-12-31" vira 31/12 às 23:59:59 de Brasília. `new Date('2026-12-31')`
+ * cairia à meia-noite UTC, ou seja, 21h do dia 30 no horário de Brasília.
+ */
+function lerDataValidade(valor: string): Date {
+  const data = /^\d{4}-\d{2}-\d{2}$/.test(valor)
+    ? new Date(`${valor}T23:59:59.999-03:00`)
+    : new Date(valor);
+  if (isNaN(data.getTime())) {
+    throw new BadRequestException('Data de validade da assinatura inválida.');
+  }
+  return data;
+}
+
 @Injectable()
 export class AdminCronometragemService {
   constructor(private readonly prisma: PrismaService) {}
@@ -56,10 +70,7 @@ export class AdminCronometragemService {
   async criarCronometradora(dto: CriarCronometradoraDto) {
     let validaAte = new Date();
     if (dto.assinaturaValidaAte) {
-      validaAte = new Date(dto.assinaturaValidaAte);
-      if (isNaN(validaAte.getTime())) {
-        throw new BadRequestException('Data de validade da assinatura inválida.');
-      }
+      validaAte = lerDataValidade(dto.assinaturaValidaAte);
     } else {
       validaAte.setFullYear(validaAte.getFullYear() + 1);
     }
@@ -89,17 +100,17 @@ export class AdminCronometragemService {
 
     let novaData: Date;
     if (dto.novaData) {
-      novaData = new Date(dto.novaData);
-      if (isNaN(novaData.getTime())) {
-        throw new BadRequestException('Data informada é inválida.');
-      }
+      novaData = lerDataValidade(dto.novaData);
     } else {
       const base =
         crono.assinaturaValidaAte > new Date()
           ? new Date(crono.assinaturaValidaAte)
           : new Date();
-      const dias = dto.dias || 365;
-      base.setDate(base.getDate() + dias);
+      if (dto.meses) {
+        base.setMonth(base.getMonth() + dto.meses);
+      } else {
+        base.setDate(base.getDate() + (dto.dias || 365));
+      }
       novaData = base;
     }
 

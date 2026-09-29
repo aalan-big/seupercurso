@@ -29,6 +29,9 @@ async function bootstrap() {
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' });
+  // Padrao do Express e 100kb: a planilha peito→chip da cronometragem passa disso
+  // em provas com mais de ~3 mil atletas.
+  app.useBodyParser('json', { limit: '1mb' });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 
   // Origens explicitas: `origin: true` refletia qualquer site que chamasse a API

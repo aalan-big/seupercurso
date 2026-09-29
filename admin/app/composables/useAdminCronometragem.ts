@@ -100,7 +100,7 @@ export function useAdminCronometragem() {
     return res
   }
 
-  async function renovarAssinatura(id: string, dto: { dias?: number; novaData?: string }) {
+  async function renovarAssinatura(id: string, dto: { dias?: number; meses?: number; novaData?: string }) {
     const res = await api<CronometradoraAdmin>(`/admin/cronometragem/empresas/${id}/assinatura`, {
       method: 'PATCH',
       body: dto,

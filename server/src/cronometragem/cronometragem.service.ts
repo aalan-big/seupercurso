@@ -360,6 +360,24 @@ export class CronometragemService {
       );
     }
 
+    // O banco não garante peito único por prova; repetido faria dois atletas
+    // dividirem o mesmo chip e o programa recusaria o download inteiro.
+    const contagemPeito = new Map<number, number>();
+    for (const ins of inscricoes) {
+      const peito = parseInt(ins.numeroPeito!, 10);
+      contagemPeito.set(peito, (contagemPeito.get(peito) || 0) + 1);
+    }
+    const peitosRepetidos = [...contagemPeito.entries()]
+      .filter(([, total]) => total > 1)
+      .map(([peito]) => peito);
+
+    if (peitosRepetidos.length > 0) {
+      const exemplos = peitosRepetidos.slice(0, 5).join(', ');
+      throw new BadRequestException(
+        `Não é possível baixar inscritos: ${peitosRepetidos.length} número(s) de peito estão repetidos em mais de um atleta (ex: peito(s) ${exemplos}${peitosRepetidos.length > 5 ? '...' : ''}). O organizador precisa corrigir os números de peito antes do download.`,
+      );
+    }
+
     // 2. Checagem de chips: Obter chips cadastrados para a prova
     const chips = await this.prisma.chipsCronometragem.findMany({
       where: { eventoId },
@@ -381,7 +399,7 @@ export class CronometragemService {
     if (semChip.length > 0) {
       const exemplos = semChip.slice(0, 5).join(', ');
       throw new BadRequestException(
-        `Não é possível baixar inscritos: existem ${semChip.length} atleta(s) sem chip cadastrado (ex: peito(s) ${exemplos}${semChip.length > 5 ? '...' : ''}). O organizador ou cronometrador deve importar a planilha peito→chip antes do download.`,
+        `Não é possível baixar inscritos: existem ${semChip.length} atleta(s) sem chip cadastrado (ex: peito(s) ${exemplos}${semChip.length > 5 ? '...' : ''}). Peça ao organizador da prova para importar a planilha peito→chip no painel dele antes do download.`,
       );
     }
 
@@ -621,13 +639,14 @@ export class CronometragemService {
       throw new NotFoundException('Solicitação não encontrada.');
     }
 
+    // Dono da prova primeiro: senão outro organizador descobriria a situação do pedido.
+    await this.getEventoDoOrganizadorOuFalhar(usuarioId, solicitacao.eventoId);
+
     if (solicitacao.status !== 'PENDENTE') {
       throw new ConflictException(
         `Apenas solicitações com status PENDENTE podem ser aprovadas. Situação atual: ${solicitacao.status}.`,
       );
     }
-
-    await this.getEventoDoOrganizadorOuFalhar(usuarioId, solicitacao.eventoId);
 
     const validaAte = new Date(solicitacao.evento.dataFim);
     validaAte.setDate(validaAte.getDate() + 7);
@@ -647,7 +666,7 @@ export class CronometragemService {
           usuarioId,
           cronometradoraId: solicitacao.cronometradoraId,
           eventoId: solicitacao.eventoId,
-          acao: 'aprovou',
+          acao: 'APROVOU',
           detalhe: 'Solicitação de acesso aprovada pelo organizador',
         },
       })
@@ -670,13 +689,13 @@ export class CronometragemService {
       throw new NotFoundException('Solicitação não encontrada.');
     }
 
+    await this.getEventoDoOrganizadorOuFalhar(usuarioId, solicitacao.eventoId);
+
     if (solicitacao.status !== 'PENDENTE') {
       throw new ConflictException(
         `Apenas solicitações com status PENDENTE podem ser recusadas. Situação atual: ${solicitacao.status}.`,
       );
     }
-
-    await this.getEventoDoOrganizadorOuFalhar(usuarioId, solicitacao.eventoId);
 
     const atualizada = await this.prisma.solicitacaoCronometragem.update({
       where: { id: solicitacaoId },
@@ -693,7 +712,7 @@ export class CronometragemService {
           usuarioId,
           cronometradoraId: solicitacao.cronometradoraId,
           eventoId: solicitacao.eventoId,
-          acao: 'recusou',
+          acao: 'RECUSOU',
           detalhe: `Solicitação recusada pelo organizador. Resposta: ${resposta || 'Sem mensagem'}`,
         },
       })
@@ -712,13 +731,13 @@ export class CronometragemService {
       throw new NotFoundException('Solicitação não encontrada.');
     }
 
+    await this.getEventoDoOrganizadorOuFalhar(usuarioId, solicitacao.eventoId);
+
     if (solicitacao.status !== 'APROVADA') {
       throw new ConflictException(
         `Apenas solicitações com status APROVADA podem ser revogadas. Situação atual: ${solicitacao.status}.`,
       );
     }
-
-    await this.getEventoDoOrganizadorOuFalhar(usuarioId, solicitacao.eventoId);
 
     const atualizada = await this.prisma.solicitacaoCronometragem.update({
       where: { id: solicitacaoId },
@@ -734,7 +753,7 @@ export class CronometragemService {
           usuarioId,
           cronometradoraId: solicitacao.cronometradoraId,
           eventoId: solicitacao.eventoId,
-          acao: 'revogou',
+          acao: 'REVOGOU',
           detalhe: 'Acesso da cronometradora revogado pelo organizador',
         },
       })

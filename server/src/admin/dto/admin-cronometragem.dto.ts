@@ -25,6 +25,10 @@ export class RenovarAssinaturaDto {
   dias?: number;
 
   @IsOptional()
+  @IsInt()
+  meses?: number;
+
+  @IsOptional()
   @IsString()
   novaData?: string;
 }

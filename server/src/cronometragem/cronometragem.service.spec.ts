@@ -90,7 +90,22 @@ describe('CronometragemService', () => {
       );
     });
 
-    it('deve aprovar e gravar auditoria com acao "aprovou" quando PENDENTE', async () => {
+    it('deve checar o dono da prova antes de revelar a situação do pedido', async () => {
+      prisma.solicitacaoCronometragem.findUnique.mockResolvedValue({
+        id: solicitacaoId,
+        eventoId,
+        cronometradoraId,
+        status: 'RECUSADA',
+        evento: { id: eventoId, organizadorId: 'outro-org', dataFim: new Date() },
+      });
+      prisma.evento.findFirst.mockResolvedValue(null);
+
+      await expect(service.aprovarSolicitacao(userId, solicitacaoId)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('deve aprovar e gravar auditoria com acao "APROVOU" quando PENDENTE', async () => {
       prisma.solicitacaoCronometragem.findUnique.mockResolvedValue({
         id: solicitacaoId,
         eventoId,
@@ -110,7 +125,7 @@ describe('CronometragemService', () => {
           usuarioId: userId,
           cronometradoraId,
           eventoId,
-          acao: 'aprovou',
+          acao: 'APROVOU',
         }),
       });
     });
@@ -131,7 +146,7 @@ describe('CronometragemService', () => {
       );
     });
 
-    it('deve recusar e gravar auditoria com acao "recusou" quando PENDENTE', async () => {
+    it('deve recusar e gravar auditoria com acao "RECUSOU" quando PENDENTE', async () => {
       prisma.solicitacaoCronometragem.findUnique.mockResolvedValue({
         id: solicitacaoId,
         eventoId,
@@ -148,7 +163,7 @@ describe('CronometragemService', () => {
       expect(res.status).toBe('RECUSADA');
       expect(prisma.auditoriaCronometragem.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
-          acao: 'recusou',
+          acao: 'RECUSOU',
         }),
       });
     });
@@ -169,7 +184,7 @@ describe('CronometragemService', () => {
       );
     });
 
-    it('deve revogar e gravar auditoria com acao "revogou" quando APROVADA', async () => {
+    it('deve revogar e gravar auditoria com acao "REVOGOU" quando APROVADA', async () => {
       prisma.solicitacaoCronometragem.findUnique.mockResolvedValue({
         id: solicitacaoId,
         eventoId,
@@ -186,7 +201,7 @@ describe('CronometragemService', () => {
       expect(res.status).toBe('REVOGADA');
       expect(prisma.auditoriaCronometragem.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
-          acao: 'revogou',
+          acao: 'REVOGOU',
         }),
       });
     });
@@ -222,6 +237,40 @@ describe('CronometragemService', () => {
 
       await expect(service.baixarInscritos(userId, cronometradoraId, eventoId)).rejects.toThrow(
         BadRequestException,
+      );
+    });
+
+    it('deve bloquear download se dois atletas tiverem o mesmo número de peito', async () => {
+      const futuro = new Date();
+      futuro.setDate(futuro.getDate() + 5);
+      prisma.solicitacaoCronometragem.findFirst.mockResolvedValue({
+        id: solicitacaoId,
+        status: 'APROVADA',
+        validaAte: futuro,
+      });
+
+      prisma.inscricao.findMany.mockResolvedValue([
+        {
+          id: 'ins-1',
+          numeroPeito: '150',
+          categoriaId: 'cat-1',
+          categoria: { modalidadeId: 'mod-1' },
+          cliente: { pf: { nomeCompleto: 'Atleta 1' } },
+        },
+        {
+          id: 'ins-2',
+          numeroPeito: '150',
+          categoriaId: 'cat-1',
+          categoria: { modalidadeId: 'mod-1' },
+          cliente: { pf: { nomeCompleto: 'Atleta 2' } },
+        },
+      ]);
+      prisma.chipsCronometragem.findMany.mockResolvedValue([
+        { numeroPeito: 150, tagEpc: 'EPC150' },
+      ]);
+
+      await expect(service.baixarInscritos(userId, cronometradoraId, eventoId)).rejects.toThrow(
+        /repetidos/,
       );
     });
 

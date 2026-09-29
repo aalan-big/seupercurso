@@ -150,9 +150,9 @@ async function onSubmeterRenovar() {
   erroModal.value = ''
   try {
     if (tipoRenovacao.value === 'ano') {
-      await renovarAssinatura(modalRenovar.value.id, { dias: 365 })
+      await renovarAssinatura(modalRenovar.value.id, { meses: 12 })
     } else if (tipoRenovacao.value === 'meses') {
-      await renovarAssinatura(modalRenovar.value.id, { dias: 180 })
+      await renovarAssinatura(modalRenovar.value.id, { meses: 6 })
     } else {
       if (!novaDataPersonalizada.value) {
         erroModal.value = 'Selecione uma data de validade.'
@@ -649,9 +649,9 @@ function ehVencida(isoStr: string) {
                   <span
                     class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
                     :class="{
-                      'bg-emerald-100 text-emerald-800': aud.acao === 'aprovou',
-                      'bg-red-100 text-red-800': aud.acao === 'recusou',
-                      'bg-amber-100 text-amber-800': aud.acao === 'revogou',
+                      'bg-emerald-100 text-emerald-800': aud.acao === 'APROVOU',
+                      'bg-red-100 text-red-800': aud.acao === 'RECUSOU',
+                      'bg-amber-100 text-amber-800': aud.acao === 'REVOGOU',
                       'bg-blue-100 text-blue-800': aud.acao === 'BAIXOU_INSCRITOS',
                     }"
                   >
@@ -775,7 +775,7 @@ function ehVencida(isoStr: string) {
               :class="tipoRenovacao === 'ano' ? 'border-primary bg-primary/10 text-primary' : 'border-slate-300 text-slate-700 hover:bg-slate-50'"
               @click="tipoRenovacao = 'ano'"
             >
-              + 1 Ano (365d)
+              + 1 Ano
             </button>
             <button
               type="button"
@@ -783,7 +783,7 @@ function ehVencida(isoStr: string) {
               :class="tipoRenovacao === 'meses' ? 'border-primary bg-primary/10 text-primary' : 'border-slate-300 text-slate-700 hover:bg-slate-50'"
               @click="tipoRenovacao = 'meses'"
             >
-              + 6 Meses (180d)
+              + 6 Meses
             </button>
             <button
               type="button"
