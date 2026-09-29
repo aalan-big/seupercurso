@@ -82,13 +82,12 @@ async function carregarTudo() {
   carregando.value = true
   erro.value = ''
   try {
-    await Promise.all([
-      fetchEmpresas(),
-      fetchSolicitacoes(),
-      fetchAuditoria(),
-    ])
-  } catch (e) {
-    erro.value = extrairErro(e)
+    await fetchEmpresas().catch((e) => {
+      console.error(e)
+      erro.value = extrairErro(e)
+    })
+    await fetchSolicitacoes().catch((e) => console.error(e))
+    await fetchAuditoria().catch((e) => console.error(e))
   } finally {
     carregando.value = false
   }
@@ -397,8 +396,18 @@ function ehVencida(isoStr: string) {
         Carregando empresas de cronometragem...
       </div>
 
-      <div v-else-if="empresasFiltradas.length === 0" class="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-        Nenhuma empresa de cronometragem encontrada.
+      <div v-else-if="empresasFiltradas.length === 0" class="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 space-y-3">
+        <p class="font-bold text-slate-700">Nenhuma empresa de cronometragem cadastrada.</p>
+        <p class="text-xs text-slate-400 max-w-md mx-auto">
+          Cadastre uma nova empresa parceira ou crie a conta de teste para o aplicativo SeuPercurso Mark.
+        </p>
+        <button
+          type="button"
+          class="rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white hover:brightness-95 transition"
+          @click="abrirModalCriar"
+        >
+          + Cadastrar Primeira Cronometradora
+        </button>
       </div>
 
       <!-- Grid de Empresas -->
