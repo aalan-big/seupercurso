@@ -102,6 +102,37 @@ enum StatusSolicitacaoArte {
   CANCELADO
 }
 
+enum StatusCronometradora {
+  ATIVA
+  BLOQUEADA
+  CANCELADA
+}
+
+enum PapelCronometragem {
+  ADMIN
+  OPERADOR
+}
+
+enum StatusSolicitacaoCronometragem {
+  PENDENTE
+  APROVADA
+  RECUSADA
+  REVOGADA
+  EXPIRADA
+}
+
+enum TipoPontoCronometragem {
+  LARGADA
+  PARCIAL
+  CHEGADA
+  PORTICO_UNICO
+}
+
+enum OrigemPassagemCronometragem {
+  RFID
+  MANUAL
+}
+
 // ---------------------------------------------------------------------------
 // Identidade e perfil
 // ---------------------------------------------------------------------------
@@ -120,7 +151,8 @@ model Usuario {
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 
-  cliente Cliente?
+  cliente              Cliente?
+  usuarioCronometragem UsuarioCronometragem?
 }
 
 model Cliente {
@@ -331,7 +363,10 @@ model Evento {
   solicitacoesArte   SolicitacaoArte[]
   servidoresPublicos ServidorPublico[]
   modelosCamisa      ModeloCamisa[]
-  funcionarios       FuncionarioEmpresa[]
+  funcionarios              FuncionarioEmpresa[]
+  solicitacoesCronometragem SolicitacaoCronometragem[]
+  passagensCronometragem    PassagemCronometragem[]
+  chipsCronometragem        ChipsCronometragem[]
 
   @@index([status, dataInicio])
 }
@@ -802,4 +837,112 @@ model FuncionarioEmpresa {
 
   @@unique([eventoId, cpf])
   @@unique([eventoId, matricula])
+}
+
+// ---------------------------------------------------------------------------
+// Módulo de Cronometragem (SeuPercurso Mark)
+// ---------------------------------------------------------------------------
+
+model Cronometradora {
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome                String
+  documento           String?
+  plano               String               @default("Cronometragem anual")
+  assinaturaValidaAte DateTime
+  status              StatusCronometradora @default(ATIVA)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  usuarios     UsuarioCronometragem[]
+  solicitacoes SolicitacaoCronometragem[]
+  passagens    PassagemCronometragem[]
+  auditorias   AuditoriaCronometragem[]
+}
+
+model UsuarioCronometragem {
+  usuarioId        String             @id @db.Uuid
+  cronometradoraId String             @db.Uuid
+  papel            PapelCronometragem @default(OPERADOR)
+  ativo            Boolean            @default(true)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  usuario        Usuario        @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  cronometradora Cronometradora @relation(fields: [cronometradoraId], references: [id], onDelete: Cascade)
+
+  @@index([cronometradoraId])
+}
+
+model SolicitacaoCronometragem {
+  id               String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cronometradoraId String                         @db.Uuid
+  eventoId         String                         @db.Uuid
+  status           StatusSolicitacaoCronometragem @default(PENDENTE)
+  mensagem         String
+  resposta         String?
+  validaAte        DateTime?
+  respondidaEm     DateTime?
+  createdAt        DateTime                       @default(now())
+  updatedAt        DateTime                       @updatedAt
+
+  cronometradora Cronometradora @relation(fields: [cronometradoraId], references: [id], onDelete: Cascade)
+  evento         Evento         @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+
+  @@index([cronometradoraId, eventoId])
+  @@index([eventoId, status])
+}
+
+model PassagemCronometragem {
+  id               String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  notebookId       String
+  idLocal          Int
+  cronometradoraId String                      @db.Uuid
+  eventoId         String                      @db.Uuid
+  atletaId         String?
+  numeroPeito      Int?
+  tagEpc           String?
+  passagemEm       DateTime
+  ponto            String
+  pontoTipo        TipoPontoCronometragem
+  origem           OrigemPassagemCronometragem @default(RFID)
+  invalidada       Boolean                     @default(false)
+  createdAt        DateTime                    @default(now())
+  updatedAt        DateTime                    @updatedAt
+
+  cronometradora Cronometradora @relation(fields: [cronometradoraId], references: [id], onDelete: Cascade)
+  evento         Evento         @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+
+  @@unique([notebookId, idLocal, eventoId])
+  @@index([eventoId])
+  @@index([cronometradoraId])
+}
+
+model ChipsCronometragem {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventoId    String   @db.Uuid
+  numeroPeito Int
+  tagEpc      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  evento Evento @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+
+  @@unique([eventoId, numeroPeito])
+  @@unique([eventoId, tagEpc])
+  @@index([eventoId])
+}
+
+model AuditoriaCronometragem {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  usuarioId        String         @db.Uuid
+  cronometradoraId String         @db.Uuid
+  eventoId         String?        @db.Uuid
+  acao             String
+  detalhe          String?
+  createdAt        DateTime       @default(now())
+
+  cronometradora Cronometradora @relation(fields: [cronometradoraId], references: [id], onDelete: Cascade)
+
+  @@index([cronometradoraId])
+  @@index([eventoId])
 }
