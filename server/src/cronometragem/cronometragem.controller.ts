@@ -22,7 +22,7 @@ import { WebhookResultadoDto } from './dto/webhook-resultado.dto';
 import { ImportarCsvResultadoDto } from './dto/importar-csv-resultado.dto';
 import { CriarSolicitacaoDto } from './dto/criar-solicitacao.dto';
 import { ItemPassagemDto } from './dto/enviar-passagem.dto';
-import { ImportarChipsDto } from './dto/importar-chips.dto';
+import { EnviarChipsDto, ImportarChipsDto } from './dto/importar-chips.dto';
 
 @Controller()
 export class CronometragemController {
@@ -83,6 +83,23 @@ export class CronometragemController {
       user.userId,
       req.cronometradora.id,
       eventoId,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, AssinaturaAtivaGuard)
+  @HttpCode(HttpStatus.OK)
+  @Post('cronometragem/provas/:id/chips')
+  enviarChips(
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: any,
+    @Param('id') eventoId: string,
+    @Body() dto: EnviarChipsDto,
+  ) {
+    return this.cronometragemService.enviarChips(
+      user.userId,
+      req.cronometradora.id,
+      eventoId,
+      dto,
     );
   }
 

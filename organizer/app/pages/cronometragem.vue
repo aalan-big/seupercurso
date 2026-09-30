@@ -44,6 +44,7 @@ const {
   buscarResumoChips,
 } = useCronometragem()
 const { exportarCsv } = useInscritosOrganizador()
+const { confirmar } = useConfirmacao()
 
 const exportandoLista = ref<'xlsx' | 'pdf' | null>(null)
 
@@ -88,7 +89,7 @@ const solicitacoesPendentes = computed(() =>
 const carregandoChips = ref(false)
 const resumoChips = ref<ResumoChipsCronometragem | null>(null)
 const conteudoChipsCsv = ref('')
-const substituirChips = ref(true)
+const substituirChips = ref(false)
 const processandoChips = ref(false)
 const erroChips = ref('')
 const sucessoChips = ref('')
@@ -280,6 +281,21 @@ function processarArquivoChipsUpload(e: Event) {
 
 async function submeterChipsCsv() {
   if (!eventoSelecionadoId.value || !conteudoChipsCsv.value.trim()) return
+
+  const jaCadastrados = resumoChips.value?.totalChips ?? 0
+  if (substituirChips.value && jaCadastrados > 0) {
+    const enviadosPelaCronometragem = resumoChips.value?.ultimoEnvioCronometragem
+      ? ' Alguns podem ter sido enviados pela empresa de cronometragem pelo programa Mark.'
+      : ''
+    const ok = await confirmar({
+      titulo: 'Substituir todos os chips?',
+      mensagem: `Isso apaga os ${jaCadastrados} chips já cadastrados nesta prova e deixa só os da planilha.${enviadosPelaCronometragem}`,
+      textoConfirmar: 'Substituir todos',
+      perigo: true
+    })
+    if (!ok) return
+  }
+
   processandoChips.value = true
   erroChips.value = ''
   sucessoChips.value = ''
@@ -290,7 +306,7 @@ async function submeterChipsCsv() {
       substituir: substituirChips.value,
     })
 
-    sucessoChips.value = `Sucesso! ${res.totalProcessados} chips foram cadastrados e associados aos números de peito.`
+    sucessoChips.value = `Sucesso! ${res.totalProcessados} chips foram cadastrados e ligados aos números de peito.`
     conteudoChipsCsv.value = ''
     await carregarResumoChips(eventoSelecionadoId.value)
   } catch (e: any) {
@@ -747,7 +763,7 @@ const resultadosFiltrados = computed(() => {
                 <Cpu :size="18" class="text-primary" /> Mapeamento de Chips RFID (Peito → Chip EPC)
               </h2>
               <p class="text-xs text-slate-500 mt-1">
-                Cadastre os códigos EPC gravados nos chips RFID para que a maleta de cronometragem identifique os atletas na largada e chegada.
+                A empresa de cronometragem liga os chips aos números de peito pelo programa Mark e envia para cá. Se ela te passar a planilha, você também pode importar abaixo.
               </p>
             </div>
             <button
@@ -779,10 +795,15 @@ const resultadosFiltrados = computed(() => {
 
             <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Chips RFID Cadastrados</span>
-              <p class="text-2xl font-black mt-1" :class="resumoChips.totalChips >= resumoChips.inscritosComPeito && resumoChips.inscritosComPeito > 0 ? 'text-emerald-600' : 'text-blue-600'">
-                {{ resumoChips.totalChips }}
+              <p class="text-2xl font-black mt-1" :class="resumoChips.atletasSemChip === 0 && resumoChips.inscritosComPeito > 0 ? 'text-emerald-600' : 'text-blue-600'">
+                {{ resumoChips.inscritosComPeito - resumoChips.atletasSemChip }} / {{ resumoChips.inscritosComPeito }}
               </p>
-              <p class="text-[11px] text-slate-500 mt-0.5">Tags EPC vinculadas a peitos</p>
+              <p class="text-[11px] text-slate-500 mt-0.5">
+                <template v-if="resumoChips.ultimoEnvioCronometragem">
+                  Último envio da cronometragem: {{ formatarDataHora(resumoChips.ultimoEnvioCronometragem.em) }}
+                </template>
+                <template v-else>Atletas com peito que já têm chip</template>
+              </p>
             </div>
           </div>
 
@@ -792,19 +813,19 @@ const resultadosFiltrados = computed(() => {
               <AlertTriangle :size="16" class="text-amber-600 shrink-0 mt-0.5" />
               <div>
                 <p>Atenção: existem {{ resumoChips.totalInscritos - resumoChips.inscritosComPeito }} atleta(s) sem número de peito definido.</p>
-                <p class="font-normal mt-0.5">O download de inscritos no programa Mark só é liberado quando todos os atletas confirmados possuírem número de peito atribuído.</p>
+                <p class="font-normal mt-0.5">A empresa de cronometragem só consegue baixar os inscritos no programa Mark quando todos os atletas confirmados têm número de peito. Gere a numeração na página Kits.</p>
               </div>
             </div>
 
-            <div v-else-if="resumoChips.inscritosComPeito > 0 && resumoChips.totalChips < resumoChips.inscritosComPeito" class="rounded-2xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-800 flex items-start gap-3">
-              <AlertTriangle :size="16" class="text-red-600 shrink-0 mt-0.5" />
+            <div v-else-if="resumoChips.atletasSemChip > 0" class="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-xs font-bold text-blue-800 flex items-start gap-3">
+              <Info :size="16" class="text-blue-600 shrink-0 mt-0.5" />
               <div>
-                <p>Importante: existem atletas sem chip RFID cadastrado.</p>
-                <p class="font-normal mt-0.5">Para evitar que atletas cruzem os sensores sem serem detectados, importe a planilha de chips abaixo com a coluna do número de peito e o código EPC.</p>
+                <p>{{ resumoChips.atletasSemChip }} atleta(s) ainda sem chip.</p>
+                <p class="font-normal mt-0.5">A empresa de cronometragem já pode baixar os inscritos. Ela liga os chips no programa Mark e envia para cá antes da largada.</p>
               </div>
             </div>
 
-            <div v-else-if="resumoChips.totalInscritos > 0 && resumoChips.totalChips >= resumoChips.totalInscritos" class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-bold text-emerald-800 flex items-center gap-2">
+            <div v-else-if="resumoChips.totalInscritos > 0 && resumoChips.atletasSemChip === 0" class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-bold text-emerald-800 flex items-center gap-2">
               <CheckCircle :size="16" class="text-emerald-600" />
               Tudo pronto para a largada! Todos os atletas possuem número de peito e chip cadastrados.
             </div>
@@ -821,7 +842,7 @@ const resultadosFiltrados = computed(() => {
 
           <!-- Formulário de Importação -->
           <div class="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-4">
-            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-600">Importar Planilha Peito → Chip EPC</h3>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-600">Importar Planilha Peito → Chip EPC (opcional)</h3>
 
             <div class="space-y-2">
               <label class="block text-xs font-bold text-slate-500">Selecione o arquivo CSV / TXT:</label>
@@ -851,7 +872,7 @@ const resultadosFiltrados = computed(() => {
                 class="rounded border-slate-300 text-primary focus:ring-primary"
               />
               <label for="check-substituir" class="text-xs font-bold text-slate-700">
-                Substituir chips cadastrados anteriormente para este evento
+                Apagar todos os chips já cadastrados e deixar só os desta planilha
               </label>
             </div>
 

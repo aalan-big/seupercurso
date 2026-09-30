@@ -16,8 +16,11 @@ import { WebhookResultadoDto } from './dto/webhook-resultado.dto';
 import { ImportarCsvResultadoDto } from './dto/importar-csv-resultado.dto';
 import { CriarSolicitacaoDto } from './dto/criar-solicitacao.dto';
 import { ItemPassagemDto } from './dto/enviar-passagem.dto';
-import { ImportarChipsDto } from './dto/importar-chips.dto';
+import { EnviarChipsDto, ImportarChipsDto } from './dto/importar-chips.dto';
 import { randomBytes } from 'crypto';
+
+/** Quantos peitos de exemplo vao nas mensagens e avisos para o Mark. */
+const LIMITE_EXEMPLOS_AVISO = 50;
 
 @Injectable()
 export class CronometragemService {
@@ -387,7 +390,9 @@ export class CronometragemService {
       chipMap.set(c.numeroPeito, c.tagEpc);
     }
 
-    // Bloquear download se houver atletas sem chip RFID cadastrado
+    // Chip nao bloqueia mais: a cronometragem liga os chips no Mark e envia de
+    // volta (POST /cronometragem/provas/:id/chips). Quem ainda nao tem chip vem
+    // com tag_epc nulo e entra no aviso.
     const semChip: number[] = [];
     for (const ins of inscricoes) {
       const peito = parseInt(ins.numeroPeito!, 10);
@@ -395,13 +400,7 @@ export class CronometragemService {
         semChip.push(peito);
       }
     }
-
-    if (semChip.length > 0) {
-      const exemplos = semChip.slice(0, 5).join(', ');
-      throw new BadRequestException(
-        `Não é possível baixar inscritos: existem ${semChip.length} atleta(s) sem chip cadastrado (ex: peito(s) ${exemplos}${semChip.length > 5 ? '...' : ''}). Peça ao organizador da prova para importar a planilha peito→chip no painel dele antes do download.`,
-      );
-    }
+    semChip.sort((a, b) => a - b);
 
     const categoriasOut: any[] = [];
     const largadasOut: any[] = [];
@@ -460,7 +459,7 @@ export class CronometragemService {
         null;
 
       const peito = parseInt(ins.numeroPeito!, 10);
-      const tagEpc = chipMap.get(peito)!;
+      const tagEpc = chipMap.get(peito) ?? null;
 
       atletasOut.push({
         id: ins.id,
@@ -483,7 +482,7 @@ export class CronometragemService {
           cronometradoraId,
           eventoId,
           acao: 'BAIXOU_INSCRITOS',
-          detalhe: `${atletasOut.length} atletas confirmados baixados`,
+          detalhe: `${atletasOut.length} atletas confirmados baixados, ${semChip.length} sem chip`,
         },
       })
       .catch(() => null);
@@ -503,6 +502,82 @@ export class CronometragemService {
       largadas: largadasOut,
       categorias: categoriasOut,
       atletas: atletasOut,
+      avisos: {
+        atletas_sem_chip: semChip.length,
+        // Lista curta: o Mark so precisa de exemplos para o aviso.
+        peitos_sem_chip: semChip.slice(0, LIMITE_EXEMPLOS_AVISO),
+      },
+    };
+  }
+
+  /**
+   * POST /cronometragem/provas/:id/chips
+   * O Mark envia a ligacao peito -> chip feita pela cronometragem. Pode ser
+   * chamado varias vezes: por padrao so troca os peitos enviados.
+   */
+  async enviarChips(
+    userId: string,
+    cronometradoraId: string,
+    eventoId: string,
+    dto: EnviarChipsDto,
+  ) {
+    const solicitacao = await this.prisma.solicitacaoCronometragem.findFirst({
+      where: {
+        cronometradoraId,
+        eventoId,
+        status: 'APROVADA',
+        validaAte: { gte: new Date() },
+      },
+    });
+
+    if (!solicitacao) {
+      throw new ForbiddenException(
+        'Você não possui autorização aprovada ou a validade do acesso expirou para enviar chips desta prova.',
+      );
+    }
+
+    const itens = dto.chips.map((c) => ({
+      numeroPeito: c.numero_peito,
+      tagEpc: c.tag_epc.trim(),
+    }));
+    this.validarItensChips(itens);
+
+    // So aceita peito que existe entre os confirmados: foi o que o Mark baixou.
+    const peitosDaProva = await this.peitosConfirmados(eventoId);
+    const desconhecidos = itens
+      .map((i) => i.numeroPeito)
+      .filter((p) => !peitosDaProva.has(p));
+    if (desconhecidos.length > 0) {
+      const exemplos = desconhecidos.slice(0, 10).join(', ');
+      throw new BadRequestException(
+        `${desconhecidos.length} número(s) de peito não pertencem a nenhum atleta confirmado desta prova (ex: ${exemplos}). Baixe os inscritos de novo e confira os peitos.`,
+      );
+    }
+
+    await this.gravarChips(eventoId, itens, dto.substituir === true);
+
+    const chips = await this.prisma.chipsCronometragem.findMany({
+      where: { eventoId },
+      select: { numeroPeito: true },
+    });
+    const peitosComChip = new Set(chips.map((c) => c.numeroPeito));
+    const atletasSemChip = [...peitosDaProva].filter((p) => !peitosComChip.has(p)).length;
+
+    await this.prisma.auditoriaCronometragem
+      .create({
+        data: {
+          usuarioId: userId,
+          cronometradoraId,
+          eventoId,
+          acao: 'ENVIOU_CHIPS',
+          detalhe: `${itens.length} chips enviados${dto.substituir ? ' (substituindo todos)' : ''}, ${atletasSemChip} atleta(s) ainda sem chip`,
+        },
+      })
+      .catch(() => null);
+
+    return {
+      gravados: itens.length,
+      atletas_sem_chip: atletasSemChip,
     };
   }
 
@@ -796,15 +871,9 @@ export class CronometragemService {
         const partes = linha.split(/[,;\t]/).map((p) => p.trim());
         if (partes.length < 2) continue;
 
-        // Se for linha de cabeçalho
-        if (
-          i === 0 &&
-          (partes[0].toLowerCase().includes('peito') ||
-            partes[0].toLowerCase().includes('numero') ||
-            partes[1].toLowerCase().includes('epc') ||
-            partes[1].toLowerCase().includes('tag') ||
-            partes[1].toLowerCase().includes('chip'))
-        ) {
+        // Cabeçalho é a primeira linha sem número na coluna do peito. Olhar o
+        // texto da tag descartava um chip real como "EPC0001" sem avisar.
+        if (i === 0 && isNaN(parseInt(partes[0], 10))) {
           continue;
         }
 
@@ -826,58 +895,10 @@ export class CronometragemService {
       );
     }
 
-    // Checar duplicidades dentro do arquivo enviado
-    const peitosVistos = new Set<number>();
-    const tagsVistas = new Set<string>();
-    for (const item of itensParaProcessar) {
-      if (peitosVistos.has(item.numeroPeito)) {
-        throw new BadRequestException(
-          `O número de peito #${item.numeroPeito} aparece mais de uma vez no arquivo. Cada número de peito deve ser único.`,
-        );
-      }
-      peitosVistos.add(item.numeroPeito);
-
-      if (tagsVistas.has(item.tagEpc.toUpperCase())) {
-        throw new BadRequestException(
-          `A tag EPC "${item.tagEpc}" aparece mais de uma vez no arquivo. Cada tag de chip deve ser única.`,
-        );
-      }
-      tagsVistas.add(item.tagEpc.toUpperCase());
-    }
+    this.validarItensChips(itensParaProcessar);
 
     const substituir = dto.substituir !== false; // padrão true para planilha completa
-
-    if (substituir) {
-      await this.prisma.$transaction([
-        this.prisma.chipsCronometragem.deleteMany({ where: { eventoId } }),
-        this.prisma.chipsCronometragem.createMany({
-          data: itensParaProcessar.map((item) => ({
-            eventoId,
-            numeroPeito: item.numeroPeito,
-            tagEpc: item.tagEpc,
-          })),
-        }),
-      ]);
-    } else {
-      for (const item of itensParaProcessar) {
-        await this.prisma.chipsCronometragem.upsert({
-          where: {
-            eventoId_numeroPeito: {
-              eventoId,
-              numeroPeito: item.numeroPeito,
-            },
-          },
-          create: {
-            eventoId,
-            numeroPeito: item.numeroPeito,
-            tagEpc: item.tagEpc,
-          },
-          update: {
-            tagEpc: item.tagEpc,
-          },
-        });
-      }
-    }
+    await this.gravarChips(eventoId, itensParaProcessar, substituir);
 
     return {
       sucesso: true,
@@ -889,31 +910,121 @@ export class CronometragemService {
   async obterResumoChips(usuarioId: string, eventoId: string) {
     await this.getEventoDoOrganizadorOuFalhar(usuarioId, eventoId);
 
-    const totalChips = await this.prisma.chipsCronometragem.count({
-      where: { eventoId },
-    });
+    const [chips, inscricoes, ultimoEnvio] = await Promise.all([
+      this.prisma.chipsCronometragem.findMany({
+        where: { eventoId },
+        select: { numeroPeito: true },
+      }),
+      this.prisma.inscricao.findMany({
+        where: {
+          categoria: { modalidade: { eventoId } },
+          status: 'CONFIRMADA',
+        },
+        select: {
+          id: true,
+          numeroPeito: true,
+        },
+      }),
+      this.prisma.auditoriaCronometragem.findFirst({
+        where: { eventoId, acao: 'ENVIOU_CHIPS' },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true, cronometradora: { select: { nome: true } } },
+      }),
+    ]);
 
+    const totalInscritos = inscricoes.length;
+    const peitos = inscricoes
+      .map((ins) => (ins.numeroPeito ? parseInt(ins.numeroPeito, 10) : NaN))
+      .filter((p) => !isNaN(p) && p > 0);
+    const peitosComChip = new Set(chips.map((c) => c.numeroPeito));
+
+    return {
+      totalChips: chips.length,
+      totalInscritos,
+      inscritosComPeito: peitos.length,
+      atletasSemChip: peitos.filter((p) => !peitosComChip.has(p)).length,
+      ultimoEnvioCronometragem: ultimoEnvio
+        ? {
+            em: ultimoEnvio.createdAt,
+            cronometradora: ultimoEnvio.cronometradora?.nome ?? null,
+          }
+        : null,
+    };
+  }
+
+  /** Mesmo peito ou mesmo chip duas vezes na lista faria dois atletas dividirem um chip. */
+  private validarItensChips(itens: Array<{ numeroPeito: number; tagEpc: string }>) {
+    const peitosVistos = new Set<number>();
+    const tagsVistas = new Set<string>();
+    for (const item of itens) {
+      if (!item.tagEpc) {
+        throw new BadRequestException(
+          `O número de peito #${item.numeroPeito} está sem código de chip (tag EPC).`,
+        );
+      }
+      if (peitosVistos.has(item.numeroPeito)) {
+        throw new BadRequestException(
+          `O número de peito #${item.numeroPeito} aparece mais de uma vez na lista enviada. Cada número de peito deve ser único.`,
+        );
+      }
+      peitosVistos.add(item.numeroPeito);
+
+      if (tagsVistas.has(item.tagEpc.toUpperCase())) {
+        throw new BadRequestException(
+          `A tag EPC "${item.tagEpc}" aparece mais de uma vez na lista enviada. Cada tag de chip deve ser única.`,
+        );
+      }
+      tagsVistas.add(item.tagEpc.toUpperCase());
+    }
+  }
+
+  /**
+   * Grava a ligacao peito -> chip numa transacao so. Sem `substituir`, apaga
+   * antes as linhas que usam os mesmos peitos OU os mesmos chips: a tabela e
+   * unica nos dois, e trocar o chip de dois peitos com upsert quebrava no meio.
+   */
+  private async gravarChips(
+    eventoId: string,
+    itens: Array<{ numeroPeito: number; tagEpc: string }>,
+    substituir: boolean,
+  ) {
+    const limpar = substituir
+      ? { eventoId }
+      : {
+          eventoId,
+          OR: [
+            { numeroPeito: { in: itens.map((i) => i.numeroPeito) } },
+            { tagEpc: { in: itens.map((i) => i.tagEpc) } },
+          ],
+        };
+
+    await this.prisma.$transaction([
+      this.prisma.chipsCronometragem.deleteMany({ where: limpar }),
+      this.prisma.chipsCronometragem.createMany({
+        data: itens.map((item) => ({
+          eventoId,
+          numeroPeito: item.numeroPeito,
+          tagEpc: item.tagEpc,
+        })),
+      }),
+    ]);
+  }
+
+  /** Peitos validos dos atletas confirmados: exatamente os que o download entrega. */
+  private async peitosConfirmados(eventoId: string) {
     const inscricoes = await this.prisma.inscricao.findMany({
       where: {
         categoria: { modalidade: { eventoId } },
         status: 'CONFIRMADA',
       },
-      select: {
-        id: true,
-        numeroPeito: true,
-      },
+      select: { numeroPeito: true },
     });
-
-    const totalInscritos = inscricoes.length;
-    const inscritosComPeito = inscricoes.filter(
-      (ins) => ins.numeroPeito && !isNaN(parseInt(ins.numeroPeito, 10)),
-    ).length;
-
-    return {
-      totalChips,
-      totalInscritos,
-      inscritosComPeito,
-    };
+    const peitos = new Set<number>();
+    for (const ins of inscricoes) {
+      const p = ins.numeroPeito ? parseInt(ins.numeroPeito, 10) : NaN;
+      if (!isNaN(p) && p > 0) peitos.add(p);
+    }
+    return peitos;
   }
 
   // =========================================================================

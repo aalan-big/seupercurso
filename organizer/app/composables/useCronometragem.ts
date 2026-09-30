@@ -63,6 +63,9 @@ export interface ResumoChipsCronometragem {
   totalChips: number
   totalInscritos: number
   inscritosComPeito: number
+  atletasSemChip: number
+  /** Ultima vez que o programa Mark enviou chips para esta prova. */
+  ultimoEnvioCronometragem: { em: string; cronometradora: string | null } | null
 }
 
 export function useCronometragem() {
