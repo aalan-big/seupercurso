@@ -145,7 +145,7 @@ const dadosKits = computed(() => {
           <NuxtLink
             v-for="evento in dashboard.proximosEventos"
             :key="evento.id"
-            :to="`/eventos/${evento.id}/editar`"
+            :to="`/eventos/${evento.id}/detalhes`"
             class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm transition hover:border-secondary"
           >
             <p class="font-semibold text-slate-700">{{ evento.nome }}</p>

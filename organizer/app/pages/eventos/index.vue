@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Plus, AlertTriangle, Flag, Footprints, MapPin, Pencil, Users } from 'lucide-vue-next'
+import { Plus, AlertTriangle, Flag, Footprints, MapPin, Pencil, Users, ChartPie } from 'lucide-vue-next'
 
 const { eventos, fetchMeusEventos } = useEventoOrganizador()
 
@@ -130,10 +130,16 @@ const statusInfo: Record<string, { texto: string; classe: string }> = {
           <!-- Botões de Ação Rápida -->
           <div class="pt-2 flex items-center gap-2 border-t border-slate-100">
             <NuxtLink
+              :to="`/eventos/${evento.id}/detalhes`"
+              class="flex-1 text-center rounded-xl bg-warning py-2.5 text-xs font-bold text-white shadow-xs hover:bg-primary transition flex items-center justify-center gap-1.5"
+            >
+              <ChartPie :size="14" /> Detalhes
+            </NuxtLink>
+            <NuxtLink
               :to="`/eventos/${evento.id}/editar`"
               class="flex-1 text-center rounded-xl bg-slate-900 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-primary transition flex items-center justify-center gap-1.5"
             >
-              <Pencil :size="14" /> Editar Evento
+              <Pencil :size="14" /> Editar
             </NuxtLink>
             <NuxtLink
               to="/inscritos"

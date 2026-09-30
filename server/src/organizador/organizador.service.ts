@@ -21,6 +21,7 @@ import {
   StatusSolicitacaoDocumento,
 } from '../generated/prisma/enums';
 import { montarSerieDiaria } from '../common/montar-serie-diaria';
+import { montarEstatisticasEvento } from './estatisticas-evento';
 import { MercadoPagoOAuthService } from '../pagamento/mercadopago/mercadopago-oauth.service';
 import { CreateEventoDto } from './dto/create-evento.dto';
 import { UpdateEventoDto } from './dto/update-evento.dto';
@@ -371,6 +372,144 @@ export class OrganizadorService {
         modelosCamisa: { orderBy: [{ ordem: 'asc' }, { createdAt: 'asc' }] },
       },
     });
+  }
+
+  /**
+   * Numeros do evento para a pagina de detalhes: so contagens, nenhum dado
+   * pessoal sai daqui. Por padrao conta so as confirmadas; `incluirPendentes`
+   * soma quem ainda nao pagou.
+   */
+  async obterEstatisticasEvento(
+    usuarioId: string,
+    eventoId: string,
+    filtro: { incluirPendentes?: boolean; modalidadeId?: string } = {},
+  ) {
+    const organizador = await this.getOrganizadorOuFalhar(usuarioId);
+    const evento = await this.getEventoDoOrganizadorOuFalhar(organizador.id, eventoId);
+
+    // Um id que nao e UUID faria o Postgres recusar a consulta (erro 500).
+    if (
+      filtro.modalidadeId &&
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(filtro.modalidadeId)
+    ) {
+      throw new BadRequestException('Modalidade inválida.');
+    }
+
+    const DIAS_SERIE = 30;
+    const statusContados = filtro.incluirPendentes
+      ? [StatusInscricao.CONFIRMADA, StatusInscricao.PENDENTE_PAGAMENTO]
+      : [StatusInscricao.CONFIRMADA];
+    const doEvento = {
+      categoria: {
+        modalidade: {
+          eventoId,
+          ...(filtro.modalidadeId ? { id: filtro.modalidadeId } : {}),
+        },
+      },
+    };
+
+    const [porStatus, modalidades, inscricoes] = await Promise.all([
+      this.prisma.inscricao.groupBy({
+        by: ['status'],
+        where: doEvento,
+        _count: { _all: true },
+      }),
+      this.prisma.modalidade.findMany({
+        where: { eventoId },
+        select: { id: true, nome: true, capacidade: true },
+        orderBy: { nome: 'asc' },
+      }),
+      this.prisma.inscricao.findMany({
+        where: { ...doEvento, status: { in: statusContados } },
+        select: {
+          status: true,
+          dataInscricao: true,
+          kitEntregueEm: true,
+          atletaGenero: true,
+          atletaDataNascimento: true,
+          atletaPcd: true,
+          descontoPcd: true,
+          documentoIdosoStatus: true,
+          isServidorPublico: true,
+          isFuncionario: true,
+          cupomId: true,
+          categoria: { select: { modalidade: { select: { id: true, nome: true } } } },
+          // Inscricoes antigas nao tem os campos atleta*; cai no dependente ou
+          // no titular, como a inscricao fazia na epoca.
+          dependente: { select: { genero: true, dataNascimento: true, pcd: true } },
+          cliente: {
+            select: {
+              pf: { select: { genero: true, dataNascimento: true, pcd: true } },
+              enderecos: { select: { cidade: true, estado: true }, take: 1 },
+            },
+          },
+        },
+      }),
+    ]);
+
+    const contagemStatus = Object.fromEntries(
+      porStatus.map((linha) => [linha.status, linha._count._all]),
+    ) as Partial<Record<StatusInscricao, number>>;
+
+    const estatisticas = montarEstatisticasEvento(
+      inscricoes.map((i) => {
+        const pessoa = i.dependente ?? i.cliente.pf;
+        const endereco = i.cliente.enderecos[0];
+        return {
+          genero: i.atletaGenero ?? pessoa?.genero ?? 'NAO_INFORMADO',
+          dataNascimento: i.atletaDataNascimento ?? pessoa?.dataNascimento ?? null,
+          modalidadeId: i.categoria.modalidade.id,
+          modalidadeNome: i.categoria.modalidade.nome,
+          pcd: i.atletaPcd || (!i.atletaDataNascimento && !!pessoa?.pcd),
+          descontoIdoso: i.documentoIdosoStatus !== null && !i.descontoPcd,
+          descontoPcd: i.descontoPcd,
+          servidorPublico: i.isServidorPublico,
+          funcionario: i.isFuncionario,
+          cupom: i.cupomId !== null,
+          cidade: endereco?.cidade ?? null,
+          estado: endereco?.estado ?? null,
+        };
+      }),
+      evento.dataInicio,
+    );
+
+    // Capacidade do evento; sem ela, a soma das modalidades (se todas tiverem).
+    const capacidadeModalidades = modalidades.every((m) => m.capacidade)
+      ? modalidades.reduce((soma, m) => soma + (m.capacidade ?? 0), 0)
+      : null;
+
+    return {
+      evento: {
+        id: evento.id,
+        nome: evento.nome,
+        status: evento.status,
+        dataInicio: evento.dataInicio,
+        cidade: evento.cidade,
+        estado: evento.estado,
+        capacidade: filtro.modalidadeId
+          ? (modalidades.find((m) => m.id === filtro.modalidadeId)?.capacidade ?? null)
+          : (evento.capacidade ?? capacidadeModalidades),
+      },
+      modalidadesDisponiveis: modalidades.map((m) => ({ id: m.id, nome: m.nome })),
+      filtro: {
+        incluirPendentes: !!filtro.incluirPendentes,
+        modalidadeId: filtro.modalidadeId ?? null,
+      },
+      resumo: {
+        confirmadas: contagemStatus.CONFIRMADA ?? 0,
+        pendentes: contagemStatus.PENDENTE_PAGAMENTO ?? 0,
+        canceladas:
+          (contagemStatus.CANCELADA ?? 0) + (contagemStatus.EXPIRADA ?? 0),
+        kitsEntregues: inscricoes.filter(
+          (i) => i.status === StatusInscricao.CONFIRMADA && i.kitEntregueEm,
+        ).length,
+      },
+      ...estatisticas,
+      inscricoesPorDia: montarSerieDiaria(
+        inscricoes.map((i) => i.dataInscricao),
+        DIAS_SERIE,
+      ),
+    };
   }
 
   async obterKits(usuarioId: string, eventoId: string) {

@@ -238,6 +238,19 @@ export class OrganizadorController {
     return this.organizadorService.buscarMeuEvento(user.userId, id);
   }
 
+  @Get('eventos/:eventoId/estatisticas')
+  obterEstatisticasEvento(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('eventoId') eventoId: string,
+    @Query('incluirPendentes') incluirPendentes?: string,
+    @Query('modalidadeId') modalidadeId?: string,
+  ) {
+    return this.organizadorService.obterEstatisticasEvento(user.userId, eventoId, {
+      incluirPendentes: incluirPendentes === 'true',
+      modalidadeId: modalidadeId || undefined,
+    });
+  }
+
   @Get('eventos/:eventoId/kits')
   obterKits(
     @CurrentUser() user: AuthenticatedUser,
