@@ -46,9 +46,11 @@ const {
 const { exportarCsv } = useInscritosOrganizador()
 const { confirmar } = useConfirmacao()
 
-const exportandoLista = ref<'xlsx' | 'pdf' | null>(null)
+// Excel e CSV saem no padrao de colunas da equipe de cronometragem.
+type FormatoListaLargada = 'cronometragem' | 'cronometragem-csv' | 'pdf'
+const exportandoLista = ref<FormatoListaLargada | null>(null)
 
-async function onExportarListaLargada(formato: 'xlsx' | 'pdf') {
+async function onExportarListaLargada(formato: FormatoListaLargada) {
   if (!eventoSelecionadoId.value) return
   exportandoLista.value = formato
   try {
@@ -591,7 +593,7 @@ const resultadosFiltrados = computed(() => {
             <Users :size="16" class="text-emerald-700" /> Lista de Largada (Planilha de Inscritos)
           </h2>
           <p class="text-xs text-slate-600 mt-1">
-            Gera a planilha com nome, CPF, número do peito, modalidade e categoria de todos os atletas confirmados.
+            Gera a planilha no padrão da equipe de cronometragem (Numero, Chip, Nome... Kit, Municipio) com todos os atletas confirmados.
           </p>
         </div>
         <div class="flex flex-wrap gap-2">
@@ -599,9 +601,17 @@ const resultadosFiltrados = computed(() => {
             type="button"
             :disabled="!!exportandoLista"
             class="rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:bg-emerald-700 transition disabled:opacity-50 whitespace-nowrap flex items-center justify-center gap-1.5"
-            @click="onExportarListaLargada('xlsx')"
+            @click="onExportarListaLargada('cronometragem')"
           >
-            <Download :size="14" /> {{ exportandoLista === 'xlsx' ? 'Gerando...' : 'Excel' }}
+            <Download :size="14" /> {{ exportandoLista === 'cronometragem' ? 'Gerando...' : 'Excel (.xlsx)' }}
+          </button>
+          <button
+            type="button"
+            :disabled="!!exportandoLista"
+            class="rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:bg-emerald-700 transition disabled:opacity-50 whitespace-nowrap flex items-center justify-center gap-1.5"
+            @click="onExportarListaLargada('cronometragem-csv')"
+          >
+            <Download :size="14" /> {{ exportandoLista === 'cronometragem-csv' ? 'Gerando...' : 'CSV (.csv)' }}
           </button>
           <button
             type="button"
