@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { BarChart2, AlertTriangle, Footprints, X, CheckCircle, Hash, Shirt, CreditCard, Save, ListTree, FileText, UserRound } from 'lucide-vue-next'
+import { BarChart2, AlertTriangle, Footprints, X, CheckCircle, Hash, Shirt, CreditCard, Save, ListTree, FileText, UserRound, Timer } from 'lucide-vue-next'
 import { urlFoto } from '../../utils/foto'
+import type { FormatoExportacao } from '../../composables/useInscritosOrganizador'
 
 const { inscritos, fetchInscritos, exportarCsv, atualizarInscricao, conferirDocumentoIdoso } = useInscritosOrganizador()
 const { eventos, fetchMeusEventos, fetchEvento } = useEventoOrganizador()
@@ -8,6 +9,8 @@ const config = useRuntimeConfig()
 
 const carregando = ref(true)
 const exportando = ref(false)
+// A equipe de cronometragem aceita Excel ou CSV: o organizador escolhe.
+const menuCronometragem = ref(false)
 const salvandoModal = ref(false)
 const carregandoCategorias = ref(false)
 const erro = ref('')
@@ -150,7 +153,8 @@ onMounted(async () => {
   await carregar()
 })
 
-async function onExportar(formato: 'xlsx' | 'pdf' = 'xlsx') {
+async function onExportar(formato: FormatoExportacao = 'xlsx') {
+  menuCronometragem.value = false
   erro.value = ''
   exportando.value = true
   try {
@@ -355,6 +359,35 @@ function formatarData(iso: string) {
         >
           <FileText :size="16" /> Exportar em PDF (A4)
         </button>
+        <div class="relative">
+          <button
+            type="button"
+            :disabled="exportando"
+            class="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-100 transition disabled:opacity-40"
+            @click="menuCronometragem = !menuCronometragem"
+          >
+            <Timer :size="16" /> Planilha da Cronometragem
+          </button>
+          <div
+            v-if="menuCronometragem"
+            class="absolute right-0 z-20 mt-1 w-44 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg"
+          >
+            <button
+              type="button"
+              class="block w-full px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-100"
+              @click="onExportar('cronometragem')"
+            >
+              Excel (.xlsx)
+            </button>
+            <button
+              type="button"
+              class="block w-full px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-100"
+              @click="onExportar('cronometragem-csv')"
+            >
+              CSV (.csv)
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 

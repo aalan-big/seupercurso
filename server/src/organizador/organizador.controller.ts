@@ -677,6 +677,27 @@ export class OrganizadorController {
       return;
     }
 
+    if (formato === 'cronometragem' || formato === 'cronometragem-csv') {
+      const csv = formato === 'cronometragem-csv';
+      const buffer = await this.organizadorService.exportarInscritosCronometragem(
+        user.userId,
+        filtros,
+        csv ? 'csv' : 'xlsx',
+      );
+      res.setHeader(
+        'Content-Type',
+        csv
+          ? 'text/csv; charset=utf-8'
+          : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="inscritos-cronometragem.${csv ? 'csv' : 'xlsx'}"`,
+      );
+      res.send(buffer);
+      return;
+    }
+
     const buffer = await this.organizadorService.exportarInscritosXlsx(
       user.userId,
       filtros,

@@ -1,3 +1,5 @@
+export type FormatoExportacao = 'xlsx' | 'pdf' | 'cronometragem' | 'cronometragem-csv'
+
 export interface InscritoOrganizador {
   id: string
   numeroPeito: string | null
@@ -59,7 +61,7 @@ export function useInscritosOrganizador() {
     return res
   }
 
-  async function exportarCsv(filtros: FiltrosInscritos = {}, formato: 'xlsx' | 'pdf' = 'xlsx') {
+  async function exportarCsv(filtros: FiltrosInscritos = {}, formato: FormatoExportacao = 'xlsx') {
     const query = paraQueryString(filtros, { formato })
     const blob = await api<Blob>(`/organizadores/me/inscritos/exportar${query}`, {
       responseType: 'blob'
@@ -67,7 +69,12 @@ export function useInscritosOrganizador() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = formato === 'pdf' ? 'lista-de-largada.pdf' : 'inscritos.xlsx'
+    link.download = {
+      xlsx: 'inscritos.xlsx',
+      pdf: 'lista-de-largada.pdf',
+      cronometragem: 'inscritos-cronometragem.xlsx',
+      'cronometragem-csv': 'inscritos-cronometragem.csv'
+    }[formato]
     document.body.appendChild(link)
     link.click()
     link.remove()

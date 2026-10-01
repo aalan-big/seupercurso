@@ -1471,6 +1471,145 @@ export class OrganizadorService {
     return Buffer.from(buffer);
   }
 
+  /**
+   * Planilha no padrao da equipe de cronometragem: mesmas colunas, na mesma
+   * ordem, uma linha por atleta confirmado, ordenado pelo numero de peito. O chip
+   * sai com o mesmo numero do peito, como no modelo que eles mandaram. Sai em
+   * Excel ou em CSV, conforme o organizador escolher no download.
+   */
+  async exportarInscritosCronometragem(
+    usuarioId: string,
+    filtros: FiltrosInscritos,
+    arquivo: 'xlsx' | 'csv' = 'xlsx',
+  ): Promise<Buffer> {
+    const inscritos = (await this.listarInscritos(usuarioId, filtros))
+      .filter((i) => i.status === StatusInscricao.CONFIRMADA)
+      .sort((a, b) => {
+        const peitoA = a.numeroPeito ? Number(a.numeroPeito) : Infinity;
+        const peitoB = b.numeroPeito ? Number(b.numeroPeito) : Infinity;
+        return peitoA - peitoB;
+      });
+
+    // O municipio vem do endereco de quem comprou: dependente nao tem
+    // endereco proprio.
+    const enderecos = await this.prisma.endereco.findMany({
+      where: { clienteId: { in: [...new Set(inscritos.map((i) => i.clienteId))] } },
+      select: { clienteId: true, cidade: true },
+    });
+    const cidadePorCliente = new Map<string, string>();
+    for (const e of enderecos) {
+      if (!cidadePorCliente.has(e.clienteId)) cidadePorCliente.set(e.clienteId, e.cidade);
+    }
+
+    const formatarData = (data: Date | null | undefined) =>
+      data
+        ? data.toLocaleDateString('pt-BR', {
+            timeZone: 'UTC',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+          })
+        : '-';
+    const sexo: Record<string, string> = { MASCULINO: 'M', FEMININO: 'F' };
+
+    const workbook = new ExcelJS.Workbook();
+    const planilha = workbook.addWorksheet('Inscritos');
+    planilha.columns = [
+      { header: 'Numero', key: 'numero', width: 9 },
+      { header: 'Chip', key: 'chip', width: 9 },
+      { header: 'Nome', key: 'nome', width: 30 },
+      { header: 'E-mail', key: 'email', width: 28 },
+      { header: 'Telefone', key: 'telefone', width: 14 },
+      { header: 'Modalidade', key: 'modalidade', width: 12 },
+      { header: 'Categoria', key: 'categoria', width: 28 },
+      { header: 'Nascimento', key: 'nascimento', width: 12 },
+      { header: 'Sexo', key: 'sexo', width: 6 },
+      { header: 'Equipe', key: 'equipe', width: 18 },
+      { header: 'Documento', key: 'documento', width: 16 },
+      { header: 'Camiseta', key: 'camiseta', width: 10 },
+      { header: 'Kit', key: 'kit', width: 10 },
+      { header: 'Municipio', key: 'municipio', width: 20 },
+    ];
+    planilha.getRow(1).font = { bold: true };
+    planilha.views = [{ state: 'frozen', ySplit: 1 }];
+
+    for (const inscricao of inscritos) {
+      const pf = inscricao.cliente.pf;
+      const dependente = inscricao.dependente;
+      const modalidade = inscricao.categoria.modalidade;
+      const evento = modalidade.evento;
+
+      const nome =
+        dependente?.nomeCompleto ??
+        inscricao.atletaNome ??
+        pf?.nomeCompleto ??
+        inscricao.cliente.pj?.razaoSocial ??
+        '';
+      const cpf = dependente?.cpf ?? inscricao.atletaCpf ?? pf?.cpf ?? '';
+      const nascimento =
+        dependente?.dataNascimento ??
+        inscricao.atletaDataNascimento ??
+        pf?.dataNascimento;
+      const genero = dependente?.genero ?? inscricao.atletaGenero ?? pf?.genero;
+      const telefone = (dependente?.celular || pf?.celular || '').replace(/\D/g, '');
+
+      const semCamisa =
+        !evento.possuiCamisa || (evento.camisaOpcional && !inscricao.incluiCamisa);
+
+      const kit = inscricao.isFuncionario
+        ? 'Empresa'
+        : inscricao.isServidorPublico
+          ? 'Público'
+          : 'Geral';
+
+      const numero = inscricao.numeroPeito ?? '';
+
+      const linha = planilha.addRow({
+        numero,
+        chip: numero,
+        nome,
+        email: inscricao.cliente.usuario.email,
+        telefone,
+        modalidade:
+          modalidade.distanciaKm != null
+            ? `${Number(modalidade.distanciaKm).toFixed(1)}Km`
+            : modalidade.nome,
+        categoria: inscricao.categoria.nome,
+        nascimento: formatarData(nascimento),
+        sexo: (genero && sexo[genero]) || '-',
+        equipe: '-',
+        documento: this.formatarCpfParaExport(cpf),
+        camiseta: semCamisa ? '-' : inscricao.tamanhoCamisa || '-',
+        kit,
+        municipio: cidadePorCliente.get(inscricao.clienteId) ?? '',
+      });
+
+      // Texto puro: o Excel nao vira telefone em 8,9E+10 nem a data em numero.
+      for (const coluna of ['telefone', 'nascimento', 'documento']) {
+        linha.getCell(coluna).numFmt = '@';
+      }
+    }
+
+    if (arquivo === 'csv') {
+      // Mesmo conteudo da planilha, separado por virgula como no modelo deles.
+      const celula = (valor: string) =>
+        /[",\r\n]/.test(valor) ? `"${valor.replace(/"/g, '""')}"` : valor;
+      const linhas: string[] = [];
+      planilha.eachRow((row) => {
+        linhas.push(
+          Array.from({ length: planilha.columnCount }, (_, i) =>
+            celula(String(row.getCell(i + 1).value ?? '')),
+          ).join(','),
+        );
+      });
+      // BOM para o Excel abrir os acentos certos.
+      return Buffer.from('﻿' + linhas.join('\r\n') + '\r\n', 'utf8');
+    }
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(buffer);
+  }
+
   private formatarCpfParaExport(cpf: string): string {
     const digitos = cpf.replace(/\D/g, '');
     if (digitos.length !== 11) return cpf;
