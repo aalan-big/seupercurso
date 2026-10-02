@@ -143,21 +143,8 @@ export class MercadoPagoService implements GatewayPagamento {
     };
   }
 
-  /**
-   * Tarifa que o Mercado Pago reteve do vendedor nesta venda.
-   *
-   * So conta o que e cobrado de quem recebe (`collector`): juros de
-   * parcelamento pago pelo comprador aparece na mesma lista e nao e custo do
-   * organizador.
-   */
   private extrairTarifa(data: any): number | null {
-    const detalhes = Array.isArray(data?.fee_details) ? data.fee_details : [];
-
-    const total = detalhes
-      .filter((d: any) => !d?.fee_payer || d.fee_payer === 'collector')
-      .reduce((soma: number, d: any) => soma + Number(d?.amount ?? 0), 0);
-
-    return Number.isFinite(total) && total > 0 ? Number(total.toFixed(2)) : null;
+    return extrairTarifaMercadoPago(data);
   }
 
   async consultarCobranca(
@@ -302,4 +289,24 @@ export class MercadoPagoService implements GatewayPagamento {
 
     return detalhe ? (mapa[detalhe] ?? null) : null;
   }
+}
+
+/**
+ * Tarifa que o Mercado Pago reteve do vendedor nesta venda.
+ *
+ * So conta o que e cobrado de quem recebe (`collector`): juros de
+ * parcelamento pago pelo comprador aparece na mesma lista e nao e custo do
+ * organizador. A `application_fee` tambem vem como `collector`, mas e a nossa
+ * comissao, nao tarifa: somada, o gross-up do cartao aprendia ~10% em vez de
+ * ~2,5% e o atleta pagava a mais (a diferenca ia para o organizador).
+ */
+export function extrairTarifaMercadoPago(data: any): number | null {
+  const detalhes = Array.isArray(data?.fee_details) ? data.fee_details : [];
+
+  const total = detalhes
+    .filter((d: any) => !d?.fee_payer || d.fee_payer === 'collector')
+    .filter((d: any) => d?.type !== 'application_fee')
+    .reduce((soma: number, d: any) => soma + Number(d?.amount ?? 0), 0);
+
+  return Number.isFinite(total) && total > 0 ? Number(total.toFixed(2)) : null;
 }

@@ -348,6 +348,12 @@ export class PagamentoService {
 
     const isAprovado = resultado.status === 'APROVADO';
 
+    // Cartao aprova na hora e o webhook seguinte ve "ja aprovado" e nao grava
+    // nada: sem isto a venda de cartao ficava sem tarifa nem liquido e os
+    // painels nao tinham como descontar a tarifa do repasse.
+    const tarifaCartao =
+      isAprovado && resultado.tarifaCobrada ? resultado.tarifaCobrada : null;
+
     const dadosPagamento = {
       valor: valorCobrado,
       // O mesmo numero que foi ao gateway como application_fee. Guardado aqui
@@ -363,6 +369,14 @@ export class PagamentoService {
       pixQrCodeUrl: resultado.pixQrCodeUrl || null,
       dataPagamento: isAprovado ? new Date() : null,
       expiraEm,
+      ...(tarifaCartao
+        ? {
+            taxaGateway: tarifaCartao,
+            valorLiquido: Number(
+              (valorCobrado - tarifaCartao - comissaoRetida).toFixed(2),
+            ),
+          }
+        : {}),
     };
 
     const [pagamentoCriado] = await this.prisma.$transaction([
@@ -588,8 +602,18 @@ export class PagamentoService {
             ...(liquido
               ? {
                   valorLiquido: liquido,
-                  taxaGateway: Number(
-                    (Number(pagamentoExistente.valor) - liquido).toFixed(2),
+                  // O liquido do Mercado Pago ja vem sem a application_fee;
+                  // sem tirar a comissao, a "tarifa" gravada era tarifa +
+                  // comissao.
+                  taxaGateway: Math.max(
+                    0,
+                    Number(
+                      (
+                        Number(pagamentoExistente.valor) -
+                        liquido -
+                        Number(pagamentoExistente.comissaoPlataforma ?? 0)
+                      ).toFixed(2),
+                    ),
                   ),
                 }
               : {}),

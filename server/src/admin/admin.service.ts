@@ -19,6 +19,7 @@ import { CriarUsuarioAdminDto } from './dto/criar-usuario.dto';
 import { CriarAdminDto } from './dto/criar-admin.dto';
 
 import { montarSerieDiaria } from '../common/montar-serie-diaria';
+import { tarifaGatewayDoPagamento } from '../common/tarifa-pagamento';
 
 const ORGANIZADOR_INCLUDE = {
   cliente: {
@@ -438,8 +439,10 @@ export class AdminService {
       where: { status: StatusPagamento.APROVADO },
       select: {
         valor: true,
+        valorLiquido: true,
         taxaGateway: true,
         comissaoPlataforma: true,
+        gateway: true,
         inscricao: { select: eventoSelect },
         pedido: {
           select: {
@@ -453,6 +456,7 @@ export class AdminService {
       quantidadePagamentos: number;
       totalArrecadado: number;
       comissaoPlataforma: number;
+      taxaGateway: number;
     }
 
     interface ResumoEvento extends ResumoValores {
@@ -469,9 +473,13 @@ export class AdminService {
     const porOrganizador = new Map<string, ResumoOrganizador>();
     let totalArrecadado = 0;
     let comissaoPlataforma = 0;
+    let totalTaxaGateway = 0;
 
     for (const pagamento of pagamentos) {
       const valor = Number(pagamento.valor);
+      // Tarifa do gateway sem a comissao. O repasse nao a descontava e saia
+      // maior do que o organizador recebe de fato.
+      const taxa = tarifaGatewayDoPagamento(pagamento);
       const evento = (pagamento.inscricao as any)?.categoria?.modalidade?.evento || (pagamento as any).pedido?.inscricoes?.[0]?.categoria?.modalidade?.evento;
       if (!evento) continue;
       const organizador = evento.organizador;
@@ -485,11 +493,11 @@ export class AdminService {
         pagamento.comissaoPlataforma !== null &&
         pagamento.comissaoPlataforma !== undefined
           ? Number(pagamento.comissaoPlataforma)
-          : Math.max(0, valor - Number(pagamento.taxaGateway ?? 0)) *
-            (percentual / 100);
+          : Math.max(0, valor - taxa) * (percentual / 100);
 
       totalArrecadado += valor;
       comissaoPlataforma += comissao;
+      totalTaxaGateway += taxa;
 
       const nomeOrganizador =
         organizador.cliente.pf?.nomeCompleto ||
@@ -502,11 +510,13 @@ export class AdminService {
         quantidadePagamentos: 0,
         totalArrecadado: 0,
         comissaoPlataforma: 0,
+        taxaGateway: 0,
         eventos: new Map<string, ResumoEvento>(),
       };
       resumoOrganizador.quantidadePagamentos += 1;
       resumoOrganizador.totalArrecadado += valor;
       resumoOrganizador.comissaoPlataforma += comissao;
+      resumoOrganizador.taxaGateway += taxa;
 
       const resumoEvento = resumoOrganizador.eventos.get(evento.id) ?? {
         eventoId: evento.id,
@@ -514,10 +524,12 @@ export class AdminService {
         quantidadePagamentos: 0,
         totalArrecadado: 0,
         comissaoPlataforma: 0,
+        taxaGateway: 0,
       };
       resumoEvento.quantidadePagamentos += 1;
       resumoEvento.totalArrecadado += valor;
       resumoEvento.comissaoPlataforma += comissao;
+      resumoEvento.taxaGateway += taxa;
       resumoOrganizador.eventos.set(evento.id, resumoEvento);
 
       porOrganizador.set(organizador.id, resumoOrganizador);
@@ -526,17 +538,19 @@ export class AdminService {
     return {
       totalArrecadado,
       comissaoPlataforma,
-      totalRepasse: totalArrecadado - comissaoPlataforma,
+      totalTaxaGateway: Number(totalTaxaGateway.toFixed(2)),
+      totalRepasse: totalArrecadado - comissaoPlataforma - totalTaxaGateway,
       porOrganizador: Array.from(porOrganizador.values()).map((o) => ({
         organizadorId: o.organizadorId,
         nome: o.nome,
         quantidadePagamentos: o.quantidadePagamentos,
         totalArrecadado: o.totalArrecadado,
         comissaoPlataforma: o.comissaoPlataforma,
-        repasse: o.totalArrecadado - o.comissaoPlataforma,
+        taxaGateway: o.taxaGateway,
+        repasse: o.totalArrecadado - o.comissaoPlataforma - o.taxaGateway,
         eventos: Array.from(o.eventos.values()).map((e) => ({
           ...e,
-          repasse: e.totalArrecadado - e.comissaoPlataforma,
+          repasse: e.totalArrecadado - e.comissaoPlataforma - e.taxaGateway,
         })),
       })),
     };

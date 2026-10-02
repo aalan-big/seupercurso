@@ -64,6 +64,7 @@ import {
   StatusDocumentoIdoso,
 } from '../generated/prisma/enums';
 import { EmailService } from '../email/email.service';
+import { tarifaGatewayDoPagamento } from '../common/tarifa-pagamento';
 
 @Injectable()
 export class OrganizadorService {
@@ -249,8 +250,10 @@ export class OrganizadorService {
       },
       select: {
         valor: true,
+        valorLiquido: true,
         taxaGateway: true,
         comissaoPlataforma: true,
+        gateway: true,
         inscricao: { select: eventoSelect },
         pedido: {
           select: {
@@ -278,8 +281,10 @@ export class OrganizadorService {
 
     for (const pagamento of pagamentos) {
       const valor = Number(pagamento.valor);
-      // A tarifa do gateway ja esta embutida no valor pago pelo atleta.
-      const taxa = Number(pagamento.taxaGateway ?? 0);
+      // A tarifa do gateway ja esta embutida no valor pago pelo atleta. Sem a
+      // comissao: no Mercado Pago a taxaGateway gravada a incluia, e o repasse
+      // descontava a comissao duas vezes.
+      const taxa = tarifaGatewayDoPagamento(pagamento);
       // Comissao retida de verdade, gravada na cobranca. O calculo so cobre
       // linha antiga sem o dado: quando o atleta paga a comissao, o liquido ja
       // a contem, e aplicar o percentual sobre ele cobrava percentual sobre
