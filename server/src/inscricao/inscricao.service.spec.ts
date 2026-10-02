@@ -483,6 +483,65 @@ describe('InscricaoService', () => {
       ).rejects.toThrow(ConflictException);
     });
 
+    describe('limite de vagas na ultima vaga', () => {
+      const comLimite = (vagas: number) => ({
+        ...categoriaServidor,
+        modalidade: {
+          ...categoriaServidor.modalidade,
+          evento: { ...categoriaServidor.modalidade.evento, vagasServidorPublico: vagas },
+        },
+      });
+
+      beforeEach(() => {
+        prisma.categoria.findUnique.mockResolvedValue(comLimite(500));
+        prisma.servidorPublico.findFirst.mockResolvedValue({
+          id: 'servidor-1',
+          matricula: '12345',
+          inscricaoId: null,
+          utilizadoEm: null,
+          inscricao: null,
+        });
+        tx.$queryRaw = jest.fn().mockResolvedValue([{ '?column?': 1 }]);
+        tx.servidorPublico.count = jest.fn().mockResolvedValue(499);
+      });
+
+      it('trava o evento e reconta dentro da transacao antes de gravar', async () => {
+        // Fora da transacao ainda havia 1 vaga (499 de 500)
+        prisma.servidorPublico.count.mockResolvedValue(499);
+
+        const res = await service.createBatch(usuarioId, {
+          items: [atletaServidor('11111111111')],
+        });
+
+        expect(res.valorTotal).toBe(0);
+        expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+        expect(tx.servidorPublico.count).toHaveBeenCalledWith({
+          where: expect.objectContaining({ eventoId: 'evento-1' }),
+        });
+        expect(tx.servidorPublico.updateMany).toHaveBeenCalled();
+      });
+
+      it('recusa quando outra compra levou a ultima vaga enquanto esta esperava', async () => {
+        // Na checagem de fora: 499 (passa). Depois da trava: 500 (a outra entrou).
+        prisma.servidorPublico.count.mockResolvedValue(499);
+        tx.servidorPublico.count.mockResolvedValue(500);
+
+        await expect(
+          service.createBatch(usuarioId, { items: [atletaServidor('11111111111')] }),
+        ).rejects.toThrow(/já foram esgotadas/);
+        expect(tx.inscricao.create).not.toHaveBeenCalled();
+        expect(tx.servidorPublico.updateMany).not.toHaveBeenCalled();
+      });
+
+      it('evento sem limite nao usa a trava', async () => {
+        prisma.categoria.findUnique.mockResolvedValue(categoriaServidor);
+
+        await service.createBatch(usuarioId, { items: [atletaServidor('11111111111')] });
+
+        expect(tx.$queryRaw).not.toHaveBeenCalled();
+      });
+    });
+
     it('servidor da lista disputa categoria comum de graca', async () => {
       prisma.categoria.findUnique.mockResolvedValue({
         ...categoriaServidor,

@@ -331,6 +331,9 @@ export class InscricaoService {
     // Servidores ja aceitos neste carrinho: ainda nao estao no banco, entao a
     // contagem de vagas nao os enxerga sozinha.
     let servidoresNoCarrinho = 0;
+    // Por evento com limite de vagas: a contagem e refeita dentro da transacao
+    // com trava (ver abaixo).
+    const vagasServidorPorEvento = new Map<string, { vagas: number; noCarrinho: number }>();
     // Mesma ideia para o limite de usos de cada cupom.
     const cuponsNoCarrinho = new Map<string, number>();
     // E para os contratos de funcionario (vagas e o mesmo contrato duas vezes).
@@ -507,6 +510,14 @@ export class InscricaoService {
         matriculaServidor = servidor.matricula;
         servidorPublicoId = servidor.id;
         servidoresNoCarrinho++;
+
+        const vagasEvento = categoria.modalidade.evento.vagasServidorPublico;
+        if (vagasEvento !== null) {
+          const eventoId = categoria.modalidade.eventoId;
+          const atual = vagasServidorPorEvento.get(eventoId) ?? { vagas: vagasEvento, noCarrinho: 0 };
+          atual.noCarrinho++;
+          vagasServidorPorEvento.set(eventoId, atual);
+        }
       }
 
       let isFuncionario = false;
@@ -616,6 +627,24 @@ export class InscricaoService {
     const ehTotalmenteGratuito = valorTotal === 0;
 
     const resultado = await this.prisma.$transaction(async (tx) => {
+      // A checagem de vagas la de cima roda fora da transacao: duas compras na
+      // ultima vaga passavam juntas e o evento fechava com 501. A trava por
+      // evento faz as compras com servidor entrarem uma de cada vez, e a
+      // contagem refeita aqui ja enxerga a que acabou de entrar. So pega quem
+      // tem servidor num evento com limite; o resto do checkout nao espera.
+      for (const eventoId of [...vagasServidorPorEvento.keys()].sort()) {
+        const { vagas, noCarrinho } = vagasServidorPorEvento.get(eventoId)!;
+        await tx.$queryRaw`SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtext(${eventoId}))) AS trava`;
+        const vagasUtilizadas = await tx.servidorPublico.count({
+          where: { eventoId, ...FILTRO_SERVIDOR_EM_USO },
+        });
+        if (vagasUtilizadas + noCarrinho > vagas) {
+          throw new BadRequestException(
+            `As vagas gratuitas para servidores públicos deste evento (${vagas} vagas) já foram esgotadas.`,
+          );
+        }
+      }
+
       const pedido = await tx.pedido.create({
         data: { clienteId },
       });
