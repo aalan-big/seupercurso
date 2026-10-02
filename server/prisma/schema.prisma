@@ -121,6 +121,19 @@ enum StatusSolicitacaoCronometragem {
   EXPIRADA
 }
 
+// Cotacao do servico de cronometragem do Seu Percurso, pedida pelo organizador.
+// Proposta vencida (ORCADA com propostaValidaAte no passado) e tratada como
+// expirada na leitura, sem job.
+enum StatusCotacaoCronometragem {
+  SOLICITADA
+  ORCADA
+  ACEITA
+  RECUSADA
+  CANCELADA
+  PAGA
+  CONCLUIDA
+}
+
 enum TipoPontoCronometragem {
   LARGADA
   PARCIAL
@@ -272,6 +285,7 @@ model Organizador {
   staff            Staff[]
   solicitacoesArte SolicitacaoArte[]
   saques           Saque[]
+  cotacoesCronometragem CotacaoCronometragem[]
 }
 
 model Admin {
@@ -366,6 +380,7 @@ model Evento {
   solicitacoesCronometragem SolicitacaoCronometragem[]
   passagensCronometragem    PassagemCronometragem[]
   chipsCronometragem        ChipsCronometragem[]
+  cotacoesCronometragem     CotacaoCronometragem[]
 
   @@index([status, dataInicio])
 }
@@ -663,6 +678,9 @@ model SolicitacaoArte {
 model ConfiguracaoPlataforma {
   id              String   @id @default("default")
   precoArteEvento Decimal  @default(150.00) @db.Decimal(10, 2)
+  // Como o organizador paga a cronometragem fechada (chave PIX, favorecido,
+  // banco). Texto livre, mostrado depois que ele aceita a proposta.
+  dadosPagamentoCronometragem String?
   updatedAt       DateTime @updatedAt
 }
 
@@ -854,6 +872,7 @@ model Cronometradora {
 
   usuarios     UsuarioCronometragem[]
   solicitacoes SolicitacaoCronometragem[]
+  cotacoes     CotacaoCronometragem[]
   passagens    PassagemCronometragem[]
   auditorias   AuditoriaCronometragem[]
 }
@@ -889,6 +908,44 @@ model SolicitacaoCronometragem {
 
   @@index([cronometradoraId, eventoId])
   @@index([eventoId, status])
+}
+
+// O organizador pede, a equipe do Seu Percurso orca, o organizador aceita e
+// paga por fora (PIX/transferencia para a conta da plataforma) e a equipe
+// confirma. Nao passa pelo checkout nem pelo Mercado Pago.
+model CotacaoCronometragem {
+  id                   String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventoId             String                     @db.Uuid
+  organizadorId        String                     @db.Uuid
+  status               StatusCotacaoCronometragem @default(SOLICITADA)
+  servicos             String[]
+  atletasEstimados     Int?
+  pontosPassagem       Int?
+  observacoes          String?
+  valor                Decimal?                   @db.Decimal(10, 2)
+  descricaoProposta    String?
+  propostaValidaAte    DateTime?
+  pagamentoAte         DateTime?
+  propostaEnviadaEm    DateTime?
+  aceitaEm             DateTime?
+  comprovanteUrl       String?
+  comprovanteEnviadoEm DateTime?
+  pagaEm               DateTime?
+  concluidaEm          DateTime?
+  // Recusa do organizador ou cancelamento (dele ou da equipe).
+  motivo               String?
+  // Cronometradora que recebeu acesso a prova ao confirmar o pagamento.
+  cronometradoraId     String?                    @db.Uuid
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+
+  evento         Evento          @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+  organizador    Organizador     @relation(fields: [organizadorId], references: [id], onDelete: Cascade)
+  cronometradora Cronometradora? @relation(fields: [cronometradoraId], references: [id], onDelete: SetNull)
+
+  @@index([eventoId, status])
+  @@index([organizadorId, createdAt])
+  @@index([status])
 }
 
 model PassagemCronometragem {

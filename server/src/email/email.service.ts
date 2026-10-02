@@ -411,6 +411,73 @@ export class EmailService {
     );
   }
 
+  /**
+   * Avisos da cotacao de cronometragem para o organizador: proposta recebida,
+   * pagamento confirmado ou cotacao cancelada pela equipe.
+   */
+  async enviarAvisoCotacaoCronometragem(params: {
+    email: string;
+    nomeOrganizador: string;
+    nomeEvento: string;
+    tipo: 'PROPOSTA' | 'PAGAMENTO_CONFIRMADO' | 'CANCELADA';
+    valor?: number | null;
+    propostaValidaAte?: Date | null;
+    motivo?: string | null;
+  }) {
+    const nome = this.escapeHtml(params.nomeOrganizador);
+    const evento = this.escapeHtml(params.nomeEvento);
+    const painelUrl = `${(this.configService.get<string>('ORGANIZER_URL') || '').replace(/\/$/, '')}/cronometragem`;
+    const valor =
+      params.valor !== null && params.valor !== undefined
+        ? params.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+        : null;
+    const validade = params.propostaValidaAte
+      ? params.propostaValidaAte.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+      : null;
+
+    const textos = {
+      PROPOSTA: {
+        titulo: 'Proposta de cronometragem',
+        assunto: `[${params.nomeEvento}] Proposta de cronometragem disponível`,
+        corpo: `<p style="color: #475569;">A equipe do Seu Percurso enviou a proposta de cronometragem para o evento <strong>${evento}</strong>.</p>
+          <div class="card">
+            ${valor ? `<p style="margin: 0 0 6px;"><strong>Valor:</strong> ${valor}</p>` : ''}
+            ${validade ? `<p style="margin: 0;"><strong>Válida até:</strong> ${validade}</p>` : ''}
+          </div>
+          <p style="color: #475569;">Veja o que está incluso e aceite ou recuse pelo painel do organizador.</p>`,
+      },
+      PAGAMENTO_CONFIRMADO: {
+        titulo: 'Cronometragem confirmada',
+        assunto: `[${params.nomeEvento}] Pagamento da cronometragem confirmado`,
+        corpo: `<p style="color: #475569;">Recebemos o pagamento da cronometragem do evento <strong>${evento}</strong>. A cronometragem da sua prova está confirmada com o Seu Percurso.</p>
+          <p style="color: #475569;">Nossa equipe vai entrar em contato para alinhar os detalhes do dia da prova.</p>`,
+      },
+      CANCELADA: {
+        titulo: 'Cotação de cronometragem cancelada',
+        assunto: `[${params.nomeEvento}] Cotação de cronometragem cancelada`,
+        corpo: `<p style="color: #475569;">A cotação de cronometragem do evento <strong>${evento}</strong> foi cancelada pela equipe do Seu Percurso.</p>
+          ${params.motivo ? `<div class="card"><p style="margin: 0 0 6px; font-size: 12px; font-weight: 800; text-transform: uppercase; color: #64748b;">Motivo</p><p style="margin: 0; white-space: pre-wrap;">${this.escapeHtml(params.motivo)}</p></div>` : ''}
+          <p style="color: #475569;">Se quiser, você pode pedir uma nova cotação pelo painel.</p>`,
+      },
+    }[params.tipo];
+
+    const conteudoHtml = `
+      <p style="font-size: 16px; font-weight: 700; color: #0f172a; margin-top: 0;">Olá, ${nome}!</p>
+      ${textos.corpo}
+      <p style="text-align: center; margin: 28px 0 8px;">
+        <a href="${painelUrl}" class="btn-primary">Abrir no painel</a>
+      </p>
+    `;
+
+    const html = this.renderBaseTemplate({
+      tituloHeader: textos.titulo,
+      subtituloHeader: evento,
+      conteudoHtml,
+    });
+
+    return this.enviarMail(params.email, textos.assunto, html);
+  }
+
   private escapeHtml(valor: string): string {
     return valor
       .replace(/&/g, '&amp;')

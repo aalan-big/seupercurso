@@ -55,6 +55,9 @@ const linkClasse = 'flex items-center gap-2 rounded-lg px-3 py-2 text-slate-600 
       <NuxtLink to="/cronometragem" :class="linkClasse" active-class="bg-warning/10 text-primary font-bold" @click="emit('fechar')">
         <AppIcon name="timer" size="18" class="text-slate-500" /> Cronometragem (Mark)
       </NuxtLink>
+      <NuxtLink to="/cotacoes-cronometragem" :class="linkClasse" active-class="bg-warning/10 text-primary font-bold" @click="emit('fechar')">
+        <AppIcon name="tag" size="18" class="text-slate-500" /> Cotações de Cronometragem
+      </NuxtLink>
       <NuxtLink to="/financeiro" :class="linkClasse" active-class="bg-warning/10 text-primary font-bold" @click="emit('fechar')">
         <AppIcon name="financeiro" size="18" class="text-slate-500" /> Financeiro
       </NuxtLink>
