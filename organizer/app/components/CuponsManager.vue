@@ -65,15 +65,10 @@ async function onSalvarDescontoPcd() {
   }
 }
 
-// Trava contra cupom em massa; o admin libera mais por evento. 10 e o padrao
-// do banco, usado so enquanto o evento ainda nao trouxe o campo.
-const limiteCupons = computed(() => props.evento.limiteCupons ?? 10)
-const cuponsRestantes = computed(() => Math.max(0, limiteCupons.value - cupons.value.length))
-const usosPorCupom = computed(() => props.evento.usosPorCupom ?? 1)
 const sucessoCupom = ref('')
 
 const mostrarFormCupom = ref(false)
-const novoCupom = reactive({ codigo: '', percentualDesconto: '', validoAte: '' })
+const novoCupom = reactive({ codigo: '', percentualDesconto: '', quantidadeMaxima: '', validoAte: '' })
 
 async function onCriarCupom() {
   erro.value = ''
@@ -89,15 +84,15 @@ async function onCriarCupom() {
     await criarCupom(props.eventoId, {
       codigo: novoCupom.codigo,
       percentualDesconto: percentual,
+      quantidadeMaxima: novoCupom.quantidadeMaxima ? Number(novoCupom.quantidadeMaxima) : undefined,
       validoAte: novoCupom.validoAte || undefined
     })
     novoCupom.codigo = ''
     novoCupom.percentualDesconto = ''
+    novoCupom.quantidadeMaxima = ''
     novoCupom.validoAte = ''
     mostrarFormCupom.value = false
-    sucessoCupom.value = cuponsRestantes.value > 0
-      ? `Cupom criado. Você ainda pode criar mais ${cuponsRestantes.value} cupom(ns) neste evento.`
-      : 'Cupom criado. Este foi o último cupom liberado para este evento.'
+    sucessoCupom.value = 'Cupom criado.'
   } catch (e) {
     erro.value = extrairErro(e)
   } finally {
@@ -209,23 +204,6 @@ function formatarData(iso: string | null) {
       <h2 class="text-sm font-bold uppercase tracking-wide text-slate-500">Cupons de desconto</h2>
       <p class="mt-1 text-xs text-slate-400">Pra assessorias esportivas e grupos — o atleta informa o código na hora de se inscrever.</p>
 
-      <div
-        v-if="!carregandoCupons"
-        class="mt-3 rounded-xl border px-4 py-3 text-xs"
-        :class="cuponsRestantes > 0 ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-amber-300 bg-amber-50 text-amber-900'"
-      >
-        <template v-if="cuponsRestantes > 0">
-          Você pode criar mais <strong>{{ cuponsRestantes }}</strong> cupom(ns) neste evento
-          ({{ cupons.length }} de {{ limiteCupons }} usados).
-          Cada cupom pode ser usado por <strong>{{ usosPorCupom }}</strong> {{ usosPorCupom === 1 ? 'pessoa' : 'pessoas' }}.
-        </template>
-        <template v-else>
-          <strong>Limite de cupons atingido</strong> ({{ cupons.length }} de {{ limiteCupons }}).
-        </template>
-        Precisa de mais? Fale com a
-        <NuxtLink to="/suporte" class="font-bold underline">equipe do Seu Percurso</NuxtLink>.
-      </div>
-
       <p v-if="sucessoCupom" class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-800 flex items-center gap-2 w-fit">
         <CheckCircle :size="14" class="text-emerald-600" /> {{ sucessoCupom }}
       </p>
@@ -249,8 +227,10 @@ function formatarData(iso: string | null) {
               {{ cupom.usosAtuais }}{{ cupom.quantidadeMaxima ? ` / ${cupom.quantidadeMaxima}` : '' }} usos
               <template v-if="cupom.validoAte"> · válido até {{ formatarData(cupom.validoAte) }}</template>
             </span>
+            <span v-if="!cupom.ativo" class="ml-2 text-xs font-bold text-red-600">Bloqueado pela equipe do Seu Percurso</span>
           </div>
           <button
+            v-if="cupom.ativo"
             type="button"
             class="text-xs font-bold uppercase tracking-wide text-red-600 hover:text-red-700"
             @click="onRemoverCupom(cupom.id)"
@@ -262,7 +242,7 @@ function formatarData(iso: string | null) {
 
       <div class="mt-4">
         <button
-          v-if="!mostrarFormCupom && cuponsRestantes > 0"
+          v-if="!mostrarFormCupom"
           type="button"
           class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold uppercase tracking-wide text-slate-700 hover:bg-slate-100"
           @click="mostrarFormCupom = true"
@@ -285,6 +265,13 @@ function formatarData(iso: string | null) {
               max="100"
               step="0.01"
               placeholder="Desconto (%)"
+              class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
+            />
+            <input
+              v-model="novoCupom.quantidadeMaxima"
+              type="number"
+              min="1"
+              placeholder="Limite de usos (opcional)"
               class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
             <input

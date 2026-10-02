@@ -18,7 +18,7 @@ import { AdminService } from './admin.service';
 import { NotificacaoAdminService } from './notificacao-admin.service';
 import { MotivoDto } from './dto/motivo.dto';
 import { ComissaoDto } from './dto/comissao.dto';
-import { LimiteCuponsDto } from './dto/limite-cupons.dto';
+import { BloqueioCupomDto } from './dto/bloqueio-cupom.dto';
 import { FuncionariosConfigDto } from './dto/funcionarios-config.dto';
 import { ServidorPublicoConfigDto } from './dto/servidor-publico-config.dto';
 import { AlterarEmailDto } from './dto/alterar-email.dto';
@@ -197,9 +197,13 @@ export class AdminController {
   }
 
   @HttpCode(HttpStatus.OK)
-  @Post('eventos/:id/limite-cupons')
-  definirLimiteCupons(@Param('id') id: string, @Body() dto: LimiteCuponsDto) {
-    return this.adminService.definirLimiteCupons(id, dto);
+  @Post('eventos/:id/cupons/:cupomId/bloqueio')
+  bloquearCupom(
+    @Param('id') id: string,
+    @Param('cupomId') cupomId: string,
+    @Body() dto: BloqueioCupomDto,
+  ) {
+    return this.adminService.bloquearCupom(id, cupomId, dto.bloqueado);
   }
 
   @Get('usuarios')

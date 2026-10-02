@@ -34,8 +34,8 @@ const ORGANIZADOR_INCLUDE = {
 const EVENTO_INCLUDE = {
   organizador: { include: ORGANIZADOR_INCLUDE },
   modalidades: { include: { categorias: true } },
-  // Card de cupons do admin: quantos o organizador ja criou contra o limite,
-  // e cada cupom com as inscricoes pagas que usaram ele.
+  // Card de cupons do admin: cada cupom com as inscricoes pagas que usaram
+  // ele e o botao de bloquear.
   _count: { select: { cupons: true } },
   cupons: {
     orderBy: { createdAt: 'asc' },
@@ -284,22 +284,23 @@ export class AdminService {
     });
   }
 
-  async definirLimiteCupons(
-    id: string,
-    config: { limiteCupons?: number; usosPorCupom?: number },
-  ) {
-    await this.getEventoOuFalhar(id);
+  // Bloqueado (ativo = false) o cupom deixa de valer em inscricao nova; as ja
+  // pagas nao mudam. O organizador nao desbloqueia nem remove.
+  async bloquearCupom(eventoId: string, cupomId: string, bloqueado: boolean) {
+    await this.getEventoOuFalhar(eventoId);
 
-    if (config.limiteCupons === undefined && config.usosPorCupom === undefined) {
-      throw new BadRequestException('Informe o limite de cupons ou os usos por cupom.');
+    const cupom = await this.prisma.cupom.findUnique({ where: { id: cupomId } });
+    if (!cupom || cupom.eventoId !== eventoId) {
+      throw new NotFoundException('Cupom não encontrado neste evento.');
     }
 
-    return this.prisma.evento.update({
-      where: { id },
-      data: {
-        ...(config.limiteCupons !== undefined ? { limiteCupons: config.limiteCupons } : {}),
-        ...(config.usosPorCupom !== undefined ? { usosPorCupom: config.usosPorCupom } : {}),
-      },
+    await this.prisma.cupom.update({
+      where: { id: cupomId },
+      data: { ativo: !bloqueado },
+    });
+
+    return this.prisma.evento.findUnique({
+      where: { id: eventoId },
       include: EVENTO_INCLUDE,
     });
   }

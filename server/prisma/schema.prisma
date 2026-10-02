@@ -335,11 +335,10 @@ model Evento {
   tipoEsporte             TipoEsporte  @default(CORRIDA)
   permiteServidorPublico  Boolean      @default(false)
   vagasServidorPublico    Int?
-  // Quantos cupons o organizador pode criar; so o admin muda (trava contra
-  // cupom em massa para derrubar a comissao da plataforma).
+  // Sem uso desde 2026-10: o organizador cria cupom a vontade e o admin
+  // bloqueia cupom a cupom (Cupom.ativo). Mantidas no banco para nao precisar
+  // de migration; podem ser removidas depois.
   limiteCupons            Int          @default(10)
-  // Usos de cada cupom novo (o organizador nao escolhe). Com o limite acima,
-  // no maximo limiteCupons x usosPorCupom inscricoes saem com desconto.
   usosPorCupom            Int          @default(1)
   // Desconto para funcionarios da empresa organizadora. Separado do servidor
   // publico: aqui o atleta paga com desconto e a comissao da plataforma sai

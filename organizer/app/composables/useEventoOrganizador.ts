@@ -92,10 +92,6 @@ export interface EventoOrganizador {
   motivoRejeicao: string | null
   permiteServidorPublico?: boolean
   vagasServidorPublico?: number | null
-  // Quantos cupons o evento aceita; so o admin do Seu Percurso muda.
-  limiteCupons?: number
-  // Usos de cada cupom novo; tambem so o admin muda.
-  usosPorCupom?: number
   // Desconto para funcionarios: liberado e configurado so pelo admin.
   permiteFuncionarios?: boolean
   percentualFuncionarios?: string | null

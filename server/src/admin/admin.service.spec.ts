@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AdminService } from './admin.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -98,7 +98,7 @@ describe('AdminService.alterarCpfUsuario', () => {
   });
 });
 
-describe('AdminService.definirLimiteCupons', () => {
+describe('AdminService.bloquearCupom', () => {
   let service: AdminService;
   let prisma: any;
 
@@ -106,7 +106,10 @@ describe('AdminService.definirLimiteCupons', () => {
     prisma = {
       evento: {
         findUnique: jest.fn().mockResolvedValue({ id: 'evento-1' }),
-        update: jest.fn().mockResolvedValue({ id: 'evento-1' }),
+      },
+      cupom: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'cupom-1', eventoId: 'evento-1', ativo: true }),
+        update: jest.fn().mockResolvedValue({}),
       },
     };
 
@@ -122,30 +125,31 @@ describe('AdminService.definirLimiteCupons', () => {
     service = moduleRef.get(AdminService);
   });
 
-  it('muda so o que veio: usos por cupom sem mexer no limite de cupons', async () => {
-    await service.definirLimiteCupons('evento-1', { usosPorCupom: 30 });
+  it('bloquear desativa o cupom', async () => {
+    await service.bloquearCupom('evento-1', 'cupom-1', true);
 
-    expect(prisma.evento.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 'evento-1' },
-        data: { usosPorCupom: 30 },
-      }),
-    );
+    expect(prisma.cupom.update).toHaveBeenCalledWith({
+      where: { id: 'cupom-1' },
+      data: { ativo: false },
+    });
   });
 
-  it('muda os dois juntos', async () => {
-    await service.definirLimiteCupons('evento-1', { limiteCupons: 20, usosPorCupom: 2 });
+  it('desbloquear reativa o cupom', async () => {
+    await service.bloquearCupom('evento-1', 'cupom-1', false);
 
-    expect(prisma.evento.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { limiteCupons: 20, usosPorCupom: 2 } }),
-    );
+    expect(prisma.cupom.update).toHaveBeenCalledWith({
+      where: { id: 'cupom-1' },
+      data: { ativo: true },
+    });
   });
 
-  it('recusa pedido sem nenhum dos dois', async () => {
-    await expect(service.definirLimiteCupons('evento-1', {})).rejects.toThrow(
-      BadRequestException,
+  it('recusa cupom de outro evento', async () => {
+    prisma.cupom.findUnique.mockResolvedValue({ id: 'cupom-1', eventoId: 'outro', ativo: true });
+
+    await expect(service.bloquearCupom('evento-1', 'cupom-1', true)).rejects.toThrow(
+      NotFoundException,
     );
-    expect(prisma.evento.update).not.toHaveBeenCalled();
+    expect(prisma.cupom.update).not.toHaveBeenCalled();
   });
 });
 

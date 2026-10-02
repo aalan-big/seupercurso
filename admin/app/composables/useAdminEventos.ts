@@ -15,8 +15,6 @@ export interface EventoAdmin {
   motivoRejeicao: string | null
   permiteServidorPublico?: boolean
   vagasServidorPublico?: number | null
-  limiteCupons?: number
-  usosPorCupom?: number
   permiteFuncionarios?: boolean
   percentualFuncionarios?: string | null
   vagasFuncionarios?: number | null
@@ -86,10 +84,10 @@ export function useAdminEventos() {
     })
   }
 
-  async function definirLimiteCupons(id: string, config: { limiteCupons: number; usosPorCupom: number }) {
-    return api<EventoAdmin>(`/admin/eventos/${id}/limite-cupons`, {
+  async function bloquearCupom(id: string, cupomId: string, bloqueado: boolean) {
+    return api<EventoAdmin>(`/admin/eventos/${id}/cupons/${cupomId}/bloqueio`, {
       method: 'POST',
-      body: config
+      body: { bloqueado }
     })
   }
 
@@ -103,5 +101,5 @@ export function useAdminEventos() {
     })
   }
 
-  return { eventos, fetchLista, buscar, aprovar, rejeitar, suspender, configurarServidorPublico, definirLimiteCupons, configurarFuncionarios }
+  return { eventos, fetchLista, buscar, aprovar, rejeitar, suspender, configurarServidorPublico, bloquearCupom, configurarFuncionarios }
 }

@@ -1,5 +1,6 @@
 import {
   IsDateString,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -18,8 +19,10 @@ export class CreateCupomDto {
   @Max(100)
   percentualDesconto: number;
 
-  // Sem quantidadeMaxima: os usos de cada cupom vem de Evento.usosPorCupom,
-  // que so o admin muda. Se o painel antigo mandar o campo, o whitelist descarta.
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  quantidadeMaxima?: number;
 
   @IsOptional()
   @IsDateString()

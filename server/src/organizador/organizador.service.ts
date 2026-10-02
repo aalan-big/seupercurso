@@ -2105,26 +2105,17 @@ export class OrganizadorService {
 
   async criarCupom(usuarioId: string, eventoId: string, dto: CreateCupomDto) {
     const organizador = await this.getOrganizadorAprovadoOuFalhar(usuarioId);
-    const evento = await this.getEventoDoOrganizadorOuFalhar(organizador.id, eventoId);
+    await this.getEventoDoOrganizadorOuFalhar(organizador.id, eventoId);
 
-    // Trava contra cupom em massa: desconto derruba a base da comissao. O
-    // limite e por evento e so o admin muda (Evento.limiteCupons).
-    const cuponsCriados = await this.prisma.cupom.count({ where: { eventoId } });
-    if (cuponsCriados >= evento.limiteCupons) {
-      throw new BadRequestException(
-        `Este evento já tem ${cuponsCriados} cupom(ns), o limite liberado é ${evento.limiteCupons}. Para criar mais, fale com a equipe do Seu Percurso.`,
-      );
-    }
-
+    // Sem limite de cupons: o organizador cria a vontade. O controle da
+    // plataforma e o bloqueio de cupom pelo admin (Cupom.ativo).
     try {
       return await this.prisma.cupom.create({
         data: {
           eventoId,
           codigo: dto.codigo.toUpperCase(),
           percentualDesconto: dto.percentualDesconto,
-          // Vem do evento, nao do organizador: e o que segura desconto em
-          // massa (um cupom sem limite para a prova inteira).
-          quantidadeMaxima: evento.usosPorCupom,
+          quantidadeMaxima: dto.quantidadeMaxima,
           ...(dto.validoAte ? { validoAte: new Date(dto.validoAte) } : {}),
         },
       });
@@ -2143,6 +2134,13 @@ export class OrganizadorService {
     const cupom = await this.prisma.cupom.findUnique({ where: { id: cupomId } });
     if (!cupom || cupom.eventoId !== eventoId) {
       throw new NotFoundException('Cupom não encontrado.');
+    }
+    // Sem isso o organizador apagava o cupom bloqueado e criava de novo o
+    // mesmo codigo, ja liberado.
+    if (!cupom.ativo) {
+      throw new BadRequestException(
+        'Este cupom foi bloqueado pela equipe do Seu Percurso e não pode ser removido. Fale com o suporte.',
+      );
     }
 
     try {

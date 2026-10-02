@@ -56,26 +56,22 @@ describe('OrganizadorService', () => {
     service = moduleRef.get(OrganizadorService);
   });
 
-  describe('criarCupom (limite por evento)', () => {
+  describe('cupons', () => {
     const dtoCupom = { codigo: 'assessoria', percentualDesconto: 10 };
 
     beforeEach(() => {
-      prisma.evento.findUnique.mockResolvedValue({
-        id: eventoId,
-        organizadorId,
-        limiteCupons: 10,
-        usosPorCupom: 1,
-      });
       prisma.cupom = {
-        count: jest.fn().mockResolvedValue(9),
+        count: jest.fn().mockResolvedValue(500),
         create: jest.fn().mockResolvedValue({ id: 'cupom-novo' }),
+        findUnique: jest.fn(),
+        delete: jest.fn().mockResolvedValue({ id: 'cupom-1' }),
       };
     });
 
-    it('cria enquanto ainda ha espaco no limite', async () => {
+    it('cria sem limite de cupons por evento', async () => {
       await service.criarCupom(usuarioId, eventoId, dtoCupom);
 
-      expect(prisma.cupom.count).toHaveBeenCalledWith({ where: { eventoId } });
+      expect(prisma.cupom.count).not.toHaveBeenCalled();
       expect(prisma.cupom.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ eventoId, codigo: 'ASSESSORIA' }),
@@ -83,30 +79,8 @@ describe('OrganizadorService', () => {
       );
     });
 
-    it('cada cupom novo sai com os usos do evento, nao com o que o organizador mandar', async () => {
-      // O painel antigo ainda mandava "limite de usos"; o whitelist descarta,
-      // mas mesmo que chegasse, quem manda e o evento.
-      await service.criarCupom(usuarioId, eventoId, {
-        ...dtoCupom,
-        quantidadeMaxima: 800,
-      } as any);
-
-      expect(prisma.cupom.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ quantidadeMaxima: 1 }),
-        }),
-      );
-    });
-
-    it('usa os usos por cupom que o admin liberou para o evento', async () => {
-      prisma.evento.findUnique.mockResolvedValue({
-        id: eventoId,
-        organizadorId,
-        limiteCupons: 10,
-        usosPorCupom: 30,
-      });
-
-      await service.criarCupom(usuarioId, eventoId, dtoCupom);
+    it('usa o limite de usos que o organizador escolheu', async () => {
+      await service.criarCupom(usuarioId, eventoId, { ...dtoCupom, quantidadeMaxima: 30 });
 
       expect(prisma.cupom.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -115,41 +89,28 @@ describe('OrganizadorService', () => {
       );
     });
 
-    it('recusa quando o evento ja chegou no limite', async () => {
-      prisma.cupom.count.mockResolvedValue(10);
-
-      await expect(
-        service.criarCupom(usuarioId, eventoId, dtoCupom),
-      ).rejects.toThrow(/limite liberado é 10.*equipe do Seu Percurso/);
-      expect(prisma.cupom.create).not.toHaveBeenCalled();
-    });
-
-    it('respeita o limite que o admin liberou para o evento', async () => {
-      prisma.evento.findUnique.mockResolvedValue({
-        id: eventoId,
-        organizadorId,
-        limiteCupons: 15,
-        usosPorCupom: 1,
-      });
-      prisma.cupom.count.mockResolvedValue(12);
-
+    it('sem limite de usos informado, o cupom fica sem limite', async () => {
       await service.criarCupom(usuarioId, eventoId, dtoCupom);
 
-      expect(prisma.cupom.create).toHaveBeenCalled();
+      const data = prisma.cupom.create.mock.calls[0][0].data;
+      expect(data.quantidadeMaxima).toBeUndefined();
     });
 
-    it('limite 0 bloqueia qualquer cupom novo', async () => {
-      prisma.evento.findUnique.mockResolvedValue({
-        id: eventoId,
-        organizadorId,
-        limiteCupons: 0,
-        usosPorCupom: 1,
-      });
-      prisma.cupom.count.mockResolvedValue(0);
+    it('nao deixa remover cupom bloqueado pelo admin', async () => {
+      prisma.cupom.findUnique.mockResolvedValue({ id: 'cupom-1', eventoId, ativo: false });
 
       await expect(
-        service.criarCupom(usuarioId, eventoId, dtoCupom),
+        service.removerCupom(usuarioId, eventoId, 'cupom-1'),
       ).rejects.toThrow(BadRequestException);
+      expect(prisma.cupom.delete).not.toHaveBeenCalled();
+    });
+
+    it('remove cupom ativo', async () => {
+      prisma.cupom.findUnique.mockResolvedValue({ id: 'cupom-1', eventoId, ativo: true });
+
+      await service.removerCupom(usuarioId, eventoId, 'cupom-1');
+
+      expect(prisma.cupom.delete).toHaveBeenCalledWith({ where: { id: 'cupom-1' } });
     });
   });
 

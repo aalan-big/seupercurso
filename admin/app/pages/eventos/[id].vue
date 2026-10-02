@@ -4,7 +4,7 @@ import type { EventoAdmin } from '../../composables/useAdminEventos'
 
 const route = useRoute()
 const config = useRuntimeConfig()
-const { buscar, aprovar, rejeitar, suspender, configurarServidorPublico, definirLimiteCupons, configurarFuncionarios } = useAdminEventos()
+const { buscar, aprovar, rejeitar, suspender, configurarServidorPublico, bloquearCupom, configurarFuncionarios } = useAdminEventos()
 
 const evento = ref<EventoAdmin | null>(null)
 const carregando = ref(true)
@@ -46,7 +46,6 @@ async function onSalvarServidorPublico() {
   }
 }
 
-// Limite de cupons do evento: o organizador so cria ate esse numero.
 // Desconto para funcionarios da empresa organizadora (separado do servidor
 // publico). O resumo so vem no detalhe e no salvar deste card; as outras acoes
 // devolvem o evento sem ele, entao fica guardado a parte.
@@ -98,41 +97,22 @@ async function onSalvarFuncionarios() {
   }
 }
 
-// Usos por cupom: quantas pessoas cada cupom NOVO atende (os ja criados nao mudam).
-const editandoLimiteCupons = ref(false)
-const novoLimiteCupons = ref(10)
-const novoUsosPorCupom = ref(1)
-const salvandoLimiteCupons = ref(false)
+// Bloqueio de cupom: o organizador cria a vontade; aqui a equipe trava um
+// cupom especifico (deixa de valer em inscricao nova).
+const cupomProcessando = ref<string | null>(null)
 
-function abrirEdicaoLimiteCupons() {
-  if (!evento.value) return
-  novoLimiteCupons.value = evento.value.limiteCupons ?? 10
-  novoUsosPorCupom.value = evento.value.usosPorCupom ?? 1
-  editandoLimiteCupons.value = true
-}
-
-async function salvarLimiteCupons() {
+async function alternarBloqueioCupom(cupomId: string, bloquear: boolean, codigo: string) {
+  if (bloquear && !confirm(`Bloquear o cupom ${codigo}? Ele deixa de valer em inscrições novas; as já pagas não mudam.`)) return
   erro.value = ''
   sucesso.value = ''
-  const limite = Number(novoLimiteCupons.value)
-  const usos = Number(novoUsosPorCupom.value)
-  if (!Number.isInteger(limite) || limite < 0 || limite > 1000) {
-    erro.value = 'O limite de cupons deve ser um número inteiro entre 0 e 1000.'
-    return
-  }
-  if (!Number.isInteger(usos) || usos < 1 || usos > 10000) {
-    erro.value = 'Os usos por cupom devem ser um número inteiro entre 1 e 10000.'
-    return
-  }
-  salvandoLimiteCupons.value = true
+  cupomProcessando.value = cupomId
   try {
-    evento.value = await definirLimiteCupons(route.params.id as string, { limiteCupons: limite, usosPorCupom: usos })
-    sucesso.value = `Cupons do evento: até ${limite} cupom(ns), cada um para ${usos} pessoa(s).`
-    editandoLimiteCupons.value = false
+    evento.value = await bloquearCupom(route.params.id as string, cupomId, bloquear)
+    sucesso.value = bloquear ? `Cupom ${codigo} bloqueado.` : `Cupom ${codigo} liberado.`
   } catch (e) {
     erro.value = extrairErro(e)
   } finally {
-    salvandoLimiteCupons.value = false
+    cupomProcessando.value = null
   }
 }
 
@@ -415,74 +395,16 @@ async function confirmarSuspensao() {
         </p>
       </div>
 
-      <!-- Limite de cupons do evento (trava contra cupom em massa) -->
+      <!-- Cupons do evento: o organizador cria a vontade, a equipe pode bloquear -->
       <div class="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div class="flex items-start gap-3">
           <Ticket :size="24" class="shrink-0 text-slate-600" />
           <div class="min-w-0 flex-1">
             <h2 class="text-sm font-bold uppercase tracking-wide text-slate-800">Cupons de desconto</h2>
             <p class="mt-0.5 text-xs text-slate-500">
-              O organizador cria até o limite de cupons, e cada cupom novo atende só o número de pessoas definido aqui.
-              Mudanças valem para os cupons criados depois; os já criados continuam como estão.
+              O organizador cria cupons à vontade. Bloqueie um cupom se precisar: ele deixa de valer em inscrições
+              novas, as já pagas não mudam, e o organizador não consegue remover nem liberar.
             </p>
-
-            <div v-if="!editandoLimiteCupons" class="mt-3 flex flex-wrap items-end gap-x-8 gap-y-3">
-              <div>
-                <p class="text-xs font-semibold text-slate-500">Limite de cupons</p>
-                <p class="text-xl font-black text-slate-900">{{ evento.limiteCupons ?? 10 }}</p>
-              </div>
-              <div>
-                <p class="text-xs font-semibold text-slate-500">Usos por cupom</p>
-                <p class="text-xl font-black text-slate-900">{{ evento.usosPorCupom ?? 1 }}</p>
-              </div>
-              <button
-                type="button"
-                class="text-xs font-bold uppercase tracking-wide text-secondary hover:underline"
-                @click="abrirEdicaoLimiteCupons"
-              >
-                Alterar
-              </button>
-            </div>
-
-            <div v-else class="mt-3 flex flex-wrap items-end gap-2">
-              <label class="text-xs font-semibold text-slate-500">
-                Limite de cupons
-                <input
-                  v-model.number="novoLimiteCupons"
-                  type="number"
-                  min="0"
-                  max="1000"
-                  step="1"
-                  class="mt-1 block w-28 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-900 focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
-                />
-              </label>
-              <label class="text-xs font-semibold text-slate-500">
-                Usos por cupom
-                <input
-                  v-model.number="novoUsosPorCupom"
-                  type="number"
-                  min="1"
-                  max="10000"
-                  step="1"
-                  class="mt-1 block w-28 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-900 focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
-                />
-              </label>
-              <button
-                type="button"
-                :disabled="salvandoLimiteCupons"
-                class="rounded-xl bg-slate-900 px-4 py-2 text-xs font-black uppercase tracking-wide text-white transition hover:bg-slate-800 disabled:opacity-50"
-                @click="salvarLimiteCupons"
-              >
-                {{ salvandoLimiteCupons ? 'Salvando...' : 'Salvar' }}
-              </button>
-              <button
-                type="button"
-                class="rounded-xl px-4 py-2 text-xs font-bold uppercase tracking-wide text-slate-500 hover:bg-slate-100"
-                @click="editandoLimiteCupons = false"
-              >
-                Cancelar
-              </button>
-            </div>
 
             <div class="mt-4 border-t border-slate-100 pt-3">
               <p class="text-xs font-semibold text-slate-500">
@@ -491,10 +413,21 @@ async function confirmarSuspensao() {
               <ul v-if="evento.cupons?.length" class="mt-2 divide-y divide-slate-100 text-xs">
                 <li v-for="cupom in evento.cupons" :key="cupom.id" class="flex flex-wrap items-center justify-between gap-2 py-2">
                   <span class="font-mono font-bold text-slate-900">{{ cupom.codigo }}</span>
-                  <span class="text-slate-600">
-                    {{ Number(cupom.percentualDesconto) }}% ·
-                    {{ cupom._count.inscricoes }} {{ cupom.quantidadeMaxima ? `de ${cupom.quantidadeMaxima}` : '(sem limite)' }} usos pagos
-                    <span v-if="!cupom.ativo" class="ml-1 font-bold text-red-600">inativo</span>
+                  <span class="flex flex-wrap items-center gap-3 text-slate-600">
+                    <span>
+                      {{ Number(cupom.percentualDesconto) }}% ·
+                      {{ cupom._count.inscricoes }} {{ cupom.quantidadeMaxima ? `de ${cupom.quantidadeMaxima}` : '(sem limite)' }} usos pagos
+                    </span>
+                    <span v-if="!cupom.ativo" class="font-bold text-red-600">bloqueado</span>
+                    <button
+                      type="button"
+                      :disabled="cupomProcessando === cupom.id"
+                      class="rounded-lg px-3 py-1 font-bold uppercase tracking-wide transition disabled:opacity-50"
+                      :class="cupom.ativo ? 'bg-red-50 text-red-700 hover:bg-red-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'"
+                      @click="alternarBloqueioCupom(cupom.id, cupom.ativo, cupom.codigo)"
+                    >
+                      {{ cupomProcessando === cupom.id ? '...' : cupom.ativo ? 'Bloquear' : 'Desbloquear' }}
+                    </button>
                   </span>
                 </li>
               </ul>
