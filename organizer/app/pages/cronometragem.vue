@@ -587,7 +587,10 @@ const resultadosFiltrados = computed(() => {
       </div>
 
       <!-- Cotacao da cronometragem oficial Seu Percurso -->
-      <CotacaoCronometragemCard :evento-id="eventoSelecionadoId" />
+      <CotacaoCronometragemCard
+        :evento-id="eventoSelecionadoId"
+        :evento="eventos.find((e) => e.id === eventoSelecionadoId) ?? null"
+      />
 
       <!-- Lista de Largada pra empresa de cronometragem -->
       <div class="rounded-3xl border border-emerald-200 bg-emerald-50/60 p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">

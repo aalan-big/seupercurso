@@ -35,7 +35,7 @@ const linkClasse = 'flex items-center gap-2 rounded-lg px-3 py-2 text-slate-600 
       </button>
     </div>
 
-    <nav class="flex-1 space-y-1 px-3 py-4 text-sm font-semibold">
+    <nav class="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4 text-sm font-semibold">
       <NuxtLink to="/dashboard" :class="linkClasse" active-class="bg-warning/10 text-primary font-bold" @click="emit('fechar')">
         <AppIcon name="dashboard" size="18" class="text-slate-500" /> Dashboard
       </NuxtLink>

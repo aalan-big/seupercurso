@@ -237,6 +237,13 @@ function formatarData(iso: string | null) {
   return iso ? new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '—'
 }
 
+function formatarDataHora(iso: string) {
+  const d = new Date(iso)
+  const data = d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+  const hora = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })
+  return `${data} às ${hora}`
+}
+
 function urlArquivo(caminho: string | null) {
   return urlFoto(caminho, config.public.apiBase as string)
 }
@@ -327,7 +334,7 @@ onMounted(() => {
           <div class="min-w-0">
             <p class="font-bold text-slate-900">{{ c.evento.nome }}</p>
             <p class="text-xs text-slate-500">
-              {{ nomeOrganizador(c) }} · prova em {{ formatarData(c.evento.dataInicio) }} · pedido em {{ formatarData(c.createdAt) }}
+              {{ nomeOrganizador(c) }} · prova em {{ formatarDataHora(c.evento.dataInicio) }} · pedido em {{ formatarData(c.createdAt) }}
             </p>
           </div>
           <div class="flex items-center gap-3">
@@ -350,7 +357,7 @@ onMounted(() => {
               </div>
               <div>
                 <p class="text-xs font-bold uppercase tracking-wide text-slate-400">Prova</p>
-                <p class="font-semibold text-slate-800">{{ formatarData(detalhe.evento.dataInicio) }} · {{ detalhe.evento.cidade }}/{{ detalhe.evento.estado }}</p>
+                <p class="font-semibold text-slate-800">{{ formatarDataHora(detalhe.evento.dataInicio) }} · {{ detalhe.evento.cidade }}/{{ detalhe.evento.estado }}</p>
                 <p class="text-slate-600">{{ detalhe.evento.local }}</p>
                 <p v-if="detalhe.evento.modalidades?.length" class="text-slate-600">
                   {{ detalhe.evento.modalidades.map((m) => m.distanciaKm ? `${m.nome} (${Number(m.distanciaKm)} km)` : m.nome).join(', ') }}

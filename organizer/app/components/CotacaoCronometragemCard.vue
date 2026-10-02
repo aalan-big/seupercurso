@@ -10,7 +10,11 @@ import {
 
 // Cartao isolado: qualquer erro aqui fica aqui, o resto da pagina de
 // cronometragem segue funcionando.
-const props = defineProps<{ eventoId: string }>()
+const props = defineProps<{
+  eventoId: string
+  /** Data, horario e local vem do cadastro do evento. */
+  evento?: { dataInicio: string; local: string; cidade: string; estado: string } | null
+}>()
 
 const config = useRuntimeConfig()
 const { listar, solicitar, aceitar, recusar, cancelar, enviarComprovante } = useCotacaoCronometragem()
@@ -211,7 +215,8 @@ const ROTULO_SITUACAO: Record<string, { texto: string; classe: string }> = {
       <!-- Cotacao em andamento -->
       <div v-if="atual && !podePedir" class="rounded-2xl border border-slate-200 bg-white p-4 space-y-3 text-sm">
         <p class="text-xs text-slate-500">
-          Pedida em {{ formatarData(atual.createdAt) }} ·
+          Prova em {{ formatarDataHoraBrasilia(atual.evento.dataInicio) }} ·
+          pedida em {{ formatarData(atual.createdAt) }} ·
           {{ atual.servicos.map(rotuloServico).join(', ') }}
           <template v-if="atual.atletasEstimados"> · ~{{ atual.atletasEstimados }} atletas</template>
         </p>
@@ -326,6 +331,15 @@ const ROTULO_SITUACAO: Record<string, { texto: string; classe: string }> = {
       </button>
 
       <div v-if="podePedir && mostrarForm" class="rounded-2xl border border-slate-200 bg-white p-4 space-y-4">
+        <div v-if="props.evento" class="rounded-xl bg-slate-50 p-3">
+          <p class="text-xs font-bold text-slate-700">Data e horário da prova</p>
+          <p class="text-sm font-semibold text-slate-900">
+            {{ formatarDataHoraBrasilia(props.evento.dataInicio) }} · {{ props.evento.local }}, {{ props.evento.cidade }}/{{ props.evento.estado }}
+          </p>
+          <p class="mt-1 text-[11px] text-slate-500">
+            Vem do cadastro do evento. Se a data ou o horário estiverem errados, corrija em Eventos antes de pedir a cotação.
+          </p>
+        </div>
         <div>
           <p class="text-xs font-bold text-slate-700 mb-2">O que você precisa?</p>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
