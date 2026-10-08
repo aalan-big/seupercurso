@@ -160,6 +160,8 @@ async function onArquivo(campo: 'banner' | 'regulamento', e: Event) {
       <p v-if="enviando === 'banner'" class="mt-1 text-xs text-slate-400">Enviando...</p>
     </div>
 
+    <MolduraEuVouManager :evento="evento" />
+
     <!-- Solicitar Arte do Evento (serviço pago) -->
     <div class="rounded-2xl border border-accent/30 bg-accent/5 p-4 space-y-3">
       <div v-if="!carregandoSolicitacaoArte">

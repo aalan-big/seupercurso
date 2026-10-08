@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { StatusEvento, StatusInscricao } from '../generated/prisma/enums';
 import { contarUsosCupom } from '../common/contar-usos-cupom';
@@ -39,9 +40,28 @@ const RESUMO_SELECT = {
   nomeEmpresaFuncionarios: true,
 } as const;
 
+const FORMATO_UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 @Injectable()
 export class EventoService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /** Caminho no disco da moldura "Eu vou"; só arquivos da pasta de eventos. */
+  async arquivoMolduraEuVou(eventoId: string): Promise<string> {
+    if (!FORMATO_UUID.test(eventoId)) {
+      throw new NotFoundException('Moldura não encontrada.');
+    }
+    const evento = await this.prisma.evento.findUnique({
+      where: { id: eventoId },
+      select: { molduraEuVouUrl: true },
+    });
+    const caminho = evento?.molduraEuVouUrl;
+    if (!caminho || !caminho.startsWith('/uploads/eventos/') || caminho.includes('..')) {
+      throw new NotFoundException('Moldura não encontrada.');
+    }
+    return join(process.cwd(), caminho);
+  }
 
   async validarCupom(eventoId: string, codigo: string, usuarioId?: string | null) {
     const codigoLimpo = (codigo || '').trim();

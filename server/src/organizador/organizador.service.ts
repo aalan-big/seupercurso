@@ -5,7 +5,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { unlink } from 'fs/promises';
+import { unlink, writeFile } from 'fs/promises';
+import { randomUUID } from 'crypto';
 import { join } from 'path';
 import * as bcrypt from 'bcrypt';
 import ExcelJS from 'exceljs';
@@ -22,6 +23,7 @@ import {
 } from '../generated/prisma/enums';
 import { montarSerieDiaria } from '../common/montar-serie-diaria';
 import { montarEstatisticasEvento } from './estatisticas-evento';
+import { validarMolduraEuVou } from './moldura-eu-vou';
 import { MercadoPagoOAuthService } from '../pagamento/mercadopago/mercadopago-oauth.service';
 import { CreateEventoDto } from './dto/create-evento.dto';
 import { UpdateEventoDto } from './dto/update-evento.dto';
@@ -686,6 +688,47 @@ export class OrganizadorService {
       where: { id: eventoId },
       data: { [campo]: caminhoRelativo },
     });
+  }
+
+  /**
+   * Moldura "Eu vou": confere o PNG antes de gravar, para não ficar arquivo de quem
+   * não é dono do evento nem moldura inválida no disco. Troca apaga a anterior.
+   */
+  async salvarMolduraEuVou(usuarioId: string, eventoId: string, arquivo: Buffer) {
+    const organizador = await this.getOrganizadorAprovadoOuFalhar(usuarioId);
+    const evento = await this.getEventoDoOrganizadorOuFalhar(
+      organizador.id,
+      eventoId,
+    );
+    validarMolduraEuVou(arquivo);
+
+    const caminho = `/uploads/eventos/moldura-${randomUUID()}.png`;
+    await writeFile(join(process.cwd(), caminho), arquivo);
+
+    const atualizado = await this.prisma.evento.update({
+      where: { id: eventoId },
+      data: { molduraEuVouUrl: caminho },
+    });
+    if (evento.molduraEuVouUrl?.startsWith('/uploads/')) {
+      unlink(join(process.cwd(), evento.molduraEuVouUrl)).catch(() => undefined);
+    }
+    return atualizado;
+  }
+
+  async removerMolduraEuVou(usuarioId: string, eventoId: string) {
+    const organizador = await this.getOrganizadorAprovadoOuFalhar(usuarioId);
+    const evento = await this.getEventoDoOrganizadorOuFalhar(
+      organizador.id,
+      eventoId,
+    );
+    const atualizado = await this.prisma.evento.update({
+      where: { id: eventoId },
+      data: { molduraEuVouUrl: null },
+    });
+    if (evento.molduraEuVouUrl?.startsWith('/uploads/')) {
+      unlink(join(process.cwd(), evento.molduraEuVouUrl)).catch(() => undefined);
+    }
+    return atualizado;
   }
 
   async listarModelosCamisa(usuarioId: string, eventoId: string) {

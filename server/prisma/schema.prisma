@@ -308,6 +308,9 @@ model Evento {
   descricao               String?
   regulamentoUrl          String?
   bannerUrl               String?
+  /// Moldura "Eu vou" (PNG 4:5 com a janela da foto transparente). O atleta
+  /// confirmado coloca a foto dele e baixa a arte; a montagem e no navegador.
+  molduraEuVouUrl         String?
   termoResponsabilidade   String?
   retiradaKitLocal        String?
   retiradaKitInicio       DateTime?

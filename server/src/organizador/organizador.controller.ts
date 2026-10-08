@@ -316,6 +316,42 @@ export class OrganizadorController {
     );
   }
 
+  // Moldura "Eu vou": fica em memória até o PNG ser conferido (só grava no disco
+  // se for do organizador e válido).
+  @Patch('eventos/:id/moldura-eu-vou')
+  @UseInterceptors(
+    FileInterceptor('arquivo', {
+      storage: memoryStorage(),
+      limits: { fileSize: 8 * 1024 * 1024 },
+      fileFilter: (_req, file, callback) => {
+        if (file.mimetype !== 'image/png') {
+          callback(
+            new BadRequestException('A moldura precisa ser um arquivo PNG.'),
+            false,
+          );
+          return;
+        }
+        callback(null, true);
+      },
+    }),
+  )
+  uploadMolduraEuVou(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('Nenhum arquivo enviado.');
+    return this.organizadorService.salvarMolduraEuVou(user.userId, id, file.buffer);
+  }
+
+  @Delete('eventos/:id/moldura-eu-vou')
+  removerMolduraEuVou(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.organizadorService.removerMolduraEuVou(user.userId, id);
+  }
+
   @Patch('eventos/:eventoId/modalidades/:modalidadeId/mapa-percurso')
   @UseInterceptors(
     FileInterceptor('arquivo', {

@@ -64,6 +64,7 @@ export interface EventoOrganizador {
   descricao: string | null
   regulamentoUrl: string | null
   bannerUrl: string | null
+  molduraEuVouUrl?: string | null
   termoResponsabilidade: string | null
   retiradaKitLocal: string | null
   retiradaKitInicio: string | null
@@ -216,6 +217,28 @@ export function useEventoOrganizador() {
     })
     eventoSelecionado.value = res
     return res
+  }
+
+  // Só troca o campo da moldura: a resposta é o evento sem modalidades/lotes, e
+  // substituir o evento inteiro esvaziaria as outras abas da edição.
+  async function uploadMolduraEuVou(id: string, arquivo: File) {
+    const formData = new FormData()
+    formData.append('arquivo', arquivo)
+    const res = await api<EventoOrganizador>(`/organizadores/me/eventos/${id}/moldura-eu-vou`, {
+      method: 'PATCH',
+      body: formData
+    })
+    if (eventoSelecionado.value?.id === id) {
+      eventoSelecionado.value = { ...eventoSelecionado.value, molduraEuVouUrl: res.molduraEuVouUrl ?? null }
+    }
+    return res
+  }
+
+  async function removerMolduraEuVou(id: string) {
+    await api(`/organizadores/me/eventos/${id}/moldura-eu-vou`, { method: 'DELETE' })
+    if (eventoSelecionado.value?.id === id) {
+      eventoSelecionado.value = { ...eventoSelecionado.value, molduraEuVouUrl: null }
+    }
   }
 
   async function uploadMapaPercursoModalidade(eventoId: string, modalidadeId: string, arquivo: File) {
@@ -426,6 +449,8 @@ export function useEventoOrganizador() {
     criarEvento,
     atualizarEvento,
     uploadMidia,
+    uploadMolduraEuVou,
+    removerMolduraEuVou,
     uploadMapaPercursoModalidade,
     uploadGpxModalidade,
     criarModalidade,

@@ -1,4 +1,5 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, NotFoundException, Param, Query, Res, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
 import { EventoService } from './evento.service';
 import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import {
@@ -25,6 +26,24 @@ export class EventoController {
     @CurrentUser() user: AuthenticatedUser | null,
   ) {
     return this.eventoService.validarCupom(id, codigo, user?.userId);
+  }
+
+  /**
+   * Moldura "Eu vou" do evento. Sai por aqui (e não por /uploads) porque o site monta
+   * a arte num canvas e precisa dos cabeçalhos de CORS, que o estático não manda.
+   */
+  @Get(':id/moldura-eu-vou')
+  async molduraEuVou(@Param('id') id: string, @Res() res: Response) {
+    const arquivo = await this.eventoService.arquivoMolduraEuVou(id);
+    res.sendFile(
+      arquivo,
+      { headers: { 'Cache-Control': 'public, max-age=300' } },
+      (erro) => {
+        if (erro && !res.headersSent) {
+          res.status(404).json(new NotFoundException('Moldura não encontrada.').getResponse());
+        }
+      },
+    );
   }
 
   @Get(':id')
