@@ -803,7 +803,6 @@ async function confirmarCancelamento(id: string) {
         :evento-id="inscricaoArte.categoria.modalidade.evento.id"
         :evento-nome="inscricaoArte.categoria.modalidade.evento.nome"
         :moldura-url="inscricaoArte.categoria.modalidade.evento.molduraEuVouUrl || ''"
-        :nome-atleta="inscricaoArte.atletaNome || inscricaoArte.dependente?.nomeCompleto || null"
         @fechar="inscricaoArte = null"
       />
 

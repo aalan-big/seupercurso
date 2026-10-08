@@ -59,6 +59,7 @@ const titularJaInscrito = computed(() => {
 })
 
 // Arte "Eu vou": inscrições confirmadas desta conta nesta prova, se ela tem moldura.
+// A arte é igual para todos (sem nome), então basta uma delas para abrir.
 const inscricoesComArteEuVou = computed(() =>
   (minhasInscricoes.value || []).filter(
     (insc) =>
@@ -68,10 +69,6 @@ const inscricoesComArteEuVou = computed(() =>
   )
 )
 const inscricaoArte = ref<(typeof minhasInscricoes.value)[number] | null>(null)
-function nomeCurtoAtleta(insc: (typeof minhasInscricoes.value)[number]) {
-  const nome = insc.atletaNome || insc.dependente?.nomeCompleto
-  return nome ? `Arte de ${nome.trim().split(/\s+/)[0]}` : 'Minha arte'
-}
 
 const carregando = ref(true)
 const erro = ref('')
@@ -1338,18 +1335,13 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
               <p class="text-xs text-slate-600">Coloque sua foto na moldura oficial da prova e poste no Instagram.</p>
             </div>
           </div>
-          <div class="flex flex-wrap gap-2">
-            <button
-              v-for="insc in inscricoesComArteEuVou"
-              :key="insc.id"
-              type="button"
-              class="inline-flex items-center gap-1.5 rounded-xl bg-warning px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-xs hover:brightness-95 transition"
-              @click="inscricaoArte = insc"
-            >
-              <Camera class="w-4 h-4" />
-              {{ inscricoesComArteEuVou.length > 1 ? nomeCurtoAtleta(insc) : 'Criar minha arte' }}
-            </button>
-          </div>
+          <button
+            type="button"
+            class="inline-flex items-center justify-center gap-1.5 rounded-xl bg-warning px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-xs hover:brightness-95 transition"
+            @click="inscricaoArte = inscricoesComArteEuVou[0] ?? null"
+          >
+            <Camera class="w-4 h-4" /> Criar minha arte
+          </button>
         </div>
 
         <ArteEuVouModal
@@ -1358,7 +1350,6 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
           :evento-id="inscricaoArte.categoria.modalidade.evento.id"
           :evento-nome="inscricaoArte.categoria.modalidade.evento.nome"
           :moldura-url="inscricaoArte.categoria.modalidade.evento.molduraEuVouUrl || ''"
-          :nome-atleta="inscricaoArte.atletaNome || inscricaoArte.dependente?.nomeCompleto || null"
           @fechar="inscricaoArte = null"
         />
 

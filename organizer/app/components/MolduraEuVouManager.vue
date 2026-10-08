@@ -132,7 +132,6 @@ async function onRemover() {
     <ul class="space-y-0.5 text-xs text-slate-500">
       <li>• Arquivo <strong class="text-slate-700">PNG</strong> com a <strong class="text-slate-700">janela da foto transparente</strong> (sem fundo)</li>
       <li>• Vertical, no formato <strong class="text-slate-700">story 1080×1920px</strong> ou <strong class="text-slate-700">feed 1080×1350px</strong> do Instagram (a arte do atleta sai no mesmo formato)</li>
-      <li>• Deixe uma área livre na parte de baixo da janela: o nome do atleta pode aparecer ali, se ele quiser</li>
       <li>• Máximo 8 MB</li>
     </ul>
 

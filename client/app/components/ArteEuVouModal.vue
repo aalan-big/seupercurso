@@ -12,22 +12,17 @@ const props = defineProps<{
   eventoNome: string
   /** Caminho salvo no evento (/uploads/...): muda quando o organizador troca a moldura. */
   molduraUrl: string
-  /** Nome do atleta da inscrição (vazio = titular da conta). */
-  nomeAtleta?: string | null
 }>()
 
 const emit = defineEmits<{ fechar: [] }>()
 
 const config = useRuntimeConfig()
-const { cliente, fetchMe } = useCliente()
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const inputFotoRef = ref<HTMLInputElement | null>(null)
 
 const carregandoMoldura = ref(false)
 const erro = ref('')
-const mostrarNome = ref(true)
-const nome = ref('')
 const zoom = ref(1)
 const gerando = ref(false)
 const podeCompartilhar = ref(false)
@@ -40,18 +35,10 @@ let janela = { x: 0, y: 0, w: 0, h: 0 }
 /** Centro da foto no canvas; a escala base cobre a janela inteira. */
 let centro = { x: 0, y: 0 }
 let escalaBase = 1
-/** Alfa da moldura em escala reduzida: acha onde o nome cabe sem nada da arte por cima. */
-let mapaAlfa: { dados: Uint8ClampedArray; w: number; h: number; escala: number } | null = null
 
 const temFoto = ref(false)
 /** Moldura story (9:16) é bem alta: a prévia fica mais estreita para caber na tela. */
 const molduraAlta = ref(false)
-
-function nomeCurto(completo: string) {
-  const partes = completo.trim().split(/\s+/).filter(Boolean)
-  if (partes.length <= 2) return partes.join(' ')
-  return `${partes[0]} ${partes[partes.length - 1]}`
-}
 
 function carregarImagem(src: string, cors: boolean): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -74,7 +61,6 @@ function medirJanela(img: HTMLImageElement) {
   const ctx = c.getContext('2d', { willReadFrequently: true })!
   ctx.drawImage(img, 0, 0, w, h)
   const dados = ctx.getImageData(0, 0, w, h).data
-  mapaAlfa = { dados, w, h, escala: img.naturalWidth / w }
   let minX = w, minY = h, maxX = -1, maxY = -1
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
@@ -99,36 +85,12 @@ function medirJanela(img: HTMLImageElement) {
   }
 }
 
-/** Retângulo todo transparente na moldura (a arte não cobre o nome ali)? */
-function areaLivre(x: number, y: number, largura: number, altura: number) {
-  if (!mapaAlfa) return true
-  const { dados, w, h, escala } = mapaAlfa
-  const x0 = Math.max(0, Math.floor(x / escala))
-  const x1 = Math.min(w - 1, Math.ceil((x + largura) / escala))
-  const y0 = Math.max(0, Math.floor(y / escala))
-  const y1 = Math.min(h - 1, Math.ceil((y + altura) / escala))
-  for (let yy = y0; yy <= y1; yy++) {
-    for (let xx = x0; xx <= x1; xx++) {
-      if (dados[(yy * w + xx) * 4 + 3]! >= 128) return false
-    }
-  }
-  return true
-}
-
 async function abrir() {
   erro.value = ''
   zoom.value = 1
-  mostrarNome.value = true
   podeCompartilhar.value = typeof navigator !== 'undefined' && typeof navigator.canShare === 'function'
   carregandoMoldura.value = true
   try {
-    let base = props.nomeAtleta?.trim() || ''
-    if (!base) {
-      if (!cliente.value) await fetchMe().catch(() => undefined)
-      base = cliente.value?.pf?.nomeCompleto || ''
-    }
-    nome.value = nomeCurto(base).toUpperCase().slice(0, 28)
-
     // Rota da API (com CORS) e não /uploads: sem CORS o canvas não deixa baixar.
     const src = `${config.public.apiBase}/eventos/${props.eventoId}/moldura-eu-vou?v=${encodeURIComponent(props.molduraUrl)}`
     moldura = await carregarImagem(src, true)
@@ -215,41 +177,9 @@ function desenhar() {
   }
 
   ctx.drawImage(moldura, 0, 0, W, H)
-
-  const texto = nome.value.trim()
-  if (mostrarNome.value && texto) {
-    let tamanho = Math.round(W * 0.045)
-    ctx.font = `900 ${tamanho}px system-ui, sans-serif`
-    const larguraMax = janela.w * 0.86
-    while (ctx.measureText(texto).width > larguraMax && tamanho > 14) {
-      tamanho -= 2
-      ctx.font = `900 ${tamanho}px system-ui, sans-serif`
-    }
-    const padX = tamanho * 0.7
-    const padY = tamanho * 0.45
-    const largura = ctx.measureText(texto).width + padX * 2
-    const altura = tamanho + padY * 2
-    const x = janela.x + (janela.w - largura) / 2
-    // Começa embaixo da janela e sobe até achar uma faixa sem nada da arte por cima
-    // (medalha, logo...). Se não achar até o meio, fica embaixo mesmo.
-    const yBase = janela.y + janela.h - altura - janela.h * 0.04
-    let y = yBase
-    const passo = Math.max(4, Math.round(janela.h * 0.01))
-    while (!areaLivre(x, y, largura, altura) && y > janela.y + janela.h / 2) y -= passo
-    if (!areaLivre(x, y, largura, altura)) y = yBase
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.72)'
-    ctx.beginPath()
-    if (typeof ctx.roundRect === 'function') ctx.roundRect(x, y, largura, altura, altura / 2)
-    else ctx.rect(x, y, largura, altura)
-    ctx.fill()
-    ctx.fillStyle = '#ffffff'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(texto, x + largura / 2, y + altura / 2 + tamanho * 0.04)
-  }
 }
 
-watch([zoom, mostrarNome, nome], desenhar)
+watch(zoom, desenhar)
 
 // Arrastar a foto (mouse ou dedo): o deslocamento na tela vira pixels da moldura.
 let arrastando: { id: number; x: number; y: number } | null = null
@@ -393,21 +323,6 @@ async function compartilhar() {
               <ZoomIn :size="16" class="shrink-0" />
               <input v-model.number="zoom" type="range" min="1" max="3" step="0.01" class="w-full accent-primary" />
             </label>
-
-            <div class="space-y-2 rounded-xl bg-slate-50 p-3">
-              <label class="flex items-center gap-2 text-sm font-bold text-slate-700">
-                <input v-model="mostrarNome" type="checkbox" class="h-4 w-4 accent-primary" />
-                Mostrar meu nome na arte
-              </label>
-              <input
-                v-if="mostrarNome"
-                v-model="nome"
-                type="text"
-                maxlength="28"
-                placeholder="Seu nome"
-                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold uppercase text-slate-800 focus:border-primary focus:outline-hidden"
-              />
-            </div>
           </template>
         </div>
 
