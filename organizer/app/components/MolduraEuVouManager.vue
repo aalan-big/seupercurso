@@ -13,6 +13,12 @@ const enviando = ref(false)
 const removendo = ref(false)
 
 const molduraUrl = computed(() => urlFoto(props.evento.molduraEuVouUrl ?? null, config.public.apiBase as string))
+// A prévia segue o formato da moldura enviada (story é mais alta que feed).
+const proporcaoPrevia = ref('4 / 5')
+function onPreviaCarregada(e: Event) {
+  const img = e.target as HTMLImageElement
+  if (img.naturalWidth && img.naturalHeight) proporcaoPrevia.value = `${img.naturalWidth} / ${img.naturalHeight}`
+}
 
 function carregarImagem(arquivo: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -31,7 +37,7 @@ function carregarImagem(arquivo: File): Promise<HTMLImageElement> {
 }
 
 /**
- * Mesmas regras do servidor (PNG 4:5) e, a mais, confere se existe de fato a
+ * Mesmas regras do servidor (PNG story 9:16 ou feed 4:5) e, a mais, confere se existe de fato a
  * janela transparente onde a foto do atleta entra.
  */
 async function validarMoldura(arquivo: File): Promise<string | null> {
@@ -44,11 +50,12 @@ async function validarMoldura(arquivo: File): Promise<string | null> {
   const img = await carregarImagem(arquivo)
   const largura = img.naturalWidth
   const altura = img.naturalHeight
-  if (Math.abs(largura / altura - 4 / 5) > 0.02) {
-    return `A moldura precisa estar na proporção 4:5 (vertical), por exemplo 1080×1350px. A imagem enviada tem ${largura}×${altura}px.`
+  const proporcao = largura / altura
+  if (![9 / 16, 4 / 5].some((p) => Math.abs(proporcao - p) <= 0.02)) {
+    return `A moldura precisa ser vertical no formato story (1080×1920px) ou feed (1080×1350px). A imagem enviada tem ${largura}×${altura}px.`
   }
   if (largura < 800 || largura > 4000) {
-    return `A moldura precisa ter entre 800 e 4000px de largura (recomendado 1080×1350px). A imagem enviada tem ${largura}×${altura}px.`
+    return `A moldura precisa ter entre 800 e 4000px de largura (recomendado 1080×1920px ou 1080×1350px). A imagem enviada tem ${largura}×${altura}px.`
   }
 
   // Amostra reduzida basta para medir a área transparente.
@@ -124,7 +131,7 @@ async function onRemover() {
 
     <ul class="space-y-0.5 text-xs text-slate-500">
       <li>• Arquivo <strong class="text-slate-700">PNG</strong> com a <strong class="text-slate-700">janela da foto transparente</strong> (sem fundo)</li>
-      <li>• <strong class="text-slate-700">Proporção 4:5 (vertical)</strong>, tamanho recomendado 1080×1350px (formato do feed do Instagram)</li>
+      <li>• Vertical, no formato <strong class="text-slate-700">story 1080×1920px</strong> ou <strong class="text-slate-700">feed 1080×1350px</strong> do Instagram (a arte do atleta sai no mesmo formato)</li>
       <li>• Deixe uma área livre na parte de baixo da janela: o nome do atleta pode aparecer ali, se ele quiser</li>
       <li>• Máximo 8 MB</li>
     </ul>
@@ -136,12 +143,12 @@ async function onRemover() {
       <div>
         <p class="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Pré-visualização</p>
         <!-- Fundo simula a foto do atleta: aparece só onde a moldura é transparente. -->
-        <div class="relative w-44 aspect-[4/5] overflow-hidden rounded-xl border border-slate-200 shadow-sm bg-gradient-to-br from-sky-300 via-slate-300 to-emerald-300">
+        <div :style="{ aspectRatio: proporcaoPrevia }" class="relative w-44 overflow-hidden rounded-xl border border-slate-200 shadow-sm bg-gradient-to-br from-sky-300 via-slate-300 to-emerald-300">
           <div class="absolute inset-0 flex flex-col items-center justify-center text-slate-600/70">
             <UserRound :size="56" />
             <span class="text-[10px] font-bold uppercase">Foto do atleta</span>
           </div>
-          <img :src="molduraUrl" alt="Moldura Eu vou" class="absolute inset-0 h-full w-full" />
+          <img :src="molduraUrl" alt="Moldura Eu vou" class="absolute inset-0 h-full w-full" @load="onPreviaCarregada" />
         </div>
       </div>
       <button

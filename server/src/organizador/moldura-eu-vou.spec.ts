@@ -50,15 +50,19 @@ describe('validarMolduraEuVou', () => {
     expect(() => validarMolduraEuVou(png(1080, 1350, 3, ['PLTE']))).toThrow(/transparência/);
   });
 
-  it('recusa proporção diferente de 4:5 (story, quadrado, capa 3:4)', () => {
-    for (const [l, a] of [[1080, 1920], [1080, 1080], [1200, 1600]]) {
-      expect(() => validarMolduraEuVou(png(l, a, 6))).toThrow(/4:5/);
+  it('aceita o formato story 1080×1920', () => {
+    expect(validarMolduraEuVou(png(1080, 1920, 6))).toEqual({ largura: 1080, altura: 1920 });
+  });
+
+  it('recusa formato fora de story/feed (quadrado, capa 3:4, horizontal)', () => {
+    for (const [l, a] of [[1080, 1080], [1200, 1600], [1920, 1080]]) {
+      expect(() => validarMolduraEuVou(png(l, a, 6))).toThrow(/story/);
     }
   });
 
   it('recusa pequena ou grande demais', () => {
-    expect(() => validarMolduraEuVou(png(400, 500, 6))).toThrow(/largura/);
-    expect(() => validarMolduraEuVou(png(8000, 10000, 6))).toThrow(/largura/);
+    expect(() => validarMolduraEuVou(png(450, 800, 6))).toThrow(/largura/);
+    expect(() => validarMolduraEuVou(png(4500, 8000, 6))).toThrow(/largura/);
   });
 
   it('recusa arquivo que não é PNG (JPG renomeado)', () => {

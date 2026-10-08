@@ -3,6 +3,7 @@ import { X, ImagePlus, Download, Share2, Loader2, ZoomIn } from 'lucide-vue-next
 
 /**
  * Arte "Eu vou": o atleta coloca a foto na moldura da prova e baixa a imagem.
+ * A arte sai no formato da moldura (story 1080×1920 ou feed 1080×1350).
  * Tudo acontece no navegador (canvas): a foto nunca sai do aparelho dele.
  */
 const props = defineProps<{
@@ -43,6 +44,8 @@ let escalaBase = 1
 let mapaAlfa: { dados: Uint8ClampedArray; w: number; h: number; escala: number } | null = null
 
 const temFoto = ref(false)
+/** Moldura story (9:16) é bem alta: a prévia fica mais estreita para caber na tela. */
+const molduraAlta = ref(false)
 
 function nomeCurto(completo: string) {
   const partes = completo.trim().split(/\s+/).filter(Boolean)
@@ -129,6 +132,7 @@ async function abrir() {
     // Rota da API (com CORS) e não /uploads: sem CORS o canvas não deixa baixar.
     const src = `${config.public.apiBase}/eventos/${props.eventoId}/moldura-eu-vou?v=${encodeURIComponent(props.molduraUrl)}`
     moldura = await carregarImagem(src, true)
+    molduraAlta.value = moldura.naturalHeight / moldura.naturalWidth > 1.5
     medirJanela(moldura)
   } catch {
     moldura = null
@@ -363,7 +367,7 @@ async function compartilhar() {
           </div>
 
           <template v-else>
-            <div class="mx-auto w-full max-w-[320px]">
+            <div class="mx-auto w-full" :class="molduraAlta ? 'max-w-[250px]' : 'max-w-[320px]'">
               <canvas
                 ref="canvasRef"
                 class="w-full rounded-2xl border border-slate-200 shadow-sm touch-none select-none"

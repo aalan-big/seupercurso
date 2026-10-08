@@ -1,8 +1,13 @@
 import { BadRequestException } from '@nestjs/common';
 
-/** Proporção do feed do Instagram (1080×1350): a arte do atleta sai nesse formato. */
-const PROPORCAO = 4 / 5;
+/**
+ * Formatos aceitos: story (9:16, 1080×1920) e feed (4:5, 1080×1350) do Instagram.
+ * A arte do atleta sai no mesmo tamanho da moldura.
+ */
+const PROPORCOES = [9 / 16, 4 / 5];
 const TOLERANCIA_PROPORCAO = 0.02;
+const MENSAGEM_PROPORCAO =
+  'A moldura precisa ser vertical no formato story (1080×1920px) ou feed (1080×1350px)';
 const LARGURA_MINIMA = 800;
 const LARGURA_MAXIMA = 4000;
 
@@ -10,7 +15,7 @@ const ASSINATURA_PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x
 
 /**
  * Confere a moldura "Eu vou" pelo cabeçalho do PNG, sem decodificar a imagem: tipo,
- * proporção 4:5 e se o arquivo guarda transparência (canal alfa ou chunk tRNS).
+ * proporção (story 9:16 ou feed 4:5) e se o arquivo guarda transparência (canal alfa ou chunk tRNS).
  * Se a janela da foto existe de fato, o painel do organizador confere antes de enviar.
  */
 export function validarMolduraEuVou(arquivo: Buffer): { largura: number; altura: number } {
@@ -27,14 +32,15 @@ export function validarMolduraEuVou(arquivo: Buffer): { largura: number; altura:
   const altura = arquivo.readUInt32BE(20);
   const tipoCor = arquivo.readUInt8(25);
 
-  if (!largura || !altura || Math.abs(largura / altura - PROPORCAO) > TOLERANCIA_PROPORCAO) {
+  const proporcao = largura / altura;
+  if (!largura || !altura || !PROPORCOES.some((p) => Math.abs(proporcao - p) <= TOLERANCIA_PROPORCAO)) {
     throw new BadRequestException(
-      `A moldura precisa estar na proporção 4:5 (vertical), por exemplo 1080×1350px. O arquivo enviado tem ${largura}×${altura}px.`,
+      `${MENSAGEM_PROPORCAO}. O arquivo enviado tem ${largura}×${altura}px.`,
     );
   }
   if (largura < LARGURA_MINIMA || largura > LARGURA_MAXIMA) {
     throw new BadRequestException(
-      `A moldura precisa ter entre ${LARGURA_MINIMA} e ${LARGURA_MAXIMA}px de largura (recomendado 1080×1350px). O arquivo enviado tem ${largura}×${altura}px.`,
+      `A moldura precisa ter entre ${LARGURA_MINIMA} e ${LARGURA_MAXIMA}px de largura (recomendado 1080×1920px ou 1080×1350px). O arquivo enviado tem ${largura}×${altura}px.`,
     );
   }
 
