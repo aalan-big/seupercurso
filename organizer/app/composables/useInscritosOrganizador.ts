@@ -20,7 +20,7 @@ export interface InscritoOrganizador {
   cliente: {
     usuario: { email: string }
     pf: { nomeCompleto: string; cpf: string; celular: string } | null
-    pj: { razaoSocial: string; cnpj: string } | null
+    pj: { razaoSocial: string; cnpj: string; celularComercial: string } | null
   }
   categoria: {
     nome: string
