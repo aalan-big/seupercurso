@@ -110,9 +110,22 @@ describe('CronometragemService', () => {
         create: jest.fn().mockResolvedValue({}),
         update: jest.fn().mockResolvedValue({}),
       };
+      prisma.$queryRaw = jest.fn().mockResolvedValue([]);
       prisma.$transaction = jest.fn((arg) =>
         typeof arg === 'function' ? arg(prisma) : Promise.all(arg),
       );
+    });
+
+    it('trava a cronometradora antes de contar ou gravar (logins simultâneos não estouram o limite)', async () => {
+      await service.getConta(userId, maquina);
+
+      expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+      const [sql, chaveTrava] = prisma.$queryRaw.mock.calls[0];
+      expect(sql.join('?')).toContain('pg_advisory_xact_lock');
+      expect(chaveTrava).toBe(`notebooks:${cronometradoraId}`);
+      const ordemTrava = prisma.$queryRaw.mock.invocationCallOrder[0];
+      expect(ordemTrava).toBeLessThan(prisma.notebookCronometragem.findUnique.mock.invocationCallOrder[0]);
+      expect(ordemTrava).toBeLessThan(prisma.notebookCronometragem.count.mock.invocationCallOrder[0]);
     });
 
     it('computador novo com vaga: registra e devolve a licença assinada', async () => {

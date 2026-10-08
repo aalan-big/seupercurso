@@ -120,6 +120,9 @@ export class CronometragemService {
   /**
    * Conta o computador no limite da cronometradora. Computador já ativo só atualiza o
    * último uso; um novo (ou liberado antes) só entra se houver vaga no plano.
+   * Logins da mesma cronometradora passam um de cada vez (trava por cronometradora):
+   * dois computadores novos ao mesmo tempo não estouram o limite, e o mesmo computador
+   * entrando duas vezes não tenta criar o registro em dobro.
    */
   private async registrarNotebook(
     crono: { id: string; nome: string; limiteNotebooks: number },
@@ -127,6 +130,7 @@ export class CronometragemService {
     email: string,
   ) {
     await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtext(${`notebooks:${crono.id}`}))) AS trava`;
       const chave = { cronometradoraId: crono.id, maquinaId };
       const existente = await tx.notebookCronometragem.findUnique({
         where: { cronometradoraId_maquinaId: chave },
