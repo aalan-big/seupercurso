@@ -23,6 +23,9 @@ import { LicencaService } from './licenca.service';
 /** Quantos peitos de exemplo vao nas mensagens e avisos para o Mark. */
 const LIMITE_EXEMPLOS_AVISO = 50;
 
+/** O Mark manda até 200 passagens por lote; folga para versões futuras. */
+const LIMITE_LOTE_PASSAGENS = 1000;
+
 /** Identidade do computador enviada pelo Mark (X-Maquina-Id): 32 hexadecimais. */
 const FORMATO_MAQUINA_ID = /^[0-9a-f]{32}$/;
 
@@ -659,7 +662,11 @@ export class CronometragemService {
 
   /**
    * POST /cronometragem/passagens
-   * Recebe lote de passagens do Mark e faz upsert com chave composta.
+   * Recebe lote de passagens do Mark e faz upsert com chave composta. O lote pode
+   * misturar provas: cada uma precisa de pedido aprovado. Reenvio da mesma passagem
+   * (operador identificou o atleta ou invalidou a leitura) atualiza tudo.
+   * Leitura sem ponto (antena sem ponto configurado no Mark) é ignorada: não entra
+   * no resultado e não pode travar o lote (5xx faz o Mark reenviar sem parar).
    */
   async receberPassagens(
     userId: string,
@@ -667,30 +674,51 @@ export class CronometragemService {
     itens: ItemPassagemDto[],
   ) {
     if (!itens || itens.length === 0) {
-      return { recebidas: 0, novas: 0 };
+      return { recebidas: 0, novas: 0, ignoradas: 0 };
+    }
+    if (itens.length > LIMITE_LOTE_PASSAGENS) {
+      throw new BadRequestException(
+        `Lote com ${itens.length} passagens; o máximo é ${LIMITE_LOTE_PASSAGENS} por envio.`,
+      );
     }
 
-    const eventoId = itens[0].prova_id;
-    const solicitacao = await this.prisma.solicitacaoCronometragem.findFirst({
+    const provas = [...new Set(itens.map((p) => p.prova_id))];
+    const autorizadas = await this.prisma.solicitacaoCronometragem.findMany({
       where: {
         cronometradoraId,
-        eventoId,
+        eventoId: { in: provas },
         status: 'APROVADA',
       },
+      select: { eventoId: true },
     });
-
-    if (!solicitacao) {
+    const provasAutorizadas = new Set(autorizadas.map((s) => s.eventoId));
+    if (provas.some((id) => !provasAutorizadas.has(id))) {
       throw new ForbiddenException(
         'Você não possui autorização aprovada para enviar passagens desta prova.',
       );
     }
 
     let novas = 0;
+    let ignoradas = 0;
     for (const p of itens) {
+      if (!p.ponto_tipo) {
+        ignoradas++;
+        continue;
+      }
       const pontoTipoEnum = p.ponto_tipo.toUpperCase() as TipoPontoCronometragem;
       const origemEnum = (
         p.origem ? p.origem.toUpperCase() : 'RFID'
       ) as OrigemPassagemCronometragem;
+      const dados = {
+        atletaId: p.atleta_id || null,
+        numeroPeito: p.numero_peito || null,
+        tagEpc: p.tag_epc || null,
+        passagemEm: new Date(p.passagem_em),
+        ponto: p.ponto?.trim() || p.ponto_tipo,
+        pontoTipo: pontoTipoEnum,
+        origem: origemEnum,
+        invalidada: p.invalidada ?? false,
+      };
 
       const result = await this.prisma.passagemCronometragem.upsert({
         where: {
@@ -705,19 +733,9 @@ export class CronometragemService {
           idLocal: p.id_local,
           cronometradoraId,
           eventoId: p.prova_id,
-          atletaId: p.atleta_id || null,
-          numeroPeito: p.numero_peito || null,
-          tagEpc: p.tag_epc || null,
-          passagemEm: new Date(p.passagem_em),
-          ponto: p.ponto,
-          pontoTipo: pontoTipoEnum,
-          origem: origemEnum,
-          invalidada: p.invalidada ?? false,
+          ...dados,
         },
-        update: {
-          invalidada: p.invalidada ?? false,
-          updatedAt: new Date(),
-        },
+        update: dados,
       });
 
       if (result.createdAt.getTime() === result.updatedAt.getTime()) {
@@ -728,6 +746,7 @@ export class CronometragemService {
     return {
       recebidas: itens.length,
       novas,
+      ignoradas,
     };
   }
 

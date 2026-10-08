@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseArrayPipe,
   Post,
   Query,
   Req,
@@ -112,7 +113,15 @@ export class CronometragemController {
   receberPassagens(
     @CurrentUser() user: AuthenticatedUser,
     @Req() req: any,
-    @Body() itens: ItemPassagemDto[],
+    // Lista no corpo: o ValidationPipe global não entra nos itens, só o ParseArrayPipe.
+    @Body(
+      new ParseArrayPipe({
+        items: ItemPassagemDto,
+        whitelist: true,
+        forbidNonWhitelisted: false,
+      }),
+    )
+    itens: ItemPassagemDto[],
   ) {
     return this.cronometragemService.receberPassagens(
       user.userId,

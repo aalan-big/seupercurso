@@ -5,6 +5,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
 } from 'class-validator';
 
 export class ItemPassagemDto {
@@ -16,8 +17,7 @@ export class ItemPassagemDto {
   @IsInt()
   id_local: number;
 
-  @IsNotEmpty()
-  @IsString()
+  @IsUUID('all', { message: 'prova_id inválido.' })
   prova_id: string;
 
   @IsOptional()
@@ -36,13 +36,15 @@ export class ItemPassagemDto {
   @IsString()
   passagem_em: string;
 
-  @IsNotEmpty()
+  // O Mark manda ponto/ponto_tipo nulos quando a leitura não caiu em nenhum ponto
+  // configurado (antena sem ponto). Essas a plataforma ignora (não entram no resultado).
+  @IsOptional()
   @IsString()
-  ponto: string;
+  ponto?: string | null;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsIn(['largada', 'parcial', 'chegada', 'portico_unico'])
-  ponto_tipo: 'largada' | 'parcial' | 'chegada' | 'portico_unico';
+  ponto_tipo?: 'largada' | 'parcial' | 'chegada' | 'portico_unico' | null;
 
   @IsOptional()
   @IsIn(['rfid', 'manual'])

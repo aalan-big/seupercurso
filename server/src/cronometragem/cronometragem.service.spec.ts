@@ -204,6 +204,87 @@ describe('CronometragemService', () => {
     });
   });
 
+  describe('receberPassagens (Mark)', () => {
+    const outraProva = 'evento-2';
+    const agora = new Date('2026-10-10T09:00:00Z');
+    const passagem = (extra: Record<string, unknown> = {}) => ({
+      notebook_id: 'nb-a',
+      id_local: 1,
+      prova_id: eventoId,
+      atleta_id: null,
+      numero_peito: 101,
+      tag_epc: 'E200',
+      passagem_em: '2026-10-10T08:42:17.350',
+      ponto: 'Chegada',
+      ponto_tipo: 'chegada',
+      origem: 'rfid',
+      invalidada: false,
+      ...extra,
+    }) as any;
+
+    beforeEach(() => {
+      prisma.solicitacaoCronometragem.findMany.mockResolvedValue([{ eventoId }]);
+      prisma.passagemCronometragem = {
+        upsert: jest.fn().mockResolvedValue({ createdAt: agora, updatedAt: agora }),
+      };
+    });
+
+    it('leitura sem ponto (ponto_tipo nulo) é ignorada e o resto do lote grava', async () => {
+      const r = await service.receberPassagens(userId, cronometradoraId, [
+        passagem({ id_local: 1, ponto: null, ponto_tipo: null }),
+        passagem({ id_local: 2 }),
+      ]);
+
+      expect(r).toEqual({ recebidas: 2, novas: 1, ignoradas: 1 });
+      expect(prisma.passagemCronometragem.upsert).toHaveBeenCalledTimes(1);
+      expect(prisma.passagemCronometragem.upsert.mock.calls[0][0].where.notebookId_idLocal_eventoId.idLocal).toBe(2);
+    });
+
+    it('reenvio atualiza atleta, peito e invalidação (não só a invalidação)', async () => {
+      await service.receberPassagens(userId, cronometradoraId, [
+        passagem({ atleta_id: 'ins-9', numero_peito: 202, invalidada: true }),
+      ]);
+
+      expect(prisma.passagemCronometragem.upsert.mock.calls[0][0].update).toMatchObject({
+        atletaId: 'ins-9',
+        numeroPeito: 202,
+        invalidada: true,
+        pontoTipo: 'CHEGADA',
+      });
+    });
+
+    it('lote com outra prova sem pedido aprovado é recusado inteiro', async () => {
+      await expect(
+        service.receberPassagens(userId, cronometradoraId, [
+          passagem(),
+          passagem({ id_local: 2, prova_id: outraProva }),
+        ]),
+      ).rejects.toThrow(ForbiddenException);
+      expect(prisma.solicitacaoCronometragem.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ eventoId: { in: [eventoId, outraProva] } }),
+        }),
+      );
+      expect(prisma.passagemCronometragem.upsert).not.toHaveBeenCalled();
+    });
+
+    it('lote misturando duas provas aprovadas grava as duas', async () => {
+      prisma.solicitacaoCronometragem.findMany.mockResolvedValue([{ eventoId }, { eventoId: outraProva }]);
+
+      const r = await service.receberPassagens(userId, cronometradoraId, [
+        passagem(),
+        passagem({ id_local: 2, prova_id: outraProva }),
+      ]);
+
+      expect(r.novas).toBe(2);
+    });
+
+    it('lote grande demais é recusado com 400', async () => {
+      const itens = Array.from({ length: 1001 }, (_, i) => passagem({ id_local: i }));
+      await expect(service.receberPassagens(userId, cronometradoraId, itens)).rejects.toThrow(BadRequestException);
+    });
+  });
+
   describe('aprovarSolicitacao', () => {
     it('deve lançar ConflictException se o status não for PENDENTE', async () => {
       prisma.solicitacaoCronometragem.findUnique.mockResolvedValue({
