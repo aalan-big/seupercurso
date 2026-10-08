@@ -25,6 +25,11 @@ export const envValidationSchema = Joi.object({
   // Cifra as credenciais dos organizadores guardadas no banco.
   CREDENTIALS_SECRET: Joi.string().min(32).optional(),
 
+  // Chave privada Ed25519 que assina a licença do SeuPercurso Mark (programa de
+  // cronometragem). Opcional de propósito: sem ela a API sobe normalmente e só o
+  // login do Mark responde 503 (ver cronometragem/licenca.service.ts).
+  LICENCA_CHAVE_PRIVADA: Joi.string().allow('').optional(),
+
   // Origens liberadas no CORS.
   CLIENT_URL: Joi.string().uri().required(),
   ORGANIZER_URL: Joi.string().uri().required(),

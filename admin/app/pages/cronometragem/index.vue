@@ -20,11 +20,13 @@ import {
   Users,
   Activity,
   Key,
+  Laptop,
 } from 'lucide-vue-next'
 import {
   useAdminCronometragem,
   type CronometradoraAdmin,
   type UsuarioCronometradora,
+  type NotebookCronometragem,
 } from '~/composables/useAdminCronometragem'
 
 const {
@@ -37,6 +39,8 @@ const {
   alterarStatus,
   vincularUsuario,
   atualizarUsuario,
+  alterarLimiteNotebooks,
+  liberarNotebook,
   fetchSolicitacoes,
   fetchAuditoria,
 } = useAdminCronometragem()
@@ -56,7 +60,11 @@ const formCriar = ref({
   documento: '',
   plano: 'Cronometragem anual',
   assinaturaValidaAte: '',
+  limiteNotebooks: 2,
 })
+
+const modalLimite = ref<CronometradoraAdmin | null>(null)
+const novoLimite = ref(2)
 
 const modalRenovar = ref<CronometradoraAdmin | null>(null)
 const tipoRenovacao = ref<'ano' | 'meses' | 'data'>('ano')
@@ -106,6 +114,7 @@ function abrirModalCriar() {
     documento: '',
     plano: 'Cronometragem anual',
     assinaturaValidaAte: anoStr,
+    limiteNotebooks: 2,
   }
   erroModal.value = ''
   modalCriar.value = true
@@ -124,6 +133,7 @@ async function onSubmeterCriar() {
       documento: formCriar.value.documento.trim() || undefined,
       plano: formCriar.value.plano.trim() || undefined,
       assinaturaValidaAte: formCriar.value.assinaturaValidaAte || undefined,
+      limiteNotebooks: Number(formCriar.value.limiteNotebooks) || undefined,
     })
     sucesso.value = 'Empresa cronometradora criada com sucesso!'
     modalCriar.value = false
@@ -183,6 +193,53 @@ async function onAlternarStatusEmpresa(empresa: CronometradoraAdmin) {
   try {
     await alterarStatus(empresa.id, novoStatus)
     sucesso.value = `Empresa "${empresa.nome}" foi ${novoStatus === 'ATIVA' ? 'reativada' : 'bloqueada'}.`
+  } catch (e) {
+    erro.value = extrairErro(e)
+  }
+}
+
+// -------------------------------------------------------------------------
+// COMPUTADORES (LIMITE DO PLANO NO SEUPERCURSO MARK)
+// -------------------------------------------------------------------------
+function abrirModalLimite(empresa: CronometradoraAdmin) {
+  modalLimite.value = empresa
+  novoLimite.value = empresa.limiteNotebooks
+  erroModal.value = ''
+}
+
+async function onSubmeterLimite() {
+  if (!modalLimite.value) return
+  const limite = Number(novoLimite.value)
+  if (!Number.isInteger(limite) || limite < 1 || limite > 100) {
+    erroModal.value = 'Informe um número de 1 a 100.'
+    return
+  }
+  processandoModal.value = true
+  erroModal.value = ''
+  try {
+    await alterarLimiteNotebooks(modalLimite.value.id, limite)
+    sucesso.value = `"${modalLimite.value.nome}" agora pode usar até ${limite} computador(es).`
+    modalLimite.value = null
+  } catch (e) {
+    erroModal.value = extrairErro(e)
+  } finally {
+    processandoModal.value = false
+  }
+}
+
+async function onLiberarNotebook(empresa: CronometradoraAdmin, notebook: NotebookCronometragem) {
+  if (
+    !confirm(
+      `Liberar o computador usado por "${notebook.ultimoEmail || 'sem e-mail'}" na ${empresa.nome}?\n\n` +
+        'A vaga no plano fica livre para outro computador. Se este voltar a entrar, conta de novo.',
+    )
+  )
+    return
+  erro.value = ''
+  sucesso.value = ''
+  try {
+    await liberarNotebook(notebook.id)
+    sucesso.value = 'Computador liberado. A vaga já pode ser usada por outro.'
   } catch (e) {
     erro.value = extrairErro(e)
   }
@@ -462,7 +519,7 @@ function ehVencida(isoStr: string) {
           </div>
 
           <!-- Métricas e Validade -->
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 rounded-xl p-3 text-xs">
+          <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 bg-slate-50 rounded-xl p-3 text-xs">
             <div>
               <span class="text-slate-400 font-bold uppercase text-[10px]">Validade da Licença</span>
               <p class="font-bold text-slate-800 mt-0.5 flex items-center gap-1">
@@ -484,6 +541,47 @@ function ehVencida(isoStr: string) {
             <div>
               <span class="text-slate-400 font-bold uppercase text-[10px]">Passagens Registradas</span>
               <p class="font-bold text-slate-800 mt-0.5">{{ emp._count.passagens }} leitura(s)</p>
+            </div>
+
+            <div>
+              <span class="text-slate-400 font-bold uppercase text-[10px]">Computadores (Mark)</span>
+              <p class="font-bold mt-0.5 flex items-center gap-1" :class="(emp.notebooks?.length ?? 0) >= emp.limiteNotebooks ? 'text-amber-700' : 'text-slate-800'">
+                <Laptop :size="13" class="text-slate-500" />
+                {{ emp.notebooks?.length ?? 0 }} de {{ emp.limiteNotebooks }}
+                <button type="button" class="ml-1 text-[11px] font-bold text-primary hover:underline" @click="abrirModalLimite(emp)">
+                  alterar
+                </button>
+              </p>
+            </div>
+          </div>
+
+          <!-- Computadores em uso no SeuPercurso Mark -->
+          <div v-if="emp.notebooks?.length" class="space-y-2">
+            <span class="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+              <Laptop :size="13" /> Computadores usando o Mark:
+            </span>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div
+                v-for="nb in emp.notebooks"
+                :key="nb.id"
+                class="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-2.5 text-xs shadow-2xs"
+              >
+                <div class="min-w-0 flex-1">
+                  <p class="truncate font-bold text-slate-900">{{ nb.ultimoEmail || 'Sem e-mail' }}</p>
+                  <p class="text-[11px] text-slate-400 truncate mt-0.5">
+                    Último uso {{ formatarDataHora(nb.ultimoUsoEm) }} • desde {{ formatarData(nb.primeiroUsoEm) }} •
+                    <span class="font-mono">{{ nb.maquinaId.slice(0, 8) }}</span>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  class="shrink-0 rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-bold text-slate-600 hover:border-red-200 hover:bg-red-50 hover:text-red-600 transition"
+                  title="Libera a vaga no plano (troca de computador)"
+                  @click="onLiberarNotebook(emp, nb)"
+                >
+                  Liberar
+                </button>
+              </div>
             </div>
           </div>
 
@@ -722,6 +820,17 @@ function ehVencida(isoStr: string) {
               class="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-800 focus:bg-white focus:border-primary focus:outline-hidden"
             />
           </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Computadores permitidos no Mark:</label>
+            <input
+              v-model.number="formCriar.limiteNotebooks"
+              type="number"
+              min="1"
+              max="100"
+              class="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-800 focus:bg-white focus:border-primary focus:outline-hidden"
+            />
+          </div>
         </div>
 
         <div class="flex items-center justify-end gap-2 pt-2">
@@ -821,6 +930,63 @@ function ehVencida(isoStr: string) {
             @click="onSubmeterRenovar"
           >
             {{ processandoModal ? 'Renovando...' : 'Confirmar Renovação' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- =================================================================== -->
+    <!-- MODAL: LIMITE DE COMPUTADORES                                       -->
+    <!-- =================================================================== -->
+    <div
+      v-if="modalLimite"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+    >
+      <div class="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-base font-bold text-slate-900">Computadores permitidos</h3>
+          <button type="button" class="text-slate-400 hover:text-slate-600" @click="modalLimite = null">✕</button>
+        </div>
+
+        <p class="text-xs text-slate-500">
+          Empresa: <strong>{{ modalLimite.nome }}</strong> • Em uso agora:
+          <strong>{{ modalLimite.notebooks?.length ?? 0 }}</strong>
+        </p>
+
+        <div v-if="erroModal" class="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-800">
+          {{ erroModal }}
+        </div>
+
+        <div class="space-y-1">
+          <label class="block text-xs font-bold text-slate-700">Quantos computadores podem usar o SeuPercurso Mark:</label>
+          <input
+            v-model.number="novoLimite"
+            type="number"
+            min="1"
+            max="100"
+            class="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-800 focus:bg-white focus:border-primary focus:outline-hidden"
+          />
+          <p class="text-[11px] text-slate-400">
+            Baixar o limite não desconecta quem já usa: só impede computador novo de entrar.
+          </p>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-2">
+          <button
+            type="button"
+            class="rounded-xl border border-slate-300 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 transition"
+            :disabled="processandoModal"
+            @click="modalLimite = null"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            class="rounded-xl bg-primary px-5 py-2 text-xs font-bold uppercase tracking-wider text-white hover:brightness-95 transition disabled:opacity-50"
+            :disabled="processandoModal"
+            @click="onSubmeterLimite"
+          >
+            {{ processandoModal ? 'Salvando...' : 'Salvar Limite' }}
           </button>
         </div>
       </div>

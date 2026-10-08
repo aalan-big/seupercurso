@@ -17,6 +17,7 @@ import {
   AlterarStatusCronometradoraDto,
   VincularUsuarioCronometradoraDto,
   AtualizarUsuarioCronometradoraDto,
+  AlterarLimiteNotebooksDto,
 } from './dto/admin-cronometragem.dto';
 
 @UseGuards(AdminJwtGuard)
@@ -51,6 +52,19 @@ export class AdminCronometragemController {
     @Body() dto: AlterarStatusCronometradoraDto,
   ) {
     return this.adminCronometragemService.alterarStatus(id, dto.status);
+  }
+
+  @Patch('empresas/:id/limite-notebooks')
+  alterarLimiteNotebooks(
+    @Param('id') id: string,
+    @Body() dto: AlterarLimiteNotebooksDto,
+  ) {
+    return this.adminCronometragemService.alterarLimiteNotebooks(id, dto);
+  }
+
+  @Patch('notebooks/:notebookId/liberar')
+  liberarNotebook(@Param('notebookId') notebookId: string) {
+    return this.adminCronometragemService.liberarNotebook(notebookId);
   }
 
   @HttpCode(HttpStatus.OK)

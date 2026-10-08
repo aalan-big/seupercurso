@@ -18,13 +18,20 @@ import { CriarSolicitacaoDto } from './dto/criar-solicitacao.dto';
 import { ItemPassagemDto } from './dto/enviar-passagem.dto';
 import { EnviarChipsDto, ImportarChipsDto } from './dto/importar-chips.dto';
 import { randomBytes } from 'crypto';
+import { LicencaService } from './licenca.service';
 
 /** Quantos peitos de exemplo vao nas mensagens e avisos para o Mark. */
 const LIMITE_EXEMPLOS_AVISO = 50;
 
+/** Identidade do computador enviada pelo Mark (X-Maquina-Id): 32 hexadecimais. */
+const FORMATO_MAQUINA_ID = /^[0-9a-f]{32}$/;
+
 @Injectable()
 export class CronometragemService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly licenca: LicencaService,
+  ) {}
 
   // =========================================================================
   // INTEGRAÇÃO COM SEUPERCURSO MARK (DESKTOP)
@@ -32,9 +39,11 @@ export class CronometragemService {
 
   /**
    * GET /cronometragem/conta
-   * Retorna os dados da conta logada e a validade da licença anual da cronometradora.
+   * Retorna os dados da conta logada, a validade da assinatura anual da cronometradora
+   * e a licença assinada do Mark, presa ao computador (maquinaId). Cada cronometradora
+   * usa no máximo `limiteNotebooks` computadores.
    */
-  async getConta(userId: string) {
+  async getConta(userId: string, maquinaId?: string) {
     const vinculo = await this.prisma.usuarioCronometragem.findUnique({
       where: { usuarioId: userId },
       include: {
@@ -72,21 +81,84 @@ export class CronometragemService {
       );
     }
 
+    const maquina = maquinaId?.trim().toLowerCase();
+    if (!maquina || !FORMATO_MAQUINA_ID.test(maquina)) {
+      throw new BadRequestException(
+        'Identificação do computador ausente ou inválida. Atualize o SeuPercurso Mark.',
+      );
+    }
+    // Sem a chave da licença configurada, nem registra o computador.
+    this.licenca.garantirDisponivel();
+    await this.registrarNotebook(crono, maquina, vinculo.usuario.email);
+
     const nome =
       vinculo.usuario.cliente?.pf?.nomeCompleto ||
       vinculo.usuario.cliente?.pj?.razaoSocial ||
       vinculo.usuario.email.split('@')[0];
+    const papel = vinculo.papel === 'ADMIN' ? 'admin' : 'operador';
 
     return {
       id: vinculo.usuario.id,
       nome,
       email: vinculo.usuario.email,
-      papel: vinculo.papel.toLowerCase(),
+      papel,
       assinatura: {
         plano: crono.plano,
         valida_ate: crono.assinaturaValidaAte.toISOString(),
       },
+      licenca: this.licenca.emitir({
+        contaId: vinculo.usuario.id,
+        email: vinculo.usuario.email,
+        papel,
+        plano: crono.plano,
+        assinaturaAte: crono.assinaturaValidaAte,
+        maquinaId: maquina,
+      }),
     };
+  }
+
+  /**
+   * Conta o computador no limite da cronometradora. Computador já ativo só atualiza o
+   * último uso; um novo (ou liberado antes) só entra se houver vaga no plano.
+   */
+  private async registrarNotebook(
+    crono: { id: string; nome: string; limiteNotebooks: number },
+    maquinaId: string,
+    email: string,
+  ) {
+    await this.prisma.$transaction(async (tx) => {
+      const chave = { cronometradoraId: crono.id, maquinaId };
+      const existente = await tx.notebookCronometragem.findUnique({
+        where: { cronometradoraId_maquinaId: chave },
+      });
+      const agora = new Date();
+      if (existente?.ativo) {
+        await tx.notebookCronometragem.update({
+          where: { id: existente.id },
+          data: { ultimoUsoEm: agora, ultimoEmail: email },
+        });
+        return;
+      }
+      const ativos = await tx.notebookCronometragem.count({
+        where: { cronometradoraId: crono.id, ativo: true },
+      });
+      if (ativos >= crono.limiteNotebooks) {
+        throw new ForbiddenException(
+          `A ${crono.nome} já usa o SeuPercurso Mark em ${ativos} computador(es), o limite do plano. ` +
+            'Peça à SeuPercurso para liberar um computador antigo ou ampliar o plano.',
+        );
+      }
+      if (existente) {
+        await tx.notebookCronometragem.update({
+          where: { id: existente.id },
+          data: { ativo: true, ultimoUsoEm: agora, ultimoEmail: email },
+        });
+      } else {
+        await tx.notebookCronometragem.create({
+          data: { ...chave, ultimoEmail: email, ultimoUsoEm: agora },
+        });
+      }
+    });
   }
 
   /**

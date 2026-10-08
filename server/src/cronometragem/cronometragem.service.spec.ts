@@ -1,11 +1,13 @@
-import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { CronometragemService } from './cronometragem.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { LicencaService } from './licenca.service';
 
 describe('CronometragemService', () => {
   let service: CronometragemService;
   let prisma: any;
+  let licenca: { garantirDisponivel: jest.Mock; emitir: jest.Mock };
 
   const userId = 'user-1';
   const cronometradoraId = 'crono-1';
@@ -66,14 +68,127 @@ describe('CronometragemService', () => {
       $transaction: jest.fn((actions) => Promise.all(actions)),
     };
 
+    licenca = {
+      garantirDisponivel: jest.fn(),
+      emitir: jest.fn().mockReturnValue('LICENCA-ASSINADA'),
+    };
+
     const moduleRef = await Test.createTestingModule({
       providers: [
         CronometragemService,
         { provide: PrismaService, useValue: prisma },
+        { provide: LicencaService, useValue: licenca },
       ],
     }).compile();
 
     service = moduleRef.get<CronometragemService>(CronometragemService);
+  });
+
+  describe('getConta (licença e limite de computadores do Mark)', () => {
+    const maquina = 'ab'.repeat(16);
+    const vence = new Date('2099-12-31T23:59:59Z');
+
+    beforeEach(() => {
+      prisma.usuarioCronometragem = {
+        findUnique: jest.fn().mockResolvedValue({
+          ativo: true,
+          papel: 'ADMIN',
+          cronometradora: {
+            id: cronometradoraId,
+            nome: 'Cronometra',
+            status: 'ATIVA',
+            plano: 'Cronometragem anual',
+            assinaturaValidaAte: vence,
+            limiteNotebooks: 2,
+          },
+          usuario: { id: userId, email: 'ana@cronometra.com', cliente: { pf: { nomeCompleto: 'Ana' } } },
+        }),
+      };
+      prisma.notebookCronometragem = {
+        findUnique: jest.fn().mockResolvedValue(null),
+        count: jest.fn().mockResolvedValue(0),
+        create: jest.fn().mockResolvedValue({}),
+        update: jest.fn().mockResolvedValue({}),
+      };
+      prisma.$transaction = jest.fn((arg) =>
+        typeof arg === 'function' ? arg(prisma) : Promise.all(arg),
+      );
+    });
+
+    it('computador novo com vaga: registra e devolve a licença assinada', async () => {
+      const conta = await service.getConta(userId, maquina.toUpperCase());
+
+      expect(prisma.notebookCronometragem.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ cronometradoraId, maquinaId: maquina, ultimoEmail: 'ana@cronometra.com' }),
+      });
+      expect(licenca.emitir).toHaveBeenCalledWith({
+        contaId: userId,
+        email: 'ana@cronometra.com',
+        papel: 'admin',
+        plano: 'Cronometragem anual',
+        assinaturaAte: vence,
+        maquinaId: maquina,
+      });
+      expect(conta).toMatchObject({ id: userId, papel: 'admin', licenca: 'LICENCA-ASSINADA' });
+    });
+
+    it('computador que já usa entra mesmo com o limite cheio (só atualiza o último uso)', async () => {
+      prisma.notebookCronometragem.findUnique.mockResolvedValue({ id: 'nb-1', ativo: true });
+      prisma.notebookCronometragem.count.mockResolvedValue(2);
+
+      await service.getConta(userId, maquina);
+
+      expect(prisma.notebookCronometragem.update).toHaveBeenCalledWith({
+        where: { id: 'nb-1' },
+        data: expect.objectContaining({ ultimoEmail: 'ana@cronometra.com' }),
+      });
+      expect(prisma.notebookCronometragem.create).not.toHaveBeenCalled();
+    });
+
+    it('limite cheio: computador novo é recusado e nada é gravado', async () => {
+      prisma.notebookCronometragem.count.mockResolvedValue(2);
+
+      await expect(service.getConta(userId, maquina)).rejects.toThrow(ForbiddenException);
+      expect(prisma.notebookCronometragem.create).not.toHaveBeenCalled();
+      expect(licenca.emitir).not.toHaveBeenCalled();
+    });
+
+    it('computador liberado antes volta a ocupar vaga, se houver', async () => {
+      prisma.notebookCronometragem.findUnique.mockResolvedValue({ id: 'nb-1', ativo: false });
+      prisma.notebookCronometragem.count.mockResolvedValue(1);
+
+      await service.getConta(userId, maquina);
+
+      expect(prisma.notebookCronometragem.update).toHaveBeenCalledWith({
+        where: { id: 'nb-1' },
+        data: expect.objectContaining({ ativo: true }),
+      });
+    });
+
+    it('sem identificação do computador (Mark antigo ou valor estranho) recusa', async () => {
+      for (const valor of [undefined, '', 'nao-hex', 'a'.repeat(31)]) {
+        await expect(service.getConta(userId, valor)).rejects.toThrow(BadRequestException);
+      }
+      expect(prisma.notebookCronometragem.create).not.toHaveBeenCalled();
+    });
+
+    it('chave da licença não configurada: 503 e nenhum computador registrado', async () => {
+      licenca.garantirDisponivel.mockImplementation(() => {
+        throw new ServiceUnavailableException('indisponível');
+      });
+
+      await expect(service.getConta(userId, maquina)).rejects.toThrow(ServiceUnavailableException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('assinatura vencida continua barrando antes de tudo', async () => {
+      const vinculo = await prisma.usuarioCronometragem.findUnique();
+      vinculo.cronometradora.assinaturaValidaAte = new Date('2020-01-01T00:00:00Z');
+      prisma.usuarioCronometragem.findUnique.mockResolvedValue(vinculo);
+
+      await expect(service.getConta(userId, maquina)).rejects.toThrow(ForbiddenException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
   });
 
   describe('aprovarSolicitacao', () => {

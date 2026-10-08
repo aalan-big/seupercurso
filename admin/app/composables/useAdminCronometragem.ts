@@ -14,6 +14,16 @@ export interface UsuarioCronometradora {
   }
 }
 
+/** Computador que usa o SeuPercurso Mark (conta no limite do plano). */
+export interface NotebookCronometragem {
+  id: string
+  maquinaId: string
+  ativo: boolean
+  ultimoEmail: string | null
+  primeiroUsoEm: string
+  ultimoUsoEm: string
+}
+
 export interface CronometradoraAdmin {
   id: string
   nome: string
@@ -21,6 +31,8 @@ export interface CronometradoraAdmin {
   plano: string
   assinaturaValidaAte: string
   status: 'ATIVA' | 'BLOQUEADA' | 'CANCELADA'
+  limiteNotebooks: number
+  notebooks: NotebookCronometragem[]
   createdAt: string
   updatedAt: string
   _count: {
@@ -91,6 +103,7 @@ export function useAdminCronometragem() {
     documento?: string
     plano?: string
     assinaturaValidaAte?: string
+    limiteNotebooks?: number
   }) {
     const res = await api<CronometradoraAdmin>('/admin/cronometragem/empresas', {
       method: 'POST',
@@ -139,6 +152,23 @@ export function useAdminCronometragem() {
     return res
   }
 
+  async function alterarLimiteNotebooks(id: string, limite: number) {
+    const res = await api<CronometradoraAdmin>(`/admin/cronometragem/empresas/${id}/limite-notebooks`, {
+      method: 'PATCH',
+      body: { limite },
+    })
+    await fetchEmpresas()
+    return res
+  }
+
+  async function liberarNotebook(notebookId: string) {
+    const res = await api<NotebookCronometragem>(`/admin/cronometragem/notebooks/${notebookId}/liberar`, {
+      method: 'PATCH',
+    })
+    await fetchEmpresas()
+    return res
+  }
+
   async function fetchSolicitacoes() {
     const res = await api<SolicitacaoAdminItem[]>('/admin/cronometragem/solicitacoes')
     solicitacoes.value = res
@@ -161,6 +191,8 @@ export function useAdminCronometragem() {
     alterarStatus,
     vincularUsuario,
     atualizarUsuario,
+    alterarLimiteNotebooks,
+    liberarNotebook,
     fetchSolicitacoes,
     fetchAuditoria,
   }

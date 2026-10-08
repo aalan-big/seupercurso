@@ -1,4 +1,13 @@
-import { IsEmail, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsEmail,
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
 import { PapelCronometragem, StatusCronometradora } from '../../generated/prisma/enums';
 
 export class CriarCronometradoraDto {
@@ -17,6 +26,19 @@ export class CriarCronometradoraDto {
   @IsOptional()
   @IsString()
   assinaturaValidaAte?: string;
+
+  @IsOptional()
+  @IsInt({ message: 'Limite de computadores deve ser um número inteiro.' })
+  @Min(1, { message: 'O limite mínimo é 1 computador.' })
+  @Max(100, { message: 'O limite máximo é 100 computadores.' })
+  limiteNotebooks?: number;
+}
+
+export class AlterarLimiteNotebooksDto {
+  @IsInt({ message: 'Limite de computadores deve ser um número inteiro.' })
+  @Min(1, { message: 'O limite mínimo é 1 computador.' })
+  @Max(100, { message: 'O limite máximo é 100 computadores.' })
+  limite: number;
 }
 
 export class RenovarAssinaturaDto {

@@ -9,6 +9,7 @@ import {
   RenovarAssinaturaDto,
   VincularUsuarioCronometradoraDto,
   AtualizarUsuarioCronometradoraDto,
+  AlterarLimiteNotebooksDto,
 } from './dto/admin-cronometragem.dto';
 import { StatusCronometradora } from '../generated/prisma/enums';
 
@@ -42,6 +43,11 @@ export class AdminCronometragemService {
             solicitacoes: true,
             passagens: true,
           },
+        },
+        // Computadores que contam no limite do plano (os liberados não aparecem).
+        notebooks: {
+          where: { ativo: true },
+          orderBy: { ultimoUsoEm: 'desc' },
         },
         usuarios: {
           include: {
@@ -82,7 +88,42 @@ export class AdminCronometragemService {
         plano: dto.plano?.trim() || 'Cronometragem anual',
         assinaturaValidaAte: validaAte,
         status: 'ATIVA',
+        ...(dto.limiteNotebooks
+          ? { limiteNotebooks: dto.limiteNotebooks }
+          : {}),
       },
+    });
+  }
+
+  /**
+   * Quantos computadores a cronometradora pode usar no SeuPercurso Mark. Baixar o
+   * limite não derruba quem já está dentro: só impede computador novo de entrar.
+   */
+  async alterarLimiteNotebooks(id: string, dto: AlterarLimiteNotebooksDto) {
+    const crono = await this.prisma.cronometradora.findUnique({ where: { id } });
+    if (!crono) {
+      throw new NotFoundException('Empresa de cronometragem não encontrada.');
+    }
+    return this.prisma.cronometradora.update({
+      where: { id },
+      data: { limiteNotebooks: dto.limite },
+    });
+  }
+
+  /**
+   * Libera um computador (troca de notebook): abre a vaga no limite. Se ele voltar a
+   * entrar, conta de novo. A licença que já está nele vale até o fim do prazo offline.
+   */
+  async liberarNotebook(notebookId: string) {
+    const notebook = await this.prisma.notebookCronometragem.findUnique({
+      where: { id: notebookId },
+    });
+    if (!notebook) {
+      throw new NotFoundException('Computador não encontrado.');
+    }
+    return this.prisma.notebookCronometragem.update({
+      where: { id: notebookId },
+      data: { ativo: false },
     });
   }
 

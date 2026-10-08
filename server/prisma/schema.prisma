@@ -867,6 +867,8 @@ model Cronometradora {
   plano               String               @default("Cronometragem anual")
   assinaturaValidaAte DateTime
   status              StatusCronometradora @default(ATIVA)
+  // Quantos computadores podem usar o SeuPercurso Mark ao mesmo tempo (plano).
+  limiteNotebooks     Int                  @default(2)
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 
@@ -875,6 +877,24 @@ model Cronometradora {
   cotacoes     CotacaoCronometragem[]
   passagens    PassagemCronometragem[]
   auditorias   AuditoriaCronometragem[]
+  notebooks    NotebookCronometragem[]
+}
+
+/// Computador que já entrou no SeuPercurso Mark por esta cronometradora. A licença
+/// assinada sai presa ao maquinaId; "liberar" (ativo = false) abre a vaga no limite.
+model NotebookCronometragem {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cronometradoraId String   @db.Uuid
+  maquinaId        String
+  ativo            Boolean  @default(true)
+  ultimoEmail      String?
+  primeiroUsoEm    DateTime @default(now())
+  ultimoUsoEm      DateTime @default(now())
+
+  cronometradora Cronometradora @relation(fields: [cronometradoraId], references: [id], onDelete: Cascade)
+
+  @@unique([cronometradoraId, maquinaId])
+  @@index([cronometradoraId])
 }
 
 model UsuarioCronometragem {

@@ -35,8 +35,11 @@ export class CronometragemController {
 
   @UseGuards(JwtAuthGuard, AssinaturaAtivaGuard)
   @Get('cronometragem/conta')
-  obterConta(@CurrentUser() user: AuthenticatedUser) {
-    return this.cronometragemService.getConta(user.userId);
+  obterConta(
+    @CurrentUser() user: AuthenticatedUser,
+    @Headers('x-maquina-id') maquinaId?: string,
+  ) {
+    return this.cronometragemService.getConta(user.userId, maquinaId);
   }
 
   @UseGuards(JwtAuthGuard, AssinaturaAtivaGuard)
