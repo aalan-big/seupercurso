@@ -27,7 +27,8 @@ import {
   X,
   Smartphone,
   Copy,
-  RefreshCw
+  RefreshCw,
+  Camera
 } from 'lucide-vue-next'
 import type { InscricaoComEvento } from '~/composables/useInscricao'
 
@@ -43,6 +44,12 @@ const cancelandoId = ref<string | null>(null)
 const erroCancelar = ref('')
 
 const modal360Aberto = ref(false)
+
+// Arte "Eu vou": aberta a partir de uma inscrição confirmada de prova com moldura.
+const inscricaoArte = ref<InscricaoComEvento | null>(null)
+function abrirArteEuVou(inscricao: InscricaoComEvento) {
+  inscricaoArte.value = inscricao
+}
 const inscricaoModalId = ref<string | null>(null)
 
 const modalPixAberto = ref(false)
@@ -669,6 +676,14 @@ async function confirmarCancelamento(id: string) {
                       <FileText :size="14" /> Ver Kit & Percurso
                     </button>
                     <button
+                      v-if="inscricao.categoria.modalidade.evento.molduraEuVouUrl"
+                      type="button"
+                      class="flex w-full items-center justify-center gap-1.5 text-center rounded-xl bg-warning py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-xs hover:brightness-95 transition"
+                      @click="abrirArteEuVou(inscricao)"
+                    >
+                      <Camera :size="14" /> Criar minha arte "Eu vou"
+                    </button>
+                    <button
                       type="button"
                       class="flex w-full items-center justify-center gap-1.5 text-center rounded-xl border border-indigo-200 bg-indigo-50 py-2.5 text-xs font-bold uppercase tracking-wider text-indigo-900 shadow-xs hover:bg-indigo-100 transition"
                       @click="abrirModal360(inscricao)"
@@ -780,6 +795,17 @@ async function confirmarCancelamento(id: string) {
           </div>
         </div>
       </div>
+
+      <!-- Arte "Eu vou" (moldura da prova com a foto do atleta) -->
+      <ArteEuVouModal
+        v-if="inscricaoArte"
+        :aberto="!!inscricaoArte"
+        :evento-id="inscricaoArte.categoria.modalidade.evento.id"
+        :evento-nome="inscricaoArte.categoria.modalidade.evento.nome"
+        :moldura-url="inscricaoArte.categoria.modalidade.evento.molduraEuVouUrl || ''"
+        :nome-atleta="inscricaoArte.atletaNome || inscricaoArte.dependente?.nomeCompleto || null"
+        @fechar="inscricaoArte = null"
+      />
 
       <!-- Modal 360 do Evento -->
       <EventoModal360

@@ -58,6 +58,21 @@ const titularJaInscrito = computed(() => {
   })
 })
 
+// Arte "Eu vou": inscrições confirmadas desta conta nesta prova, se ela tem moldura.
+const inscricoesComArteEuVou = computed(() =>
+  (minhasInscricoes.value || []).filter(
+    (insc) =>
+      insc.status === 'CONFIRMADA' &&
+      insc.categoria?.modalidade?.evento?.id === eventoId &&
+      !!insc.categoria?.modalidade?.evento?.molduraEuVouUrl
+  )
+)
+const inscricaoArte = ref<(typeof minhasInscricoes.value)[number] | null>(null)
+function nomeCurtoAtleta(insc: (typeof minhasInscricoes.value)[number]) {
+  const nome = insc.atletaNome || insc.dependente?.nomeCompleto
+  return nome ? `Arte de ${nome.trim().split(/\s+/)[0]}` : 'Minha arte'
+}
+
 const carregando = ref(true)
 const erro = ref('')
 
@@ -1308,6 +1323,44 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
       </div>
 
       <template v-else>
+
+        <!-- Arte "Eu vou": só para quem já tem inscrição confirmada nesta prova -->
+        <div
+          v-if="inscricoesComArteEuVou.length"
+          class="mb-6 rounded-3xl border border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm"
+        >
+          <div class="flex items-center gap-3">
+            <div class="h-10 w-10 shrink-0 rounded-2xl bg-warning/15 text-warning flex items-center justify-center">
+              <Camera class="w-5 h-5" />
+            </div>
+            <div>
+              <p class="text-sm font-black text-slate-900">Você vai! Crie sua arte "Eu vou"</p>
+              <p class="text-xs text-slate-600">Coloque sua foto na moldura oficial da prova e poste no Instagram.</p>
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="insc in inscricoesComArteEuVou"
+              :key="insc.id"
+              type="button"
+              class="inline-flex items-center gap-1.5 rounded-xl bg-warning px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-xs hover:brightness-95 transition"
+              @click="inscricaoArte = insc"
+            >
+              <Camera class="w-4 h-4" />
+              {{ inscricoesComArteEuVou.length > 1 ? nomeCurtoAtleta(insc) : 'Criar minha arte' }}
+            </button>
+          </div>
+        </div>
+
+        <ArteEuVouModal
+          v-if="inscricaoArte"
+          :aberto="!!inscricaoArte"
+          :evento-id="inscricaoArte.categoria.modalidade.evento.id"
+          :evento-nome="inscricaoArte.categoria.modalidade.evento.nome"
+          :moldura-url="inscricaoArte.categoria.modalidade.evento.molduraEuVouUrl || ''"
+          :nome-atleta="inscricaoArte.atletaNome || inscricaoArte.dependente?.nomeCompleto || null"
+          @fechar="inscricaoArte = null"
+        />
 
         <!-- Sucesso Inscrição -->
         <div v-if="inscricaoCriada" class="max-w-2xl mx-auto bg-white border border-slate-200 rounded-3xl p-5 sm:p-8 shadow-xl text-center space-y-5 text-slate-800">

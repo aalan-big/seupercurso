@@ -52,6 +52,7 @@ export interface EventoInfo {
   nome: string
   descricao?: string | null
   bannerUrl?: string | null
+  molduraEuVouUrl?: string | null
   regulamentoUrl?: string | null
   retiradaKitLocal?: string | null
   retiradaKitInicio?: string | null
