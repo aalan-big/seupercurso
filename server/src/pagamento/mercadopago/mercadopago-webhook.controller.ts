@@ -40,7 +40,11 @@ export class MercadoPagoWebhookController {
     const pagamentoId = String(body?.data?.id ?? dataIdQuery ?? '');
     const tipo = body?.type ?? body?.topic;
 
-    this.validarAssinatura(assinatura, requestId, pagamentoId);
+    // So para o log de recusa: saber se o recusado e aviso extra (merchant_order,
+    // formato antigo) ou pagamento de verdade. Nao muda o que passa ou nao.
+    const contexto = `tipo=${tipo}, action=${body?.action}, paymentId=${pagamentoId}`;
+
+    this.validarAssinatura(assinatura, requestId, pagamentoId, contexto);
 
     this.logger.log(
       `Webhook Mercado Pago: tipo=${tipo}, action=${body?.action}, paymentId=${pagamentoId}`,
@@ -63,6 +67,7 @@ export class MercadoPagoWebhookController {
     assinatura: string | undefined,
     requestId: string | undefined,
     pagamentoId: string,
+    contexto: string,
   ) {
     const segredo = this.configService.get<string>('MP_WEBHOOK_SECRET');
 
@@ -84,7 +89,7 @@ export class MercadoPagoWebhookController {
     const v1 = partes['v1'];
 
     if (!ts || !v1) {
-      this.logger.warn('Webhook Mercado Pago sem assinatura válida.');
+      this.logger.warn(`Webhook Mercado Pago sem assinatura válida (${contexto}).`);
       throw new UnauthorizedException('Assinatura ausente.');
     }
 
@@ -97,7 +102,7 @@ export class MercadoPagoWebhookController {
     const b = Buffer.from(v1);
 
     if (a.length !== b.length || !timingSafeEqual(a, b)) {
-      this.logger.warn('Assinatura do webhook Mercado Pago inválida.');
+      this.logger.warn(`Assinatura do webhook Mercado Pago inválida (${contexto}).`);
       throw new UnauthorizedException('Assinatura inválida.');
     }
   }
