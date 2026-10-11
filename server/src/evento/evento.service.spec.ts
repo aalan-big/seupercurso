@@ -130,6 +130,10 @@ describe('EventoService', () => {
   });
 
   describe('findOneDetalhado', () => {
+    const ORGANIZADOR_PF = {
+      cliente: { pf: { nomeCompleto: 'Douglas Costa', celular: '63999302148' }, pj: null },
+    };
+
     it('lança NotFoundException se o evento não existir ou não estiver visível', async () => {
       prisma.evento.findMany.mockResolvedValue([]);
       prisma.evento.findFirst.mockResolvedValue(null);
@@ -148,6 +152,7 @@ describe('EventoService', () => {
         capacidade: null,
         modalidades: [],
         lotes: [],
+        organizador: ORGANIZADOR_PF,
       };
       prisma.evento.findFirst.mockResolvedValue(evento);
 
@@ -158,8 +163,10 @@ describe('EventoService', () => {
           where: { id: UUID_EVENTO, status: { in: STATUS_VISIVEIS } },
         }),
       );
+      const { organizador: _organizador, ...semOrganizador } = evento;
       expect(resultado).toEqual({
-        ...evento,
+        ...semOrganizador,
+        organizador: { nome: 'Douglas Costa', whatsapp: '63999302148' },
         vagasRestantes: null,
         // Campos novos do aviso de abertura de vendas (evento sem status aqui)
         situacaoVendas: null,
@@ -178,6 +185,7 @@ describe('EventoService', () => {
         capacidade: null,
         modalidades: [],
         lotes: [],
+        organizador: ORGANIZADOR_PF,
       };
       prisma.evento.findMany.mockResolvedValue([
         { id: 'outro-evento-qualquer' },
@@ -193,6 +201,68 @@ describe('EventoService', () => {
           where: { id: UUID_EVENTO, status: { in: STATUS_VISIVEIS } },
         }),
       );
+    });
+
+    it('organizador empresa: nome fantasia e celular comercial', async () => {
+      prisma.evento.findFirst.mockResolvedValue({
+        id: UUID_EVENTO,
+        capacidade: null,
+        modalidades: [],
+        lotes: [],
+        organizador: {
+          cliente: {
+            pf: null,
+            pj: { nomeFantasia: 'Doka Embalagens', razaoSocial: 'Doka LTDA', celularComercial: '63988887777' },
+          },
+        },
+      });
+
+      const resultado = await service.findOneDetalhado(UUID_EVENTO);
+
+      expect(resultado.organizador).toEqual({ nome: 'Doka Embalagens', whatsapp: '63988887777' });
+    });
+
+    it('empresa sem nome fantasia usa a razao social', async () => {
+      prisma.evento.findFirst.mockResolvedValue({
+        id: UUID_EVENTO,
+        capacidade: null,
+        modalidades: [],
+        lotes: [],
+        organizador: {
+          cliente: {
+            pf: null,
+            pj: { nomeFantasia: null, razaoSocial: 'Doka LTDA', celularComercial: '' },
+          },
+        },
+      });
+
+      const resultado = await service.findOneDetalhado(UUID_EVENTO);
+
+      expect(resultado.organizador).toEqual({ nome: 'Doka LTDA', whatsapp: null });
+    });
+
+    it('do organizador so consulta nome e celular (nada de CPF, CNPJ ou banco)', async () => {
+      prisma.evento.findFirst.mockResolvedValue({
+        id: UUID_EVENTO,
+        capacidade: null,
+        modalidades: [],
+        lotes: [],
+        organizador: ORGANIZADOR_PF,
+      });
+
+      await service.findOneDetalhado(UUID_EVENTO);
+
+      const { select } = prisma.evento.findFirst.mock.calls[0][0];
+      expect(select.organizador).toEqual({
+        select: {
+          cliente: {
+            select: {
+              pf: { select: { nomeCompleto: true, celular: true } },
+              pj: { select: { nomeFantasia: true, razaoSocial: true, celularComercial: true } },
+            },
+          },
+        },
+      });
     });
   });
 

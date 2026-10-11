@@ -90,6 +90,14 @@ export interface LoteEvento {
 export interface EventoDetalhe extends EventoResumo {
   // Hora do servidor quando respondeu, para a contagem regressiva
   agoraServidor?: string
+  regulamentoUrl?: string | null
+  comissaoPagaPeloAtleta?: boolean
+  // Gravados como o organizador digitou, em UTC: mostrar com timeZone 'UTC'.
+  retiradaKitLocal?: string | null
+  retiradaKitInicio?: string | null
+  retiradaKitFim?: string | null
+  // So nome e WhatsApp; a API nao manda mais nada do organizador.
+  organizador?: { nome: string | null; whatsapp: string | null }
   modalidades: ModalidadeEvento[]
   lotes: LoteEvento[]
   modelosCamisa?: ModeloCamisaEvento[]

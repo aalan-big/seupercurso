@@ -85,6 +85,28 @@ const passos = computed(() => [
 ])
 const step = ref(1)
 
+// Informacoes do evento antes do checkout. `?inscrever=1` abre direto o
+// checkout (botao "Fazer inscricao" e volta do login), e o voltar do navegador
+// retorna para as informacoes. Quem ja estava no meio da compra (passo 2 em
+// diante salvo na sessao) segue direto no checkout.
+const router = useRouter()
+const retomandoCheckout = ref(false)
+const mostrarInfo = computed(() => route.query.inscrever !== '1' && !retomandoCheckout.value)
+
+async function abrirInscricao() {
+  await router.push({ query: { ...route.query, inscrever: '1' } })
+  window.scrollTo({ top: 0 })
+}
+
+async function verInformacoes() {
+  retomandoCheckout.value = false
+  const { inscrever: _inscrever, ...resto } = route.query
+  await router.push({ query: resto })
+  window.scrollTo({ top: 0 })
+}
+
+const destinoAposLogin = encodeURIComponent(`/eventos/${eventoId}?inscrever=1`)
+
 interface ItemCarrinho {
   uid: string
   tipo: 'EU' | 'DEPENDENTE' | 'MANUAL'
@@ -326,6 +348,7 @@ onMounted(async () => {
   try {
     await fetchEvento(eventoId)
     recuperarEstadoCheckout()
+    if (step.value > 1) retomandoCheckout.value = true
     // O codigo volta da sessao, mas o desconto nao: valida de novo para a tela
     // mostrar o mesmo valor que sera cobrado.
     if (cupomCodigo.value.trim()) {
@@ -1198,7 +1221,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
   erroInscricao.value = ''
 
   if (!token.value) {
-    await navigateTo(`/login?redirect=/eventos/${eventoId}`)
+    await navigateTo(`/login?redirect=${destinoAposLogin}`)
     return
   }
 
@@ -1458,6 +1481,14 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
           </div>
         </div>
 
+        <!-- Informacoes do evento (antes do checkout) -->
+        <EventoInfo
+          v-else-if="mostrarInfo"
+          :evento="eventoSelecionado"
+          :lote-ativo="loteAtivo"
+          @inscrever="abrirInscricao"
+        />
+
         <!-- Inscrições Esgotadas / Encerradas -->
         <div v-else-if="eventoSelecionado.status === 'INSCRICOES_ENCERRADAS' || eventoSelecionado.status === 'FINALIZADO'" class="max-w-2xl mx-auto bg-white border border-slate-200 rounded-3xl p-8 sm:p-10 shadow-xl text-center space-y-6 text-slate-800">
           <div class="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto border border-red-200">
@@ -1535,9 +1566,18 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
           <!-- Banner Header Evento -->
           <div class="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 flex flex-col gap-6 shadow-sm">
             <div class="space-y-2">
-              <span class="px-3 py-1 bg-orange-100 text-orange-800 border border-orange-200 rounded-full text-xs font-black uppercase tracking-wider">
-                Inscrição de Atletas
-              </span>
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="px-3 py-1 bg-orange-100 text-orange-800 border border-orange-200 rounded-full text-xs font-black uppercase tracking-wider">
+                  Inscrição de Atletas
+                </span>
+                <button
+                  type="button"
+                  class="text-xs font-bold text-orange-600 hover:text-orange-700 underline underline-offset-2"
+                  @click="verInformacoes"
+                >
+                  Ver informações do evento
+                </button>
+              </div>
               <h1 class="text-2xl sm:text-3xl font-black text-slate-900">{{ eventoSelecionado.nome }}</h1>
               <div class="flex flex-wrap gap-4 text-xs font-semibold text-slate-500 pt-1">
                 <span class="flex items-center gap-1"><Calendar class="w-4 h-4 text-orange-500" /> {{ formatarData(eventoSelecionado.dataInicio) }}</span>
@@ -1608,14 +1648,14 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
 
               <div class="flex flex-col sm:flex-row gap-3">
                 <NuxtLink
-                  :to="`/login?redirect=/eventos/${eventoId}`"
+                  :to="`/login?redirect=${destinoAposLogin}`"
                   class="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 bg-orange-500 hover:bg-orange-600 text-white text-xs font-black uppercase tracking-wider rounded-xl transition shadow-sm"
                 >
                   <LogIn class="w-4 h-4" />
                   <span>Já tenho conta</span>
                 </NuxtLink>
                 <NuxtLink
-                  :to="`/cadastro?redirect=/eventos/${eventoId}`"
+                  :to="`/cadastro?redirect=${destinoAposLogin}`"
                   class="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-black uppercase tracking-wider rounded-xl transition"
                 >
                   <UserPlus class="w-4 h-4" />

@@ -203,6 +203,27 @@ export class EventoService {
       },
       select: {
         ...RESUMO_SELECT,
+        retiradaKitLocal: true,
+        retiradaKitInicio: true,
+        retiradaKitFim: true,
+        // So nome e celular do organizador, para a pagina do evento. Nada de
+        // documento ou dado bancario: o objeto inteiro sai daqui ja achatado.
+        organizador: {
+          select: {
+            cliente: {
+              select: {
+                pf: { select: { nomeCompleto: true, celular: true } },
+                pj: {
+                  select: {
+                    nomeFantasia: true,
+                    razaoSocial: true,
+                    celularComercial: true,
+                  },
+                },
+              },
+            },
+          },
+        },
         modalidades: {
           select: {
             id: true,
@@ -321,8 +342,16 @@ export class EventoService {
       0,
     );
 
+    const { organizador, ...dadosEvento } = evento;
+    const pj = organizador.cliente.pj;
+    const pf = organizador.cliente.pf;
+
     return {
-      ...evento,
+      ...dadosEvento,
+      organizador: {
+        nome: pj ? pj.nomeFantasia || pj.razaoSocial : pf?.nomeCompleto ?? null,
+        whatsapp: (pj ? pj.celularComercial : pf?.celular) || null,
+      },
       ...(evento.status === StatusEvento.PUBLICADO
         ? calcularSituacaoVendas(evento.lotes)
         : { situacaoVendas: null, vendasAbremEm: null }),
