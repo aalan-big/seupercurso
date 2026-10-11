@@ -96,6 +96,7 @@ export interface EventoDetalhe extends EventoResumo {
   retiradaKitLocal?: string | null
   retiradaKitInicio?: string | null
   retiradaKitFim?: string | null
+  molduraEuVouUrl?: string | null
   // So nome e WhatsApp; a API nao manda mais nada do organizador.
   organizador?: { nome: string | null; whatsapp: string | null }
   modalidades: ModalidadeEvento[]

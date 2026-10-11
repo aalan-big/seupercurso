@@ -20,7 +20,8 @@ import {
   Map,
   MessageCircle,
   Instagram,
-  ChevronDown
+  ChevronDown,
+  Camera
 } from 'lucide-vue-next'
 import type { EventoDetalhe, LoteEvento } from '../composables/useEvento'
 
@@ -136,6 +137,8 @@ const linkWhatsapp = computed(() => {
 function rolarParaModalidades() {
   document.getElementById('modalidades-evento')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
+
+const arteAberta = ref(false)
 
 const copiado = ref(false)
 
@@ -276,6 +279,38 @@ async function compartilhar() {
         </div>
       </div>
     </div>
+
+    <!-- Arte "Eu vou": qualquer visitante pode montar e baixar, serve de divulgacao -->
+    <div
+      v-if="evento.molduraEuVouUrl && !estaFinalizado"
+      class="rounded-3xl border border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm"
+    >
+      <div class="flex items-center gap-3">
+        <div class="h-10 w-10 shrink-0 rounded-2xl bg-warning/15 text-warning flex items-center justify-center">
+          <Camera class="w-5 h-5" />
+        </div>
+        <div>
+          <p class="text-sm font-black text-slate-900">Vai correr? Crie sua arte "Eu vou"</p>
+          <p class="text-xs text-slate-600">Coloque sua foto na moldura oficial da prova e poste no Instagram.</p>
+        </div>
+      </div>
+      <button
+        type="button"
+        class="inline-flex items-center justify-center gap-1.5 rounded-xl bg-warning px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-xs hover:brightness-95 transition"
+        @click="arteAberta = true"
+      >
+        <Camera class="w-4 h-4" /> Criar minha arte
+      </button>
+    </div>
+
+    <ArteEuVouModal
+      v-if="arteAberta && evento.molduraEuVouUrl"
+      :aberto="arteAberta"
+      :evento-id="evento.id"
+      :evento-nome="evento.nome"
+      :moldura-url="evento.molduraEuVouUrl"
+      @fechar="arteAberta = false"
+    />
 
     <!-- O Evento -->
     <section v-if="evento.descricao" class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">

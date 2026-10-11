@@ -206,6 +206,8 @@ export class EventoService {
         retiradaKitLocal: true,
         retiradaKitInicio: true,
         retiradaKitFim: true,
+        // Arte "Eu vou" aberta a qualquer visitante da pagina, como divulgacao.
+        molduraEuVouUrl: true,
         // So nome e celular do organizador, para a pagina do evento. Nada de
         // documento ou dado bancario: o objeto inteiro sai daqui ja achatado.
         organizador: {

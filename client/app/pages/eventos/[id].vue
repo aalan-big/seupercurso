@@ -1346,7 +1346,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
 
         <!-- Arte "Eu vou": só para quem já tem inscrição confirmada nesta prova -->
         <div
-          v-if="inscricoesComArteEuVou.length"
+          v-if="inscricoesComArteEuVou.length && !mostrarInfo"
           class="mb-6 rounded-3xl border border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm"
         >
           <div class="flex items-center gap-3">
