@@ -51,13 +51,13 @@ const copiado = ref(false)
  * existe, copiar o link e o que sobra de util.
  */
 async function compartilhar() {
-  const url = `${window.location.origin}/eventos/${props.evento.id}`
+  // Sem os tracinhos: o id no formato normal e igual a uma chave Pix aleatoria
+  // e o WhatsApp do celular copia como Pix em vez de abrir o link.
+  const url = `${window.location.origin}/eventos/${props.evento.id.replace(/-/g, '')}`
 
   if (navigator.share) {
     try {
-      // O link vai dentro do texto, na linha de baixo, e nao no campo url: no
-      // Android o WhatsApp cola texto e url sem espaco ("Iguatu/CEhttps://...")
-      // e o link chega sem ser clicavel.
+      // O link vai sozinho na linha de baixo, separado do nome do evento.
       await navigator.share({
         title: props.evento.nome,
         text: `${props.evento.nome} — ${props.evento.cidade}/${props.evento.estado}\n${url}`

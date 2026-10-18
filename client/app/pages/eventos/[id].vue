@@ -35,7 +35,12 @@ import {
 import type { ModeloCamisaEvento } from '../../composables/useEvento'
 
 const route = useRoute()
-const eventoId = route.params.id as string
+// Links compartilhados levam o id sem tracinhos (ver EventoCard): com eles o
+// WhatsApp do celular le o id como chave Pix aleatoria e copia em vez de abrir.
+const idDaRota = route.params.id as string
+const eventoId = /^[0-9a-f]{32}$/i.test(idDaRota)
+  ? idDaRota.toLowerCase().replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5')
+  : idDaRota
 
 const config = useRuntimeConfig()
 const apiBase = config.public.apiBase as string
