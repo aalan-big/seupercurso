@@ -396,6 +396,29 @@ describe('PagamentoService', () => {
       expect(emailService.enviarConfirmacaoInscricaoBatch).not.toHaveBeenCalled();
     });
 
+    it('confirma a linha do id do gateway, não um PIX antigo do mesmo pedido', async () => {
+      const pixNovo = { ...pagamentoPendente, id: 'pagamento-novo', gatewayPaymentId: 'mp_novo' };
+      prisma.pagamento.findFirst.mockImplementation(({ where }: any) =>
+        Promise.resolve(where.gatewayPaymentId === 'mp_novo' ? pixNovo : null),
+      );
+      prisma.pagamento.findUnique.mockResolvedValue({ ...pixNovo, status: 'APROVADO' });
+
+      const resultado = await service.confirmarPagamento({
+        gatewayPaymentId: 'mp_novo',
+        referenciaExterna: inscricaoPadrao.id,
+        valorPago: 60,
+        origem: 'reconciliacao',
+      });
+
+      expect(resultado).toEqual(
+        expect.objectContaining({ confirmado: true, pagamentoId: 'pagamento-novo' }),
+      );
+      expect(prisma.pagamento.findFirst).toHaveBeenCalledTimes(1);
+      expect(prisma.pagamento.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'pagamento-novo' } }),
+      );
+    });
+
     it('bloqueia a confirmação quando o valor pago é menor que o cobrado', async () => {
       prisma.pagamento.findFirst.mockResolvedValue(pagamentoPendente);
 

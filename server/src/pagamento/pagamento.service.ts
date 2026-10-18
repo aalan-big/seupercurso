@@ -533,16 +533,20 @@ export class PagamentoService {
     const { gatewayPaymentId, referenciaExterna, valorPago, valorLiquido, origem } =
       params;
 
-    const pagamentoExistente = await this.prisma.pagamento.findFirst({
-      where: {
-        OR: [
-          { gatewayPaymentId },
-          ...(referenciaExterna
-            ? [{ pedidoId: referenciaExterna }, { inscricaoId: referenciaExterna }]
-            : []),
-        ],
-      },
-    });
+    // O id do gateway vem primeiro: um pedido com dois PIX (o primeiro venceu)
+    // tem duas linhas, e buscar pelo pedido podia pegar a antiga e tentar gravar
+    // nela o id que ja e da nova — erro de unicidade e o pagamento nunca
+    // confirmava. A referencia so serve quando nenhuma linha tem esse id.
+    const pagamentoExistente =
+      (await this.prisma.pagamento.findFirst({ where: { gatewayPaymentId } })) ??
+      (referenciaExterna
+        ? await this.prisma.pagamento.findFirst({
+            where: {
+              OR: [{ pedidoId: referenciaExterna }, { inscricaoId: referenciaExterna }],
+            },
+            orderBy: { createdAt: 'desc' },
+          })
+        : null);
 
     if (pagamentoExistente?.status === StatusPagamento.APROVADO) {
       this.logger.log(
