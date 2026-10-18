@@ -147,10 +147,12 @@ async function compartilhar() {
   const url = `${window.location.origin}/eventos/${props.evento.id}`
   if (navigator.share) {
     try {
+      // O link vai dentro do texto, na linha de baixo, e nao no campo url: no
+      // Android o WhatsApp cola texto e url sem espaco ("Iguatu/CEhttps://...")
+      // e o link chega sem ser clicavel.
       await navigator.share({
         title: props.evento.nome,
-        text: `${props.evento.nome} — ${props.evento.cidade}/${props.evento.estado}`,
-        url
+        text: `${props.evento.nome} — ${props.evento.cidade}/${props.evento.estado}\n${url}`
       })
       return
     } catch (erro: any) {
