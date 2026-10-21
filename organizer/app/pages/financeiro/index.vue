@@ -265,7 +265,7 @@ function exportarRelatorioCSV() {
                 class="hover:bg-slate-50/80 transition"
               >
                 <td class="px-5 py-4 font-bold text-slate-900">
-                  <NuxtLink :to="`/eventos/${evento.eventoId}`" class="hover:text-primary transition">
+                  <NuxtLink :to="`/eventos/${evento.eventoId}/detalhes`" class="hover:text-primary transition">
                     {{ evento.nome }}
                   </NuxtLink>
                 </td>

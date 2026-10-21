@@ -887,7 +887,7 @@ function onSubmit() {
                 Para enviar seu evento para aprovação e começar a receber o dinheiro das inscrições, conecte a sua conta do Mercado Pago.
               </p>
               <NuxtLink
-                to="/mercadopago"
+                to="/financeiro"
                 target="_blank"
                 class="inline-flex items-center gap-1 font-bold text-amber-950 underline hover:text-black text-xs pt-0.5 cursor-pointer"
               >
