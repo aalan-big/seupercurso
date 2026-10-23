@@ -8,10 +8,14 @@ const erro = ref('')
 
 const eventosFiltrados = computed(() => {
   const termo = busca.value.trim().toLowerCase()
-  if (!termo) return eventos.value
-  return eventos.value.filter(
-    (evento) => evento.nome.toLowerCase().includes(termo) || evento.cidade.toLowerCase().includes(termo)
-  )
+  const filtrados = termo
+    ? eventos.value.filter(
+        (evento) => evento.nome.toLowerCase().includes(termo) || evento.cidade.toLowerCase().includes(termo)
+      )
+    : eventos.value
+  // Esgotados vao para o final; o sort e estavel, entao a ordem original se mantem dentro de cada grupo
+  const esgotado = (evento: { status: string }) => (evento.status === 'INSCRICOES_ENCERRADAS' ? 1 : 0)
+  return [...filtrados].sort((a, b) => esgotado(a) - esgotado(b))
 })
 
 onMounted(async () => {
