@@ -37,7 +37,12 @@ const rotuloEsporte = computed(
 )
 
 const estaEsgotado = computed(() => props.evento.status === 'INSCRICOES_ENCERRADAS')
-const estaFinalizado = computed(() => props.evento.status === 'FINALIZADO')
+// Passou um dia da data do evento conta como finalizado, mesmo sem o organizador mudar o status
+const estaFinalizado = computed(
+  () =>
+    props.evento.status === 'FINALIZADO' ||
+    new Date(props.evento.dataFim).getTime() + 24 * 60 * 60 * 1000 < Date.now()
+)
 const vendasEmBreve = computed(() => props.evento.situacaoVendas === 'EM_BREVE' && !!props.evento.vendasAbremEm)
 const vendasEncerradas = computed(() => props.evento.situacaoVendas === 'ENCERRADAS')
 

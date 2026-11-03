@@ -13,9 +13,16 @@ const eventosFiltrados = computed(() => {
         (evento) => evento.nome.toLowerCase().includes(termo) || evento.cidade.toLowerCase().includes(termo)
       )
     : eventos.value
-  // Esgotados vao para o final; o sort e estavel, entao a ordem original se mantem dentro de cada grupo
-  const esgotado = (evento: { status: string }) => (evento.status === 'INSCRICOES_ENCERRADAS' ? 1 : 0)
-  return [...filtrados].sort((a, b) => esgotado(a) - esgotado(b))
+  // Quem nao vende mais vai para o final e quem ja aconteceu fica por ultimo;
+  // o sort e estavel, entao a ordem original se mantem dentro de cada grupo
+  const agora = Date.now()
+  const UM_DIA = 24 * 60 * 60 * 1000
+  const grupo = (evento: (typeof filtrados)[number]) => {
+    if (evento.status === 'FINALIZADO' || new Date(evento.dataFim).getTime() + UM_DIA < agora) return 2
+    if (evento.status === 'INSCRICOES_ENCERRADAS' || evento.situacaoVendas === 'ENCERRADAS') return 1
+    return 0
+  }
+  return [...filtrados].sort((a, b) => grupo(a) - grupo(b))
 })
 
 onMounted(async () => {
