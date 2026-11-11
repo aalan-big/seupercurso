@@ -212,6 +212,9 @@ export class PagamentoService {
       // o pedido misto (servidor + pagante) cobrava o servidor tambem, e o
       // Mercado Pago recebia mais do que o site mostrou.
       if (inscricao.isServidorPublico) continue;
+      // Evento gratuito: a inscricao ja nasce confirmada a R$ 0; isto so
+      // garante que nunca vire cobranca.
+      if (inscricao.isGratuitoEvento) continue;
 
       valorBaseTotal += await calcularValorInscricao(this.prisma, {
         loteId: inscricao.loteId,

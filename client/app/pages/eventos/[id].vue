@@ -2422,8 +2422,8 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                 </div>
               </div>
 
-              <!-- Cupom de Desconto -->
-              <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-3 shadow-sm">
+              <!-- Cupom de Desconto (some no evento gratuito: nao ha o que descontar) -->
+              <div v-if="!eventoSelecionado?.eventoGratuito" class="bg-white border border-slate-200 rounded-2xl p-5 space-y-3 shadow-sm">
                 <label class="block text-xs font-black uppercase tracking-wider text-slate-700">Cupom de Desconto</label>
                 <div class="flex gap-2">
                   <input

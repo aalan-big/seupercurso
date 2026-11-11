@@ -684,6 +684,183 @@ describe('InscricaoService', () => {
     });
   });
 
+  describe('evento 100% gratuito', () => {
+    const categoriaGratuita = (vagas: number | null = null, extras: object = {}) => ({
+      ...categoriaPadrao,
+      servidorPublico: false,
+      modalidade: {
+        ...categoriaPadrao.modalidade,
+        evento: {
+          ...categoriaPadrao.modalidade.evento,
+          eventoGratuito: true,
+          vagasEventoGratuito: vagas,
+          permiteServidorPublico: false,
+          vagasServidorPublico: null,
+          ...extras,
+        },
+      },
+    });
+
+    const atleta = (cpf: string, extras: object = {}) => ({
+      categoriaId: 'categoria-1',
+      loteId: 'lote-1',
+      atleta: {
+        nomeCompleto: `Atleta ${cpf}`,
+        cpf,
+        dataNascimento: '1990-01-01',
+        genero: 'FEMININO' as const,
+        pcd: false,
+      },
+      ...extras,
+    });
+
+    beforeEach(() => {
+      prisma.categoria.findUnique.mockResolvedValue(categoriaGratuita());
+      tx.pedido = { create: jest.fn().mockResolvedValue({ id: 'pedido-1' }) };
+      tx.inscricao = {
+        create: jest.fn().mockResolvedValue({ id: 'inscricao-nova' }),
+        count: jest.fn().mockResolvedValue(0),
+      };
+      tx.pagamento = { create: jest.fn().mockResolvedValue({ id: 'pag-1' }) };
+      tx.$queryRaw = jest.fn().mockResolvedValue([{ '?column?': 1 }]);
+    });
+
+    it('confirma na hora a R$ 0 mesmo com preco cadastrado no lote', async () => {
+      // O lote tem preco de R$ 60 (beforeEach geral)
+      const res = await service.createBatch(usuarioId, { items: [atleta('11111111111')] });
+
+      expect(res.valorTotal).toBe(0);
+      expect(res.status).toBe('CONFIRMADA');
+      expect(tx.inscricao.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          isGratuitoEvento: true,
+          isServidorPublico: false,
+          status: StatusInscricao.CONFIRMADA,
+        }),
+      });
+      expect(tx.pagamento.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ valor: 0, comissaoPlataforma: 0, gateway: 'GRATUITO' }),
+      });
+    });
+
+    it('camisa opcional tambem sai de graca', async () => {
+      prisma.categoria.findUnique.mockResolvedValue(
+        categoriaGratuita(null, {
+          possuiCamisa: true,
+          camisaOpcional: true,
+          valorCamisaOpcional: '30',
+        }),
+      );
+
+      const res = await service.createBatch(usuarioId, {
+        items: [atleta('11111111111', { incluiCamisa: true, tamanhoCamisa: 'M' })],
+      });
+
+      expect(res.valorTotal).toBe(0);
+      expect(tx.inscricao.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ incluiCamisa: true, valorCamisa: null, tamanhoCamisa: 'M' }),
+      });
+    });
+
+    it('ignora cupom e matricula de servidor', async () => {
+      await service.createBatch(usuarioId, {
+        items: [atleta('11111111111', { cupomCodigo: 'BB10', matriculaServidor: '123' })],
+      });
+
+      expect(prisma.cupom.findUnique).not.toHaveBeenCalled();
+      expect(prisma.servidorPublico.findFirst).not.toHaveBeenCalled();
+      expect(tx.inscricao.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ cupomId: null, isServidorPublico: false }),
+      });
+    });
+
+    it('idoso nao precisa mandar documento', async () => {
+      prisma.categoria.findUnique.mockResolvedValue(
+        categoriaGratuita(null, { aplicaDescontoIdoso: true, percentualDescontoIdoso: '50' }),
+      );
+
+      const res = await service.createBatch(usuarioId, {
+        items: [
+          {
+            categoriaId: 'categoria-1',
+            loteId: 'lote-1',
+            atleta: {
+              nomeCompleto: 'Atleta Idoso',
+              cpf: '11111111111',
+              dataNascimento: '1950-01-01',
+              genero: 'MASCULINO' as const,
+              pcd: false,
+            },
+          },
+        ],
+      });
+
+      expect(res.valorTotal).toBe(0);
+    });
+
+    it('recusa quando as vagas gratuitas ja acabaram', async () => {
+      prisma.categoria.findUnique.mockResolvedValue(categoriaGratuita(2000));
+      prisma.inscricao.count.mockResolvedValue(2000);
+
+      await expect(
+        service.createBatch(usuarioId, { items: [atleta('11111111111')] }),
+      ).rejects.toThrow(/2000 vagas gratuitas/);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('conta os atletas do proprio carrinho no limite', async () => {
+      prisma.categoria.findUnique.mockResolvedValue(categoriaGratuita(2000));
+      prisma.inscricao.count.mockResolvedValue(1999);
+
+      await expect(
+        service.createBatch(usuarioId, {
+          items: [atleta('11111111111'), atleta('22222222222')],
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('trava e reconta dentro da transacao na ultima vaga', async () => {
+      prisma.categoria.findUnique.mockResolvedValue(categoriaGratuita(2000));
+      prisma.inscricao.count.mockResolvedValue(1999);
+      tx.inscricao.count.mockResolvedValue(1999);
+
+      const res = await service.createBatch(usuarioId, { items: [atleta('11111111111')] });
+
+      expect(res.valorTotal).toBe(0);
+      expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+      expect(tx.inscricao.count).toHaveBeenCalledWith({
+        where: expect.objectContaining({
+          isGratuitoEvento: true,
+          categoria: { modalidade: { eventoId } },
+        }),
+      });
+    });
+
+    it('recusa quando outra compra levou a ultima vaga enquanto esta esperava', async () => {
+      prisma.categoria.findUnique.mockResolvedValue(categoriaGratuita(2000));
+      prisma.inscricao.count.mockResolvedValue(1999);
+      tx.inscricao.count.mockResolvedValue(2000);
+
+      await expect(
+        service.createBatch(usuarioId, { items: [atleta('11111111111')] }),
+      ).rejects.toThrow(/já foram preenchidas/);
+      expect(tx.inscricao.create).not.toHaveBeenCalled();
+    });
+
+    it('sem limite de vagas nao usa a trava', async () => {
+      await service.createBatch(usuarioId, { items: [atleta('11111111111')] });
+
+      expect(tx.$queryRaw).not.toHaveBeenCalled();
+    });
+
+    it('recusa a inscricao individual (sem carrinho) do evento gratuito', async () => {
+      prisma.categoria.findUnique.mockResolvedValue(categoriaGratuita(2000));
+
+      await expect(service.create(usuarioId, dto)).rejects.toThrow(BadRequestException);
+    });
+  });
+
   describe('limite de usos do cupom', () => {
     const cupomLimitado = {
       id: 'cupom-1',

@@ -22,6 +22,8 @@ export interface EventoResumo {
   percentualDescontoPcd?: string | number | null
   permiteServidorPublico?: boolean
   vagasServidorPublico?: number | null
+  // Evento 100% gratuito (liberado pelo admin): a API ja manda os precos a 0.
+  eventoGratuito?: boolean
   permiteFuncionarios?: boolean
   percentualFuncionarios?: string | number | null
   nomeEmpresaFuncionarios?: string | null

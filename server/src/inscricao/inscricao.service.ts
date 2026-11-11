@@ -33,6 +33,10 @@ import {
   funcionarioEstaEmUso,
 } from '../common/funcionario-empresa-em-uso';
 import { nomesConferem } from '../common/nomes-conferem';
+import {
+  filtroVagaGratuitaEmUso,
+  mensagemVagasGratuitasEsgotadas,
+} from '../common/evento-gratuito';
 import { CreateInscricaoDto } from './dto/create-inscricao.dto';
 import { CreateInscricaoBatchDto } from './dto/create-inscricao-batch.dto';
 import { ValidarServidorDto } from './dto/validar-servidor.dto';
@@ -65,6 +69,12 @@ export class InscricaoService {
     if (categoria.servidorPublico) {
       throw new BadRequestException(
         'Inscrições na categoria Servidor Público são feitas pela página do evento.',
+      );
+    }
+    // Mesmo motivo: o limite de vagas gratuitas so e conferido no carrinho.
+    if (categoria.modalidade.evento.eventoGratuito) {
+      throw new BadRequestException(
+        'As inscrições gratuitas deste evento são feitas pela página do evento.',
       );
     }
 
@@ -325,6 +335,7 @@ export class InscricaoService {
       percentualFuncionario?: number | null;
       funcionarioEmpresaId?: string | null;
       inscricaoPendenteParaCancelar?: string | null;
+      isGratuitoEvento?: boolean;
     }> = [];
 
     const cpfsNoCarrinho = new Set<string>();
@@ -338,6 +349,9 @@ export class InscricaoService {
     const cuponsNoCarrinho = new Map<string, number>();
     // E para os contratos de funcionario (vagas e o mesmo contrato duas vezes).
     const funcionariosNoCarrinho = { quantidade: 0, matriculas: new Set<string>() };
+    // Evento gratuito com limite: mesma contagem do servidor, refeita na
+    // transacao com trava.
+    const vagasGratuitasPorEvento = new Map<string, { vagas: number; noCarrinho: number }>();
 
     for (const item of dto.items) {
       let atletaNome: string;
@@ -438,7 +452,26 @@ export class InscricaoService {
         throw new ConflictException(`O atleta ${atletaNome} (CPF ${atletaCpf}) já possui uma inscrição confirmada para este evento.`);
       }
 
-      const cupomId = item.cupomCodigo
+      // Evento gratuito: tudo sai a R$ 0, entao cupom, servidor, funcionario e
+      // documento de idoso/PCD nao entram.
+      const eventoGratuito = categoria.modalidade.evento.eventoGratuito;
+      if (eventoGratuito) {
+        const vagas = categoria.modalidade.evento.vagasEventoGratuito;
+        if (vagas !== null) {
+          const eventoId = categoria.modalidade.eventoId;
+          const atual = vagasGratuitasPorEvento.get(eventoId) ?? { vagas, noCarrinho: 0 };
+          const usadas = await this.prisma.inscricao.count({
+            where: filtroVagaGratuitaEmUso(eventoId),
+          });
+          if (usadas + atual.noCarrinho >= vagas) {
+            throw new BadRequestException(mensagemVagasGratuitasEsgotadas(vagas));
+          }
+          atual.noCarrinho++;
+          vagasGratuitasPorEvento.set(eventoId, atual);
+        }
+      }
+
+      const cupomId = item.cupomCodigo && !eventoGratuito
         ? await this.resolverCupomOuFalhar(
             lote.eventoId,
             item.cupomCodigo,
@@ -457,7 +490,7 @@ export class InscricaoService {
       // O servidor da lista disputa qualquer categoria de graca (Geral, faixa de
       // idade...). Na categoria marcada como Servidor Publico a matricula e
       // obrigatoria; nas demais, so conta se vier informada.
-      if (categoria.servidorPublico || item.matriculaServidor) {
+      if (!eventoGratuito && (categoria.servidorPublico || item.matriculaServidor)) {
         if (!categoria.modalidade.evento.permiteServidorPublico) {
           throw new BadRequestException('A categoria de servidor público com isenção não está liberada para este evento.');
         }
@@ -527,7 +560,7 @@ export class InscricaoService {
       let inscricaoPendenteParaCancelar: string | null = null;
 
       // Desconto de funcionario: nao acumula com servidor, cupom nem idoso.
-      if (item.matriculaFuncionario?.trim()) {
+      if (!eventoGratuito && item.matriculaFuncionario?.trim()) {
         if (isServidorPublico) {
           throw new BadRequestException(
             `${atletaNome} já tem a isenção de servidor público; o desconto de funcionário não se aplica junto.`,
@@ -563,8 +596,8 @@ export class InscricaoService {
         categoria.modalidade.evento,
         { dataNascimento: atletaDataNascimento, pcd: atletaPcd },
         atletaNome,
-        isFuncionario ? undefined : item.documentoIdosoUrl,
-        !isServidorPublico && !isFuncionario,
+        isFuncionario || eventoGratuito ? undefined : item.documentoIdosoUrl,
+        !isServidorPublico && !isFuncionario && !eventoGratuito,
       );
       const documentoIdosoUrl = documentoDesconto.url;
       const descontoPcd = documentoDesconto.pcd;
@@ -574,7 +607,7 @@ export class InscricaoService {
         evento.possuiCamisa && (!evento.camisaOpcional || !!item.incluiCamisa);
 
       let valor = 0;
-      if (isServidorPublico) {
+      if (isServidorPublico || eventoGratuito) {
         valor = 0;
       } else {
         valor = await calcularValorInscricao(this.prisma, {
@@ -596,7 +629,7 @@ export class InscricaoService {
         cupomId,
         incluiCamisa: querCamisa,
         valorCamisa:
-          evento.camisaOpcional && querCamisa && evento.valorCamisaOpcional
+          !eventoGratuito && evento.camisaOpcional && querCamisa && evento.valorCamisaOpcional
             ? evento.valorCamisaOpcional
             : null,
         modeloCamisaId: querCamisa
@@ -620,6 +653,7 @@ export class InscricaoService {
         percentualFuncionario,
         funcionarioEmpresaId,
         inscricaoPendenteParaCancelar,
+        isGratuitoEvento: eventoGratuito,
       });
     }
 
@@ -642,6 +676,20 @@ export class InscricaoService {
           throw new BadRequestException(
             `As vagas gratuitas para servidores públicos deste evento (${vagas} vagas) já foram esgotadas.`,
           );
+        }
+      }
+
+      // Mesma trava para o evento gratuito: na ultima vaga, so uma compra
+      // passa. Chave propria para nao misturar com a do servidor.
+      for (const eventoId of [...vagasGratuitasPorEvento.keys()].sort()) {
+        const { vagas, noCarrinho } = vagasGratuitasPorEvento.get(eventoId)!;
+        const chave = `evento-gratuito:${eventoId}`;
+        await tx.$queryRaw`SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtext(${chave}))) AS trava`;
+        const usadas = await tx.inscricao.count({
+          where: filtroVagaGratuitaEmUso(eventoId),
+        });
+        if (usadas + noCarrinho > vagas) {
+          throw new BadRequestException(mensagemVagasGratuitasEsgotadas(vagas));
         }
       }
 
@@ -698,6 +746,7 @@ export class InscricaoService {
             isFuncionario: itemData.isFuncionario ?? false,
             matriculaFuncionario: itemData.matriculaFuncionario || null,
             percentualFuncionario: itemData.percentualFuncionario ?? null,
+            isGratuitoEvento: itemData.isGratuitoEvento ?? false,
             status: ehTotalmenteGratuito
               ? StatusInscricao.CONFIRMADA
               : StatusInscricao.PENDENTE_PAGAMENTO,

@@ -352,6 +352,12 @@ model Evento {
   tipoEsporte             TipoEsporte  @default(CORRIDA)
   permiteServidorPublico  Boolean      @default(false)
   vagasServidorPublico    Int?
+  // Evento 100% gratuito para qualquer pessoa (ex.: prefeitura comprou as
+  // vagas por fora). So o admin liga; nao convive com o servidor publico.
+  // Inscricao, camisa e taxa saem a R$ 0, sem lista e sem matricula, ate
+  // acabar `vagasEventoGratuito` (nulo = sem limite proprio).
+  eventoGratuito          Boolean      @default(false)
+  vagasEventoGratuito     Int?
   // Sem uso desde 2026-10: o organizador cria cupom a vontade e o admin
   // bloqueia cupom a cupom (Cupom.ativo). Mantidas no banco para nao precisar
   // de migration; podem ser removidas depois.
@@ -590,7 +596,9 @@ model Inscricao {
   kitEntregueEm     DateTime?
   isServidorPublico Boolean         @default(false)
   matriculaServidor String?
-  isFuncionario        Boolean  @default(false)
+  // Feita com o evento em modo gratuito: conta no limite `vagasEventoGratuito`.
+  isGratuitoEvento  Boolean         @default(false)
+  isFuncionario      Boolean  @default(false)
   matriculaFuncionario String?
   percentualFuncionario Decimal? @db.Decimal(5, 2)
   dataInscricao     DateTime        @default(now())

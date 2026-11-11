@@ -13,21 +13,41 @@ const liberandoServidor = ref(false)
 const erro = ref('')
 const sucesso = ref('')
 
+// Um modo por vez: servidor publico (com lista e matricula) ou evento 100%
+// gratuito para qualquer pessoa. O limite de vagas vale para o modo escolhido.
+type ModoIsencao = 'DESLIGADO' | 'SERVIDOR' | 'GRATUITO'
+
 const formServidor = reactive({
-  liberado: false,
+  modo: 'DESLIGADO' as ModoIsencao,
   vagas: ''
 })
+
+const opcoesModo: { valor: ModoIsencao; titulo: string; descricao: string }[] = [
+  { valor: 'DESLIGADO', titulo: 'Desligado', descricao: 'Evento pago normalmente.' },
+  { valor: 'SERVIDOR', titulo: 'Servidor Público', descricao: 'Grátis só para quem está na lista (CPF + matrícula).' },
+  { valor: 'GRATUITO', titulo: 'Evento 100% Gratuito', descricao: 'Grátis para qualquer pessoa, sem lista. Inscrição e camisa a R$ 0.' }
+]
+
+function vagasDoModo(ev: EventoAdmin, modo: ModoIsencao) {
+  const vagas = modo === 'GRATUITO' ? ev.vagasEventoGratuito : ev.vagasServidorPublico
+  return vagas ? String(vagas) : ''
+}
 
 watch(
   evento,
   (ev) => {
     if (ev) {
-      formServidor.liberado = !!ev.permiteServidorPublico
-      formServidor.vagas = ev.vagasServidorPublico ? String(ev.vagasServidorPublico) : ''
+      formServidor.modo = ev.eventoGratuito ? 'GRATUITO' : ev.permiteServidorPublico ? 'SERVIDOR' : 'DESLIGADO'
+      formServidor.vagas = vagasDoModo(ev, formServidor.modo)
     }
   },
   { immediate: true }
 )
+
+function escolherModo(modo: ModoIsencao) {
+  formServidor.modo = modo
+  if (evento.value) formServidor.vagas = vagasDoModo(evento.value, modo)
+}
 
 async function onSalvarServidorPublico() {
   erro.value = ''
@@ -35,10 +55,19 @@ async function onSalvarServidorPublico() {
   liberandoServidor.value = true
   try {
     const vagasNum = formServidor.vagas ? Number(formServidor.vagas) : null
-    evento.value = await configurarServidorPublico(route.params.id as string, formServidor.liberado, vagasNum)
-    sucesso.value = formServidor.liberado
-      ? 'Configuração de Servidor Público liberada para este evento com sucesso!'
-      : 'Recurso de Servidor Público desativado para este evento.'
+    const modo = formServidor.modo
+    evento.value = await configurarServidorPublico(
+      route.params.id as string,
+      modo === 'SERVIDOR',
+      vagasNum,
+      modo === 'GRATUITO'
+    )
+    sucesso.value =
+      modo === 'GRATUITO'
+        ? 'Evento liberado como 100% gratuito para todos.'
+        : modo === 'SERVIDOR'
+          ? 'Configuração de Servidor Público liberada para este evento com sucesso!'
+          : 'Isenção desativada: o evento volta a ser pago normalmente.'
   } catch (e) {
     erro.value = extrairErro(e)
   } finally {
@@ -254,7 +283,7 @@ async function confirmarSuspensao() {
             <Landmark :size="24" class="shrink-0 text-slate-600" />
             <div>
               <h2 class="text-sm font-bold uppercase tracking-wide text-slate-800">
-                Inscrições de Servidor Público (Isenção Pré-paga)
+                Isenção Pré-paga (Servidor Público ou Evento Gratuito)
               </h2>
               <p class="text-xs text-slate-500 mt-0.5">
                 Libere esta opção apenas se o organizador/prefeitura pagou a taxa da plataforma (10% por vaga) antecipadamente por fora.
@@ -263,32 +292,47 @@ async function confirmarSuspensao() {
           </div>
           <span
             class="self-start sm:self-auto rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-wider"
-            :class="evento.permiteServidorPublico ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-slate-100 text-slate-600'"
+            :class="evento.eventoGratuito || evento.permiteServidorPublico ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-slate-100 text-slate-600'"
           >
-            {{ evento.permiteServidorPublico ? 'Liberado para o Organizador' : 'Bloqueado' }}
+            {{ evento.eventoGratuito ? 'Gratuito para todos' : evento.permiteServidorPublico ? 'Liberado para o Organizador' : 'Bloqueado' }}
           </span>
         </div>
 
-        <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 items-end border-t border-slate-100 pt-4">
-          <div>
-            <label class="block text-xs font-bold uppercase tracking-wide text-slate-600 mb-1.5">Permissão no Painel</label>
-            <label class="flex items-center gap-2 text-xs font-semibold cursor-pointer bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-              <input
-                v-model="formServidor.liberado"
-                type="checkbox"
-                class="h-4 w-4 rounded accent-emerald-600"
-              />
-              <span class="text-slate-800 font-bold">Ativar Categoria Servidor Público</span>
-            </label>
+        <div class="mt-4 border-t border-slate-100 pt-4">
+          <label class="block text-xs font-bold uppercase tracking-wide text-slate-600 mb-1.5">Tipo de isenção</label>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <button
+              v-for="opcao in opcoesModo"
+              :key="opcao.valor"
+              type="button"
+              class="text-left rounded-xl border p-3 transition"
+              :class="formServidor.modo === opcao.valor ? 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500' : 'border-slate-200 bg-slate-50 hover:border-slate-300'"
+              @click="escolherModo(opcao.valor)"
+            >
+              <span class="flex items-center gap-2">
+                <span
+                  class="h-4 w-4 shrink-0 rounded-full border-2"
+                  :class="formServidor.modo === opcao.valor ? 'border-emerald-600 bg-emerald-600 ring-2 ring-inset ring-white' : 'border-slate-400 bg-white'"
+                />
+                <span class="text-xs font-bold text-slate-800">{{ opcao.titulo }}</span>
+              </span>
+              <span class="mt-1 block text-[11px] text-slate-500">{{ opcao.descricao }}</span>
+            </button>
           </div>
+          <p v-if="evento.eventoGratuito" class="mt-2 text-xs font-semibold text-emerald-700">
+            {{ evento.vagasGratuitasUsadas ?? 0 }}
+            {{ evento.vagasEventoGratuito ? `de ${evento.vagasEventoGratuito} vagas gratuitas usadas` : 'inscrições gratuitas (sem limite)' }}
+          </p>
+        </div>
 
-          <div>
+        <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+          <div v-if="formServidor.modo !== 'DESLIGADO'">
             <label class="block text-xs font-bold uppercase tracking-wide text-slate-600 mb-1.5">Limite de Vagas Gratuitas (opcional)</label>
             <input
               v-model="formServidor.vagas"
               type="number"
               min="1"
-              placeholder="Ex: 500 (Vazio = sem limite)"
+              :placeholder="formServidor.modo === 'GRATUITO' ? 'Ex: 2000 (Vazio = sem limite)' : 'Ex: 500 (Vazio = sem limite)'"
               class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-xs font-semibold focus:border-emerald-600 focus:outline-none"
             />
           </div>

@@ -184,6 +184,7 @@ export class AdminController {
       id,
       dto.liberado,
       dto.vagas,
+      dto.gratuito ?? false,
     );
   }
 

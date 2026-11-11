@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StatusEvento, StatusInscricao } from '../generated/prisma/enums';
 import { contarUsosCupom } from '../common/contar-usos-cupom';
 import { calcularSituacaoVendas } from '../common/situacao-vendas';
+import { filtroVagaGratuitaEmUso } from '../common/evento-gratuito';
 
 const RESUMO_SELECT = {
   id: true,
@@ -33,6 +34,8 @@ const RESUMO_SELECT = {
   percentualDescontoPcd: true,
   permiteServidorPublico: true,
   vagasServidorPublico: true,
+  eventoGratuito: true,
+  vagasEventoGratuito: true,
   tipoEsporte: true,
   // Desconto para funcionarios: o site mostra o campo do contrato e o preco.
   permiteFuncionarios: true,
@@ -137,7 +140,12 @@ export class EventoService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return eventos.map(({ lotes, ...evento }) => {
+    const lotados = await this.eventosGratuitosLotados(eventos);
+
+    return eventos.map(({ lotes, ...eventoOriginal }) => {
+      const evento = lotados.has(eventoOriginal.id)
+        ? { ...eventoOriginal, status: StatusEvento.INSCRICOES_ENCERRADAS }
+        : eventoOriginal;
       // 1. Tenta pegar preços dos lotes vigentes no momento atual deste evento
       const lotesVigentes = (lotes || []).filter((l) => {
         const inicio = new Date(l.inicioVenda);
@@ -158,13 +166,47 @@ export class EventoService {
 
       return {
         ...evento,
-        valorApartirDe: valores.length > 0 ? Math.min(...valores) : null,
+        valorApartirDe: evento.eventoGratuito
+          ? 0
+          : valores.length > 0
+            ? Math.min(...valores)
+            : null,
         // So faz sentido para evento publicado; esgotado/finalizado ja tem aviso proprio
         ...(evento.status === StatusEvento.PUBLICADO
           ? calcularSituacaoVendas(lotes, agora)
           : { situacaoVendas: null, vendasAbremEm: null }),
       };
     });
+  }
+
+  /**
+   * Eventos gratuitos publicados que ja usaram todas as vagas gratuitas. O site
+   * inteiro trata "esgotado" pelo status INSCRICOES_ENCERRADAS (card, ordem da
+   * home, pagina do evento); a API so informa assim, sem gravar no banco, e
+   * uma vaga devolvida por cancelamento reabre o evento sozinha.
+   */
+  private async eventosGratuitosLotados(
+    eventos: Array<{
+      id: string;
+      status: StatusEvento;
+      eventoGratuito: boolean;
+      vagasEventoGratuito: number | null;
+    }>,
+  ): Promise<Set<string>> {
+    const comLimite = eventos.filter(
+      (e) =>
+        e.eventoGratuito &&
+        e.vagasEventoGratuito !== null &&
+        e.status === StatusEvento.PUBLICADO,
+    );
+    const lotados = new Set<string>();
+    for (const evento of comLimite) {
+      const usadas = await this.prisma.inscricao.count({
+        where: filtroVagaGratuitaEmUso(evento.id),
+      });
+      if (usadas >= evento.vagasEventoGratuito!) lotados.add(evento.id);
+    }
+    return lotados;
   }
 
   async findOneDetalhado(id: string) {
@@ -348,7 +390,7 @@ export class EventoService {
     const pj = organizador.cliente.pj;
     const pf = organizador.cliente.pf;
 
-    return {
+    const resposta = {
       ...dadosEvento,
       organizador: {
         nome: pj ? pj.nomeFantasia || pj.razaoSocial : pf?.nomeCompleto ?? null,
@@ -390,6 +432,75 @@ export class EventoService {
           lote.quantidade === null
             ? null
             : lote.quantidade - _count.inscricoes,
+      })),
+    };
+
+    return evento.eventoGratuito
+      ? this.comoEventoGratuito(resposta)
+      : resposta;
+  }
+
+  /**
+   * Evento 100% gratuito: o site recebe tudo a R$ 0 e sem os descontos (que
+   * nao fazem sentido sem preco), e assim mostra "Gratuito" e conclui a
+   * inscricao sem pagamento pelo caminho que ja existe. O servidor aplica a
+   * mesma regra na hora de inscrever; isto e so o que o site enxerga.
+   */
+  private async comoEventoGratuito<
+    T extends {
+      id: string;
+      status: StatusEvento;
+      vagasEventoGratuito: number | null;
+      vagasRestantes: number | null;
+      modalidades: Array<{ vagasRestantes: number | null }>;
+      lotes: Array<{ precos: Array<{ valor: unknown }> }>;
+    },
+  >(resposta: T) {
+    let vagasGratuitasRestantes: number | null = null;
+    if (resposta.vagasEventoGratuito !== null) {
+      const usadas = await this.prisma.inscricao.count({
+        where: filtroVagaGratuitaEmUso(resposta.id),
+      });
+      vagasGratuitasRestantes = Math.max(0, resposta.vagasEventoGratuito - usadas);
+    }
+
+    // Vagas acabando antes da capacidade: o site usa os mesmos campos de
+    // "vagas restantes" para avisar esgotado.
+    const limitar = (v: number | null) =>
+      vagasGratuitasRestantes === null
+        ? v
+        : v === null
+          ? vagasGratuitasRestantes
+          : Math.min(v, vagasGratuitasRestantes);
+
+    // Acabaram as vagas gratuitas: a pagina mostra "Inscrições Esgotadas",
+    // como na vitrine (ver eventosGratuitosLotados).
+    const lotado =
+      vagasGratuitasRestantes === 0 && resposta.status === StatusEvento.PUBLICADO;
+
+    return {
+      ...resposta,
+      ...(lotado
+        ? {
+            status: StatusEvento.INSCRICOES_ENCERRADAS,
+            situacaoVendas: null,
+            vendasAbremEm: null,
+          }
+        : {}),
+      valorCamisaOpcional: null,
+      aplicaDescontoIdoso: false,
+      aplicaDescontoPcd: false,
+      permiteServidorPublico: false,
+      permiteFuncionarios: false,
+      vagasGratuitasRestantes,
+      vagasRestantes: limitar(resposta.vagasRestantes),
+      modalidades: resposta.modalidades.map((mod) => ({
+        ...mod,
+        vagasRestantes: limitar(mod.vagasRestantes),
+      })),
+      lotes: resposta.lotes.map((lote) => ({
+        ...lote,
+        precos: lote.precos.map((preco) => ({ ...preco, valor: 0 })),
       })),
     };
   }

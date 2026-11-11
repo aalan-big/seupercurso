@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { OrganizadorService } from '../organizador/organizador.service';
 import { FILTRO_FUNCIONARIO_EM_USO } from '../common/funcionario-empresa-em-uso';
+import { filtroVagaGratuitaEmUso } from '../common/evento-gratuito';
 import { FuncionariosConfigDto } from './dto/funcionarios-config.dto';
 import { Prisma } from '../generated/prisma/client';
 import {
@@ -171,7 +172,11 @@ export class AdminService {
     if (!evento) {
       throw new NotFoundException('Evento não encontrado.');
     }
-    return { ...evento, resumoFuncionarios: await this.resumoFuncionarios(id) };
+    return {
+      ...evento,
+      resumoFuncionarios: await this.resumoFuncionarios(id),
+      vagasGratuitasUsadas: await this.contarVagasGratuitasUsadas(id),
+    };
   }
 
   /**
@@ -272,17 +277,47 @@ export class AdminService {
     });
   }
 
-  async configurarServidorPublico(id: string, liberado: boolean, vagas?: number | null) {
+  async configurarServidorPublico(
+    id: string,
+    liberado: boolean,
+    vagas?: number | null,
+    gratuito: boolean = false,
+  ) {
     await this.getEventoOuFalhar(id);
 
-    return this.prisma.evento.update({
+    if (liberado && gratuito) {
+      throw new BadRequestException(
+        'Escolha entre Servidor Público e Evento Gratuito: os dois não podem ficar ligados juntos.',
+      );
+    }
+
+    // No modo gratuito o limite vai para o campo proprio e o do servidor fica
+    // como estava; fora dele, o servidor segue exatamente como antes.
+    const atualizado = await this.prisma.evento.update({
       where: { id },
-      data: {
-        permiteServidorPublico: liberado,
-        vagasServidorPublico: vagas ?? null,
-      },
+      data: gratuito
+        ? {
+            permiteServidorPublico: false,
+            eventoGratuito: true,
+            vagasEventoGratuito: vagas ?? null,
+          }
+        : {
+            permiteServidorPublico: liberado,
+            vagasServidorPublico: vagas ?? null,
+            eventoGratuito: false,
+          },
       include: EVENTO_INCLUDE,
     });
+
+    return {
+      ...atualizado,
+      resumoFuncionarios: await this.resumoFuncionarios(id),
+      vagasGratuitasUsadas: await this.contarVagasGratuitasUsadas(id),
+    };
+  }
+
+  private contarVagasGratuitasUsadas(eventoId: string) {
+    return this.prisma.inscricao.count({ where: filtroVagaGratuitaEmUso(eventoId) });
   }
 
   // Bloqueado (ativo = false) o cupom deixa de valer em inscricao nova; as ja

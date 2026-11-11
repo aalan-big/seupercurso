@@ -15,6 +15,9 @@ export interface EventoAdmin {
   motivoRejeicao: string | null
   permiteServidorPublico?: boolean
   vagasServidorPublico?: number | null
+  eventoGratuito?: boolean
+  vagasEventoGratuito?: number | null
+  vagasGratuitasUsadas?: number
   permiteFuncionarios?: boolean
   percentualFuncionarios?: string | null
   vagasFuncionarios?: number | null
@@ -77,10 +80,10 @@ export function useAdminEventos() {
     })
   }
 
-  async function configurarServidorPublico(id: string, liberado: boolean, vagas?: number | null) {
+  async function configurarServidorPublico(id: string, liberado: boolean, vagas?: number | null, gratuito = false) {
     return api<EventoAdmin>(`/admin/eventos/${id}/servidor-publico`, {
       method: 'POST',
-      body: { liberado, vagas }
+      body: { liberado, vagas, gratuito }
     })
   }
 

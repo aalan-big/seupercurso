@@ -8,4 +8,10 @@ export class ServidorPublicoConfigDto {
   @IsInt()
   @Min(1)
   vagas?: number | null;
+
+  // Evento 100% gratuito para todos. Fica no mesmo card do servidor publico e
+  // nao pode ser ligado junto com ele. `vagas` vale para o modo escolhido.
+  @IsOptional()
+  @IsBoolean()
+  gratuito?: boolean;
 }
