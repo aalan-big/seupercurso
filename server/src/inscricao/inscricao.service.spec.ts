@@ -958,6 +958,39 @@ describe('InscricaoService', () => {
 
       expect(tx.inscricao.create).toHaveBeenCalledTimes(2);
     });
+
+    it('cupom de 100% nao entra de graca: fica pendente para pagar a taxa do site', async () => {
+      const cupom100 = { ...cupomLimitado, percentualDesconto: '100', quantidadeMaxima: null, cortesiaSemTaxa: false };
+      prisma.cupom.findFirst.mockResolvedValue(cupom100);
+      prisma.cupom.findUnique.mockResolvedValue(cupom100);
+      tx.pagamento = { create: jest.fn() };
+
+      const res = await service.createBatch(usuarioId, { items: [atletaComCupom('11111111111')] });
+
+      // Devolve a taxa (10% de 60), para a tela seguir para o PIX.
+      expect(res.valorTotal).toBe(6);
+      expect(res.status).toBe('PENDENTE_PAGAMENTO');
+      expect(tx.pagamento.create).not.toHaveBeenCalled();
+      expect(tx.inscricao.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: StatusInscricao.PENDENTE_PAGAMENTO }),
+        }),
+      );
+    });
+
+    it('cupom de 100% liberado como cortesia pelo admin continua de graca', async () => {
+      const cortesia = { ...cupomLimitado, percentualDesconto: '100', quantidadeMaxima: null, cortesiaSemTaxa: true };
+      prisma.cupom.findFirst.mockResolvedValue(cortesia);
+      prisma.cupom.findUnique.mockResolvedValue(cortesia);
+      tx.pagamento = { create: jest.fn() };
+
+      const res = await service.createBatch(usuarioId, { items: [atletaComCupom('11111111111')] });
+
+      expect(res.status).toBe('CONFIRMADA');
+      expect(tx.pagamento.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ valor: 0, comissaoPlataforma: 0, gateway: 'GRATUITO' }),
+      });
+    });
   });
 
   describe('desconto para funcionarios', () => {

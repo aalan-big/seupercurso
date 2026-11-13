@@ -39,8 +39,15 @@ export class PagamentoController {
   async obterTarifas(
     @Query('valorBase') valorBase?: string,
     @Query('eventoId') eventoId?: string,
+    // Preco antes do cupom: a taxa do site sai dele (ver calcularValoresInscricao).
+    // Sem o parametro vale o proprio valorBase, como antes.
+    @Query('baseComissao') baseComissao?: string,
   ) {
     const base = Number(valorBase);
+    const baseTaxa =
+      baseComissao !== undefined && Number.isFinite(Number(baseComissao))
+        ? Math.max(0, Number(baseComissao))
+        : undefined;
 
     // A mesma tarifa que o `create` vai usar: sem isso a tela mostraria o
     // parcelamento com a nossa tarifa e a cobranca sairia com a do organizador.
@@ -49,15 +56,18 @@ export class PagamentoController {
 
     const tabela = this.tarifaService.obterTabela(percentualCartao);
 
-    if (!Number.isFinite(base) || base <= 0) return tabela;
+    const baseValida = Number.isFinite(base) && base > 0 ? base : 0;
+    if (baseValida <= 0 && !(baseTaxa && baseTaxa > 0)) return tabela;
 
     // A comissao entra no valor do atleta apenas quando o organizador escolheu
     // repassa-la; e o que o checkout mostra como "taxa de servico".
     const taxaServico = await this.tarifaService.calcularTaxaServico(
-      base,
+      baseValida,
       eventoId,
+      baseTaxa,
     );
-    const comTaxa = Number((base + taxaServico).toFixed(2));
+    const comTaxa = Number((baseValida + taxaServico).toFixed(2));
+    if (comTaxa <= 0) return tabela;
 
     return {
       ...tabela,

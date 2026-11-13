@@ -31,10 +31,29 @@ interface ContextoValor {
   percentualFuncionario?: number | string | { toString(): string } | null;
 }
 
+export interface ValoresInscricao {
+  /** O que o atleta paga pela inscricao (sem a taxa do site). */
+  valor: number;
+  /**
+   * Base sobre a qual sai a taxa do site: o preco antes do cupom. O cupom e
+   * desconto do organizador e nao diminui a parte da plataforma; senao um
+   * cupom de 100% (ou de 99%) virava inscricao sem taxa nenhuma. So o cupom de
+   * cortesia liberado pelo admin (`Cupom.cortesiaSemTaxa`) leva a taxa junto.
+   */
+  baseComissao: number;
+}
+
 export async function calcularValorInscricao(
   prisma: PrismaService,
   ctx: ContextoValor,
 ): Promise<number> {
+  return (await calcularValoresInscricao(prisma, ctx)).valor;
+}
+
+export async function calcularValoresInscricao(
+  prisma: PrismaService,
+  ctx: ContextoValor,
+): Promise<ValoresInscricao> {
   const preco = await resolverPreco(prisma, ctx.loteId, ctx.modalidadeId);
   let valor = Number(preco.valor);
 
@@ -75,26 +94,37 @@ export async function calcularValorInscricao(
     }
   }
 
+  let descontoCupom = 0;
+  let cupomLevaATaxa = false;
   if (ctx.cupomId && percentualFuncionario <= 0) {
     const cupom = await prisma.cupom.findUnique({ where: { id: ctx.cupomId } });
     if (cupom?.ativo) {
-      valor -= valor * (Number(cupom.percentualDesconto) / 100);
+      descontoCupom = valor * (Number(cupom.percentualDesconto) / 100);
+      cupomLevaATaxa = cupom.cortesiaSemTaxa;
     }
   }
+  const valorSemCupom = valor;
+  valor -= descontoCupom;
 
   // Camisa opcional escolhida pelo participante. A inscricao ja criada traz o
   // valor gravado; sem ele (pedido sendo montado), vale o preco do evento.
+  let camisa = 0;
   if (ctx.valorCamisa !== undefined) {
     if (ctx.incluiCamisa && ctx.valorCamisa !== null) {
-      valor += Number(ctx.valorCamisa);
+      camisa = Number(ctx.valorCamisa);
     }
   } else if (evento?.camisaOpcional && ctx.incluiCamisa && evento.valorCamisaOpcional) {
-    valor += Number(evento.valorCamisaOpcional);
+    camisa = Number(evento.valorCamisaOpcional);
   }
+  valor += camisa;
 
   // A comissao da plataforma NAO entra aqui. Esta funcao devolve so o preco da
   // inscricao; quem paga a comissao e decidido no pagamento, por
   // `Evento.comissaoPagaPeloAtleta`, e somada la como taxa de servico. Somar
   // aqui inflava a base sobre a qual a propria comissao era calculada.
-  return Math.max(0, Number(valor.toFixed(2)));
+  const valorFinal = Math.max(0, Number(valor.toFixed(2)));
+  const baseComissao = cupomLevaATaxa
+    ? valorFinal
+    : Math.max(0, Number((valorSemCupom + camisa).toFixed(2)));
+  return { valor: valorFinal, baseComissao };
 }

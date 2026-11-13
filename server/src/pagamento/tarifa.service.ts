@@ -25,6 +25,33 @@ export interface TabelaTarifas {
 }
 
 /**
+ * Quem paga a comissao em cada cobranca.
+ *
+ * Repassando ao atleta (`comissaoPagaPeloAtleta`), ela vira taxa de servico
+ * somada ao valor. Absorvendo, sai do repasse do organizador, mas so ate o que
+ * ele tem a receber: com cupom, a comissao sai do preco antes do desconto e
+ * pode passar do valor pago (cupom de 100% = valor zero). O que faltar o atleta
+ * paga como taxa de servico, senao a inscricao entrava sem a parte do site.
+ */
+export function dividirComissao(
+  valorBase: number,
+  comissao: number,
+  comissaoPagaPeloAtleta: boolean,
+): { taxaServico: number; valorAntesDaTarifa: number; repasseOrganizador: number } {
+  const taxaServico = comissaoPagaPeloAtleta
+    ? comissao
+    : Math.max(0, Number((comissao - valorBase).toFixed(2)));
+  // Sem taxa de servico o valor segue exatamente o de antes (sem arredondar).
+  const valorAntesDaTarifa =
+    taxaServico > 0 ? Number((valorBase + taxaServico).toFixed(2)) : valorBase;
+  return {
+    taxaServico,
+    valorAntesDaTarifa,
+    repasseOrganizador: Math.max(0, Number((valorAntesDaTarifa - comissao).toFixed(2))),
+  };
+}
+
+/**
  * Centraliza as tarifas do gateway e o repasse delas ao pagador.
  *
  * Regra do negócio: a tarifa do gateway é sempre paga por quem compra. O
@@ -45,11 +72,21 @@ export class TarifaService {
   ) {}
 
   /**
-   * Comissao repassada ao atleta como taxa de servico, quando o organizador
-   * escolheu nao absorve-la. Zero quando ele absorve — o padrao.
+   * Taxa de servico mostrada ao atleta: o que ele paga alem do valor das
+   * inscricoes, antes da tarifa do gateway. Mesma regra de `dividirComissao`,
+   * que e a que a cobranca usa.
+   *
+   * @param baseComissao preco antes do cupom (ver `calcularValoresInscricao`);
+   *   sem ela, vale o proprio `valorBase`, como antes.
    */
-  async calcularTaxaServico(valorBase: number, eventoId?: string): Promise<number> {
-    if (!eventoId || !valorBase || valorBase <= 0) return 0;
+  async calcularTaxaServico(
+    valorBase: number,
+    eventoId?: string,
+    baseComissao?: number,
+  ): Promise<number> {
+    const base = Math.max(0, valorBase || 0);
+    const baseTaxa = Math.max(0, baseComissao ?? base);
+    if (!eventoId || (base <= 0 && baseTaxa <= 0)) return 0;
 
     const evento = await this.prisma.evento.findUnique({
       where: { id: eventoId },
@@ -58,11 +95,12 @@ export class TarifaService {
         organizador: { select: { comissaoPercentual: true } },
       },
     });
-
-    if (!evento?.comissaoPagaPeloAtleta) return 0;
+    if (!evento) return 0;
 
     const percentual = Number(evento.organizador?.comissaoPercentual ?? 10);
-    return Number((valorBase * (percentual / 100)).toFixed(2));
+    const comissao = Number((baseTaxa * (percentual / 100)).toFixed(2));
+
+    return dividirComissao(base, comissao, evento.comissaoPagaPeloAtleta).taxaServico;
   }
 
   /**

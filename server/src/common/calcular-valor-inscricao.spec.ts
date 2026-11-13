@@ -305,3 +305,83 @@ describe('desconto PCD', () => {
     expect(valor).toBe(50);
   });
 });
+
+describe('taxa do site com cupom', () => {
+  const { calcularValoresInscricao } = require('./calcular-valor-inscricao');
+  const { dividirComissao } = require('../pagamento/tarifa.service');
+
+  function comCupom(percentual: number, cortesiaSemTaxa = false, extras: object = {}) {
+    const prisma = prismaFalso({ preco: '40', ...extras });
+    prisma.cupom.findUnique.mockResolvedValue({
+      id: 'cupom-1',
+      ativo: true,
+      percentualDesconto: String(percentual),
+      cortesiaSemTaxa,
+    });
+    return prisma;
+  }
+
+  it('sem cupom a base da taxa e o proprio valor (venda normal nao muda)', async () => {
+    const r = await calcularValoresInscricao(prismaFalso({ preco: '40' }), ctx);
+    expect(r).toEqual({ valor: 40, baseComissao: 40 });
+  });
+
+  it('cupom de 100%: valor zero, mas a taxa sai do preco cheio', async () => {
+    const r = await calcularValoresInscricao(comCupom(100), { ...ctx, cupomId: 'cupom-1' });
+    expect(r).toEqual({ valor: 0, baseComissao: 40 });
+  });
+
+  it('cupom parcial: taxa tambem sobre o preco antes do cupom', async () => {
+    const r = await calcularValoresInscricao(comCupom(50), { ...ctx, cupomId: 'cupom-1' });
+    expect(r).toEqual({ valor: 20, baseComissao: 40 });
+  });
+
+  it('cortesia liberada pelo admin: sem taxa no cupom de 100%', async () => {
+    const r = await calcularValoresInscricao(comCupom(100, true), { ...ctx, cupomId: 'cupom-1' });
+    expect(r).toEqual({ valor: 0, baseComissao: 0 });
+  });
+
+  it('a camisa opcional entra na base da taxa como antes', async () => {
+    const r = await calcularValoresInscricao(
+      comCupom(100, false, { camisaOpcional: true, valorCamisaOpcional: 30 }),
+      { ...ctx, cupomId: 'cupom-1', incluiCamisa: true },
+    );
+    expect(r).toEqual({ valor: 30, baseComissao: 70 });
+  });
+
+  describe('dividirComissao', () => {
+    it('sem cupom, organizador absorvendo: igual a antes', () => {
+      expect(dividirComissao(40, 4, false)).toEqual({
+        taxaServico: 0,
+        valorAntesDaTarifa: 40,
+        repasseOrganizador: 36,
+      });
+    });
+
+    it('sem cupom, atleta pagando: igual a antes', () => {
+      expect(dividirComissao(40, 4, true)).toEqual({
+        taxaServico: 4,
+        valorAntesDaTarifa: 44,
+        repasseOrganizador: 40,
+      });
+    });
+
+    it('cupom de 100%: atleta paga so a taxa e o organizador nao recebe nada', () => {
+      for (const atletaPaga of [true, false]) {
+        expect(dividirComissao(0, 4, atletaPaga)).toEqual({
+          taxaServico: 4,
+          valorAntesDaTarifa: 4,
+          repasseOrganizador: 0,
+        });
+      }
+    });
+
+    it('cupom de 99%, organizador absorvendo: atleta completa ate a taxa', () => {
+      expect(dividirComissao(0.4, 4, false)).toEqual({
+        taxaServico: 3.6,
+        valorAntesDaTarifa: 4,
+        repasseOrganizador: 0,
+      });
+    });
+  });
+});

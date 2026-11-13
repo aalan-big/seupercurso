@@ -203,7 +203,7 @@ function copiarPixCode(code: string) {
 }
 
 const validandoCupom = ref(false)
-const cupomAplicadoInfo = ref<{ codigo: string; percentualDesconto: number } | null>(null)
+const cupomAplicadoInfo = ref<{ codigo: string; percentualDesconto: number; cortesiaSemTaxa?: boolean } | null>(null)
 const erroCupom = ref('')
 
 async function aplicarCupom() {
@@ -216,10 +216,14 @@ async function aplicarCupom() {
   validandoCupom.value = true
   try {
     const api = useApi()
-    const res = await api<{ valido: boolean; codigo: string; percentualDesconto: number }>(
+    const res = await api<{ valido: boolean; codigo: string; percentualDesconto: number; cortesiaSemTaxa?: boolean }>(
       `/eventos/${eventoId}/validar-cupom?codigo=${encodeURIComponent(cod)}`
     )
-    cupomAplicadoInfo.value = { codigo: res.codigo, percentualDesconto: res.percentualDesconto }
+    cupomAplicadoInfo.value = {
+      codigo: res.codigo,
+      percentualDesconto: res.percentualDesconto,
+      cortesiaSemTaxa: !!res.cortesiaSemTaxa
+    }
   } catch (e: any) {
     cupomAplicadoInfo.value = null
     erroCupom.value = extrairErro(e)
@@ -842,7 +846,7 @@ function selecionarCategoriaItem(item: ItemCarrinho, categoriaId: string) {
   item.categoriaId = categoriaId
 }
 
-function calcularPrecoItem(item: ItemCarrinho) {
+function calcularPrecoItem(item: ItemCarrinho, ignorarCupom = false) {
   if (!item.modalidadeId) return 0
   if (isencaoServidorAtiva(item)) return 0
   const valorBase = precoBasePara(item.modalidadeId)
@@ -863,7 +867,7 @@ function calcularPrecoItem(item: ItemCarrinho) {
     valor -= valor * (desconto.percentual / 100)
   }
 
-  if (cupomAplicadoInfo.value) {
+  if (cupomAplicadoInfo.value && !ignorarCupom) {
     valor -= valor * (cupomAplicadoInfo.value.percentualDesconto / 100)
   }
 
@@ -881,6 +885,25 @@ function calcularPrecoItem(item: ItemCarrinho) {
 const valorTotalCalculado = computed(() => {
   return carrinho.value.reduce((total, item) => total + calcularPrecoItem(item), 0)
 })
+
+// Base da taxa do site: o preco antes do cupom (o cupom e desconto do
+// organizador e nao tira a parte do site). So a cortesia liberada pelo admin
+// leva a taxa junto. Mesma regra do servidor (calcularValoresInscricao).
+const baseComissaoTotal = computed(() => {
+  const ignorarCupom = !!cupomAplicadoInfo.value && !cupomAplicadoInfo.value.cortesiaSemTaxa
+  return carrinho.value.reduce((total, item) => total + calcularPrecoItem(item, ignorarCupom), 0)
+})
+
+// De graca de verdade: sem valor e sem taxa (servidor isento, evento gratuito,
+// cortesia do admin). Cupom de 100% comum zera a inscricao, mas a taxa fica.
+const pedidoGratuito = computed(() => valorTotalCalculado.value === 0 && baseComissaoTotal.value === 0)
+
+// Cupom zerou a inscricao, mas a taxa do site continua: cobranca so por PIX.
+const somenteTaxa = computed(() => valorTotalCalculado.value === 0 && baseComissaoTotal.value > 0)
+
+watch(somenteTaxa, (so) => {
+  if (so) metodoPagamentoSelecionado.value = 'PIX'
+}, { immediate: true })
 
 function selecionarModalidadeItem(item: ItemCarrinho, modalidadeId: string) {
   item.modalidadeId = modalidadeId
@@ -1107,14 +1130,19 @@ const { buscar: buscarTarifas } = useTarifas()
 const tarifas = ref<TabelaTarifas | null>(null)
 
 watch(
-  () => valorTotalCalculado.value,
-  async (base) => {
-    if (!base || base <= 0) {
+  () => [valorTotalCalculado.value, baseComissaoTotal.value] as const,
+  async ([base, baseComissao]) => {
+    if ((!base || base <= 0) && (!baseComissao || baseComissao <= 0)) {
       tarifas.value = null
       return
     }
     try {
-      tarifas.value = await buscarTarifas(base, eventoId)
+      // Sem cupom as duas bases sao iguais e a consulta e a de sempre.
+      tarifas.value = await buscarTarifas(
+        base,
+        eventoId,
+        baseComissao !== base ? baseComissao : undefined
+      )
     } catch {
       tarifas.value = null
     }
@@ -1288,8 +1316,9 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
 
     const batchRes = await criarBatch(itemsPayload)
 
-    // Pedido de R$ 0 ja volta confirmado: servidores isentos, cupom de 100%...
-    if (batchRes.valorTotal === 0 || batchRes.status === 'CONFIRMADA') {
+    // Pedido de graca ja volta confirmado: servidores isentos, evento gratuito,
+    // cortesia do admin. Cupom de 100% comum volta pendente: falta a taxa do site.
+    if (batchRes.status === 'CONFIRMADA') {
       inscricaoCriada.value = {
         pedidoId: batchRes.pedidoId,
         valor: '0.00',
@@ -2348,7 +2377,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
             </div>
 
             <!-- Caso 100% Gratuito (servidores isentos, cupom de 100%...) -->
-            <div v-if="valorTotalCalculado === 0" class="bg-white border border-emerald-200 rounded-2xl p-6 sm:p-8 shadow-sm text-center space-y-4">
+            <div v-if="pedidoGratuito" class="bg-white border border-emerald-200 rounded-2xl p-6 sm:p-8 shadow-sm text-center space-y-4">
               <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto border border-emerald-200 shadow-xs">
                 <CheckCircle class="w-8 h-8" />
               </div>
@@ -2443,6 +2472,9 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
 
                 <div v-if="cupomAplicadoInfo" class="text-xs text-emerald-600 font-bold">
                   Cupom "{{ cupomAplicadoInfo.codigo }}" aplicado! Desconto de {{ cupomAplicadoInfo.percentualDesconto }}%.
+                  <span v-if="somenteTaxa" class="block font-normal text-slate-500">
+                    O cupom cobre a inscrição. Falta só a taxa de serviço do site, paga por PIX.
+                  </span>
                   <span v-if="carrinho.some((i) => descontoFuncionarioAtivo(i))" class="block font-normal text-slate-500">
                     Não vale para quem já tem o desconto de funcionário.
                   </span>
@@ -2465,6 +2497,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
                   </button>
 
                   <button
+                    v-if="!somenteTaxa"
                     @click="metodoPagamentoSelecionado = 'CREDITO'"
                     class="p-4 rounded-xl border text-center transition flex flex-col items-center justify-center space-y-1.5"
                     :class="metodoPagamentoSelecionado === 'CREDITO' ? 'bg-orange-50 border-orange-500 text-slate-900 font-bold shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300'"
@@ -2545,7 +2578,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
 
             <!-- Se for 100% gratuito (Servidor Público) -->
             <button
-              v-else-if="valorTotalCalculado === 0"
+              v-else-if="pedidoGratuito"
               @click="onInscrever()"
               :disabled="inscrevendo"
               class="px-8 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition shadow-sm disabled:opacity-50"

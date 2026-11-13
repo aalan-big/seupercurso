@@ -14,7 +14,10 @@ import {
   StatusInscricao,
   StatusPagamento,
 } from '../generated/prisma/enums';
-import { calcularValorInscricao } from '../common/calcular-valor-inscricao';
+import {
+  calcularValorInscricao,
+  calcularValoresInscricao,
+} from '../common/calcular-valor-inscricao';
 import { calcularIdade } from '../common/calcular-idade';
 import {
   EventoDescontoPerfil,
@@ -327,6 +330,8 @@ export class InscricaoService {
       documentoIdosoUrl: string | null;
       descontoPcd: boolean;
       valor: number;
+      /** Preco antes do cupom, base da taxa do site (ver calcularValoresInscricao). */
+      baseComissao: number;
       isServidorPublico?: boolean;
       matriculaServidor?: string | null;
       servidorPublicoId?: string | null;
@@ -607,10 +612,11 @@ export class InscricaoService {
         evento.possuiCamisa && (!evento.camisaOpcional || !!item.incluiCamisa);
 
       let valor = 0;
+      let baseComissao = 0;
       if (isServidorPublico || eventoGratuito) {
         valor = 0;
       } else {
-        valor = await calcularValorInscricao(this.prisma, {
+        ({ valor, baseComissao } = await calcularValoresInscricao(this.prisma, {
           loteId: lote.id,
           modalidadeId: categoria.modalidadeId,
           clienteId,
@@ -620,7 +626,7 @@ export class InscricaoService {
           atletaPcd: descontoPcd,
           incluiCamisa: querCamisa,
           percentualFuncionario,
-        });
+        }));
       }
 
       inscricoesParaCriar.push({
@@ -645,6 +651,7 @@ export class InscricaoService {
         documentoIdosoUrl,
         descontoPcd,
         valor,
+        baseComissao,
         isServidorPublico,
         matriculaServidor,
         servidorPublicoId,
@@ -658,7 +665,15 @@ export class InscricaoService {
     }
 
     const valorTotal = inscricoesParaCriar.reduce((acc, i) => acc + i.valor, 0);
-    const ehTotalmenteGratuito = valorTotal === 0;
+    // R$ 0 so entra de graca se tambem nao houver taxa do site: o cupom de 100%
+    // zera o valor, mas a taxa sai do preco antes do cupom e o atleta a paga
+    // no PIX (ver PagamentoService.create). Cortesia sem taxa so pelo admin
+    // (Cupom.cortesiaSemTaxa), servidor isento ou evento gratuito.
+    const taxaSemValor =
+      valorTotal === 0
+        ? await this.taxaDoSiteNoPedido(inscricoesParaCriar, dto.items[0]?.categoriaId)
+        : 0;
+    const ehTotalmenteGratuito = valorTotal === 0 && taxaSemValor <= 0;
 
     const resultado = await this.prisma.$transaction(async (tx) => {
       // A checagem de vagas la de cima roda fora da transacao: duas compras na
@@ -813,7 +828,11 @@ export class InscricaoService {
       return {
         pedidoId: pedido.id,
         inscricoes: inscricoesCriadas,
-        valorTotal,
+        // Pedido so da taxa (cupom de 100%): devolve a taxa, nao zero. A tela
+        // antiga, ainda aberta no navegador de alguem na hora do deploy, tratava
+        // valorTotal 0 como "inscricao gratuita confirmada"; assim ela segue
+        // para gerar o PIX. O valor exato cobrado sai do PagamentoService.
+        valorTotal: ehTotalmenteGratuito ? valorTotal : valorTotal || taxaSemValor,
         status: ehTotalmenteGratuito ? 'CONFIRMADA' : 'PENDENTE_PAGAMENTO',
       };
     });
@@ -1129,6 +1148,36 @@ export class InscricaoService {
    * Aceita so modelo ativo do proprio evento. Antes o id ia direto para o
    * banco: um id qualquer dava erro 500 e o de outro evento era gravado.
    */
+  /**
+   * Taxa do site que um pedido de R$ 0 ainda teria de pagar. Mesma conta do
+   * PagamentoService.create: percentual do organizador sobre o preco antes do
+   * cupom. Zero quando o organizador nao cobra comissao.
+   */
+  private async taxaDoSiteNoPedido(
+    itens: Array<{ baseComissao: number }>,
+    categoriaId?: string,
+  ): Promise<number> {
+    const base = itens.reduce((acc, i) => acc + i.baseComissao, 0);
+    if (base <= 0 || !categoriaId) return 0;
+
+    const categoria = await this.prisma.categoria.findUnique({
+      where: { id: categoriaId },
+      select: {
+        modalidade: {
+          select: {
+            evento: {
+              select: { organizador: { select: { comissaoPercentual: true } } },
+            },
+          },
+        },
+      },
+    });
+    const percentual = Number(
+      categoria?.modalidade.evento.organizador?.comissaoPercentual ?? 10,
+    );
+    return Number((base * (percentual / 100)).toFixed(2));
+  }
+
   private async resolverModeloCamisa(
     eventoId: string,
     modeloCamisaId?: string | null,

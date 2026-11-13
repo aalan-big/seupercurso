@@ -47,6 +47,7 @@ const EVENTO_INCLUDE = {
       percentualDesconto: true,
       quantidadeMaxima: true,
       ativo: true,
+      cortesiaSemTaxa: true,
       _count: {
         select: { inscricoes: { where: { status: StatusInscricao.CONFIRMADA } } },
       },
@@ -333,6 +334,35 @@ export class AdminService {
     await this.prisma.cupom.update({
       where: { id: cupomId },
       data: { ativo: !bloqueado },
+    });
+
+    return this.prisma.evento.findUnique({
+      where: { id: eventoId },
+      include: EVENTO_INCLUDE,
+    });
+  }
+
+  // Cortesia sem taxa: o cupom deixa de cobrar a taxa do site (num cupom de
+  // 100%, a inscricao sai de graca de verdade). So o admin liga; vale para
+  // inscricoes novas e para pedidos ainda nao pagos.
+  async definirCortesiaCupom(eventoId: string, cupomId: string, cortesiaSemTaxa: boolean) {
+    await this.getEventoOuFalhar(eventoId);
+
+    const cupom = await this.prisma.cupom.findUnique({ where: { id: cupomId } });
+    if (!cupom || cupom.eventoId !== eventoId) {
+      throw new NotFoundException('Cupom não encontrado neste evento.');
+    }
+
+    await this.prisma.cupom.update({
+      where: { id: cupomId },
+      data: { cortesiaSemTaxa },
+    });
+
+    this.auditLogService.log({
+      categoria: CategoriaAuditLog.FINANCEIRO,
+      nivel: NivelAuditLog.INFO,
+      mensagem: `Cupom ${cupom.codigo} ${cortesiaSemTaxa ? 'liberado como cortesia sem taxa' : 'voltou a cobrar a taxa do site'}`,
+      detalhes: { eventoId, cupomId, cortesiaSemTaxa },
     });
 
     return this.prisma.evento.findUnique({

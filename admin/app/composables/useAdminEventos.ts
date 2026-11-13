@@ -31,6 +31,8 @@ export interface EventoAdmin {
     percentualDesconto: string
     quantidadeMaxima: number | null
     ativo: boolean
+    // Cortesia liberada pelo admin: o cupom nao cobra a taxa do site
+    cortesiaSemTaxa?: boolean
     // Inscricoes pagas com o cupom
     _count: { inscricoes: number }
   }[]
@@ -94,6 +96,13 @@ export function useAdminEventos() {
     })
   }
 
+  async function definirCortesiaCupom(id: string, cupomId: string, cortesiaSemTaxa: boolean) {
+    return api<EventoAdmin>(`/admin/eventos/${id}/cupons/${cupomId}/cortesia`, {
+      method: 'POST',
+      body: { cortesiaSemTaxa }
+    })
+  }
+
   async function configurarFuncionarios(
     id: string,
     config: { liberado: boolean; percentual?: number; vagas: number | null; nomeEmpresa: string | null }
@@ -104,5 +113,5 @@ export function useAdminEventos() {
     })
   }
 
-  return { eventos, fetchLista, buscar, aprovar, rejeitar, suspender, configurarServidorPublico, bloquearCupom, configurarFuncionarios }
+  return { eventos, fetchLista, buscar, aprovar, rejeitar, suspender, configurarServidorPublico, bloquearCupom, definirCortesiaCupom, configurarFuncionarios }
 }

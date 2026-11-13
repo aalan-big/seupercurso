@@ -27,9 +27,21 @@ export interface TabelaTarifas {
 export function useTarifas() {
   const api = useApi()
 
-  async function buscar(valorBase?: number, eventoId?: string) {
+  /**
+   * @param baseComissao preco antes do cupom, quando difere do valorBase: a
+   *   taxa do site sai dele. Omitido, a consulta e exatamente a de antes.
+   */
+  async function buscar(valorBase?: number, eventoId?: string, baseComissao?: number) {
+    const temBase = !!valorBase && valorBase > 0
+    const temBaseComissao = baseComissao !== undefined && baseComissao > 0
     return api<TabelaTarifas>('/pagamentos/tarifas', {
-      query: valorBase && valorBase > 0 ? { valorBase, eventoId } : undefined
+      query: temBase || temBaseComissao
+        ? {
+            valorBase: valorBase || 0,
+            eventoId,
+            ...(baseComissao !== undefined ? { baseComissao } : {})
+          }
+        : undefined
     })
   }
 

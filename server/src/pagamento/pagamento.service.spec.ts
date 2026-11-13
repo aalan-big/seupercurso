@@ -466,6 +466,95 @@ describe('PagamentoService', () => {
     });
   });
 
+  describe('cupom de 100% cobra a taxa do site', () => {
+    const dtoPix = { inscricaoId: inscricaoPadrao.id, metodo: 'PIX' as any };
+    const inscricaoComCupom = { ...inscricaoPadrao, cupomId: 'cupom-1' };
+
+    beforeEach(() => {
+      prisma.inscricao.findMany.mockResolvedValue([inscricaoComCupom]);
+      prisma.cupom.findUnique.mockResolvedValue({
+        id: 'cupom-1',
+        ativo: true,
+        percentualDesconto: '100',
+        cortesiaSemTaxa: false,
+      });
+    });
+
+    it('gera PIX so da taxa (10% do preco cheio), na conta da plataforma', async () => {
+      await service.create(usuarioId, dtoPix);
+
+      const params = gateway.gerarCobrancaPix.mock.calls[0][0];
+      // Preco 60, cupom de 100%: a taxa de R$ 6 e o que se cobra, mais a tarifa.
+      expect(params.valor).toBeGreaterThan(6);
+      expect(params.valor).toBeLessThan(9);
+      // Na nossa conta: sem token do organizador e sem application_fee.
+      expect(params.tokenRecebedor).toBeNull();
+      expect(params.comissaoPlataforma).toBe(0);
+      expect(mpOAuth.obterTokenValido).not.toHaveBeenCalled();
+      expect(prisma.$transaction).toHaveBeenCalled();
+      const criado = prisma.pagamento.create.mock.calls[0][0].data;
+      expect(criado).toEqual(
+        expect.objectContaining({ comissaoPlataforma: 6, naContaDaPlataforma: true }),
+      );
+    });
+
+    it('recusa cartao na cobranca so da taxa', async () => {
+      await expect(
+        service.create(usuarioId, { ...dtoPix, metodo: 'CARTAO_CREDITO', tokenCartao: 't' }),
+      ).rejects.toThrow(BadRequestException);
+      expect(gateway.processarPagamentoCartao).not.toHaveBeenCalled();
+    });
+
+    it('cortesia liberada pelo admin nao gera cobranca', async () => {
+      prisma.cupom.findUnique.mockResolvedValue({
+        id: 'cupom-1',
+        ativo: true,
+        percentualDesconto: '100',
+        cortesiaSemTaxa: true,
+      });
+      await expect(service.create(usuarioId, dtoPix)).rejects.toThrow(
+        'Não há valor a pagar neste pedido.',
+      );
+    });
+
+    it('venda sem cupom continua na conta do organizador', async () => {
+      prisma.inscricao.findMany.mockResolvedValue([inscricaoPadrao]);
+      await service.create(usuarioId, dtoPix);
+      const params = gateway.gerarCobrancaPix.mock.calls[0][0];
+      expect(params).toEqual(
+        expect.objectContaining({ tokenRecebedor: 'TOKEN-ORG', comissaoPlataforma: 6 }),
+      );
+      expect(prisma.pagamento.create.mock.calls[0][0].data.naContaDaPlataforma).toBe(false);
+    });
+
+    it('na confirmacao grava liquido zero do organizador e a tarifa certa', async () => {
+      prisma.pagamento.findFirst.mockResolvedValue({
+        id: 'pagamento-1',
+        status: 'PENDENTE',
+        valor: '6.12',
+        comissaoPlataforma: '6',
+        naContaDaPlataforma: true,
+        inscricaoId: inscricaoPadrao.id,
+        pedidoId: null,
+        gatewayPaymentId: 'mp_123',
+      });
+      prisma.pagamento.findUnique.mockResolvedValue(null);
+
+      await service.confirmarPagamento({
+        gatewayPaymentId: 'mp_123',
+        valorPago: 6.12,
+        valorLiquido: 6.06,
+        origem: 'webhook',
+      });
+
+      // Organizador nao recebe nada: liquido dele zero, e o que nao e comissao
+      // fica como tarifa, para o repasse no painel fechar em zero.
+      const data = prisma.pagamento.update.mock.calls[0][0].data;
+      expect(data.valorLiquido).toBe(0);
+      expect(data.taxaGateway).toBe(0.12);
+    });
+  });
+
   describe('obterStatus', () => {
     it('lança NotFoundException se o pagamento não existir', async () => {
       prisma.pagamento.findUnique.mockResolvedValue(null);

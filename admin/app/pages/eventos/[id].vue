@@ -4,7 +4,7 @@ import type { EventoAdmin } from '../../composables/useAdminEventos'
 
 const route = useRoute()
 const config = useRuntimeConfig()
-const { buscar, aprovar, rejeitar, suspender, configurarServidorPublico, bloquearCupom, configurarFuncionarios } = useAdminEventos()
+const { buscar, aprovar, rejeitar, suspender, configurarServidorPublico, bloquearCupom, definirCortesiaCupom, configurarFuncionarios } = useAdminEventos()
 
 const evento = ref<EventoAdmin | null>(null)
 const carregando = ref(true)
@@ -138,6 +138,28 @@ async function alternarBloqueioCupom(cupomId: string, bloquear: boolean, codigo:
   try {
     evento.value = await bloquearCupom(route.params.id as string, cupomId, bloquear)
     sucesso.value = bloquear ? `Cupom ${codigo} bloqueado.` : `Cupom ${codigo} liberado.`
+  } catch (e) {
+    erro.value = extrairErro(e)
+  } finally {
+    cupomProcessando.value = null
+  }
+}
+
+// Cortesia sem taxa: so o admin libera. Sem ela, a taxa do site sai do preco
+// antes do cupom e o cupom de 100% cobra do atleta so a taxa.
+async function alternarCortesiaCupom(cupomId: string, liberar: boolean, codigo: string) {
+  const pergunta = liberar
+    ? `Liberar ${codigo} como cortesia sem taxa? Quem usar este cupom não paga a taxa do site (num cupom de 100%, a inscrição sai de graça e o site não recebe nada).`
+    : `Voltar a cobrar a taxa do site no cupom ${codigo}?`
+  if (!confirm(pergunta)) return
+  erro.value = ''
+  sucesso.value = ''
+  cupomProcessando.value = cupomId
+  try {
+    evento.value = await definirCortesiaCupom(route.params.id as string, cupomId, liberar)
+    sucesso.value = liberar
+      ? `Cupom ${codigo} liberado como cortesia sem taxa.`
+      : `Cupom ${codigo} volta a cobrar a taxa do site.`
   } catch (e) {
     erro.value = extrairErro(e)
   } finally {
@@ -449,6 +471,10 @@ async function confirmarSuspensao() {
               O organizador cria cupons à vontade. Bloqueie um cupom se precisar: ele deixa de valer em inscrições
               novas, as já pagas não mudam, e o organizador não consegue remover nem liberar.
             </p>
+            <p class="mt-1 text-xs text-slate-500">
+              A taxa do site é cobrada sobre o preço antes do cupom: num cupom de 100%, o atleta paga só a taxa.
+              Para uma cortesia de verdade, sem taxa, libere o cupom como <strong>cortesia sem taxa</strong>.
+            </p>
 
             <div class="mt-4 border-t border-slate-100 pt-3">
               <p class="text-xs font-semibold text-slate-500">
@@ -463,6 +489,16 @@ async function confirmarSuspensao() {
                       {{ cupom._count.inscricoes }} {{ cupom.quantidadeMaxima ? `de ${cupom.quantidadeMaxima}` : '(sem limite)' }} usos pagos
                     </span>
                     <span v-if="!cupom.ativo" class="font-bold text-red-600">bloqueado</span>
+                    <span v-if="cupom.cortesiaSemTaxa" class="font-bold text-amber-600">cortesia sem taxa</span>
+                    <button
+                      type="button"
+                      :disabled="cupomProcessando === cupom.id"
+                      class="rounded-lg px-3 py-1 font-bold uppercase tracking-wide transition disabled:opacity-50"
+                      :class="cupom.cortesiaSemTaxa ? 'bg-slate-100 text-slate-700 hover:bg-slate-200' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'"
+                      @click="alternarCortesiaCupom(cupom.id, !cupom.cortesiaSemTaxa, cupom.codigo)"
+                    >
+                      {{ cupomProcessando === cupom.id ? '...' : cupom.cortesiaSemTaxa ? 'Cobrar taxa' : 'Cortesia sem taxa' }}
+                    </button>
                     <button
                       type="button"
                       :disabled="cupomProcessando === cupom.id"

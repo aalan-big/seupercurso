@@ -16,12 +16,12 @@ import {
   CategoriaAuditLog,
   NivelAuditLog,
 } from '../generated/prisma/enums';
-import { calcularValorInscricao } from '../common/calcular-valor-inscricao';
+import { calcularValoresInscricao } from '../common/calcular-valor-inscricao';
 import { CreatePagamentoDto } from './dto/create-pagamento.dto';
 import { EmailService } from '../email/email.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificacaoAdminService } from '../admin/notificacao-admin.service';
-import { TarifaService } from './tarifa.service';
+import { dividirComissao, TarifaService } from './tarifa.service';
 import { GATEWAY_PAGAMENTO, type GatewayPagamento } from './gateway.port';
 import { MercadoPagoOAuthService } from './mercadopago/mercadopago-oauth.service';
 
@@ -183,7 +183,13 @@ export class PagamentoService {
     const primeiraInscricao = inscricoes[0];
     const evento = primeiraInscricao.categoria.modalidade.evento;
 
-    this.validarMetodoAceitoPeloEvento(evento, dto.metodo);
+    // PIX num evento que so aceita cartao ainda pode ser a cobranca so da taxa
+    // do site (ver naContaDaPlataforma); essa checagem fica para depois da conta.
+    const pixRecusadoPeloEvento =
+      dto.metodo === MetodoPagamento.PIX && evento.aceitaPix === false;
+    if (!pixRecusadoPeloEvento) {
+      this.validarMetodoAceitoPeloEvento(evento, dto.metodo);
+    }
 
     // Reaproveita um PIX pendente ainda válido em vez de gerar outro QR Code.
     const pagamentoExistente = await this.prisma.pagamento.findFirst({
@@ -207,6 +213,9 @@ export class PagamentoService {
     }
 
     let valorBaseTotal = 0;
+    // Preco antes do cupom: a comissao sai daqui (ver calcularValoresInscricao).
+    // Sem cupom e igual ao valorBaseTotal.
+    let baseComissaoTotal = 0;
     for (const inscricao of inscricoes) {
       // Servidor publico com isencao entrou no pedido com valor zero. Sem isso
       // o pedido misto (servidor + pagante) cobrava o servidor tambem, e o
@@ -216,7 +225,7 @@ export class PagamentoService {
       // garante que nunca vire cobranca.
       if (inscricao.isGratuitoEvento) continue;
 
-      valorBaseTotal += await calcularValorInscricao(this.prisma, {
+      const valores = await calcularValoresInscricao(this.prisma, {
         loteId: inscricao.loteId,
         modalidadeId: inscricao.categoria.modalidadeId,
         clienteId: inscricao.clienteId,
@@ -233,25 +242,54 @@ export class PagamentoService {
           ? inscricao.percentualFuncionario
           : null,
       });
-    }
-
-    if (valorBaseTotal <= 0) {
-      throw new BadRequestException('Não há valor a pagar neste pedido.');
+      valorBaseTotal += valores.valor;
+      baseComissaoTotal += valores.baseComissao;
     }
 
     const comissaoPercentual = Number(evento.organizador?.comissaoPercentual ?? 10);
     const comissaoPlataforma = Number(
-      (valorBaseTotal * (comissaoPercentual / 100)).toFixed(2),
+      (baseComissaoTotal * (comissaoPercentual / 100)).toFixed(2),
     );
+
+    if (valorBaseTotal <= 0 && comissaoPlataforma <= 0) {
+      throw new BadRequestException('Não há valor a pagar neste pedido.');
+    }
+
+    // Quem paga a comissao: ver dividirComissao. Sem cupom o resultado e o de
+    // sempre (atleta paga valor + comissao, ou so o valor).
+    const divisao = dividirComissao(
+      valorBaseTotal,
+      comissaoPlataforma,
+      evento.comissaoPagaPeloAtleta,
+    );
+
+    // Organizador sem nada a receber (cupom de 100%, por exemplo): a cobranca
+    // e so a taxa do site e roda na nossa conta. Na conta dele o
+    // application_fee seria o valor inteiro, e o Mercado Pago recusa. So PIX:
+    // o cartao e tokenizado com a chave publica do organizador.
+    const naContaDaPlataforma = divisao.repasseOrganizador <= 0;
+
+    if (naContaDaPlataforma) {
+      // A cobranca so da taxa e nossa, nao do organizador: vale o PIX mesmo
+      // que o evento so aceite cartao.
+      if (dto.metodo !== MetodoPagamento.PIX) {
+        throw new BadRequestException(
+          'Este pedido cobra só a taxa do site e é pago por PIX. Escolha PIX para concluir.',
+        );
+      }
+    } else if (pixRecusadoPeloEvento) {
+      this.validarMetodoAceitoPeloEvento(evento, dto.metodo);
+    }
 
     // Token do organizador: a cobrança roda na conta dele e nós ficamos apenas
     // com a comissão. Sem conexão a venda não pode acontecer — o dinheiro
     // cairia inteiro na nossa conta e viraria repasse manual.
-    const tokenRecebedor = evento.organizadorId
-      ? await this.mpOAuthService.obterTokenValido(evento.organizadorId)
-      : null;
+    const tokenRecebedor =
+      evento.organizadorId && !naContaDaPlataforma
+        ? await this.mpOAuthService.obterTokenValido(evento.organizadorId)
+        : null;
 
-    if (evento.organizadorId && !tokenRecebedor) {
+    if (evento.organizadorId && !naContaDaPlataforma && !tokenRecebedor) {
       throw new BadRequestException(
         'O organizador deste evento ainda não conectou a conta de recebimento. As inscrições serão liberadas assim que ele concluir.',
       );
@@ -261,13 +299,16 @@ export class PagamentoService {
     // nossa: o Mercado Pago recusa a comissao ("You cannot use application_fee
     // with this payment") e a venda inteira falha. Nao ha o que reter, porque o
     // dinheiro ja cai todo aqui. O valor cobrado do atleta nao muda.
-    const recebedorEhAPropriaPlataforma = evento.organizadorId
+    const recebedorEhAPropriaPlataforma =
+      evento.organizadorId && !naContaDaPlataforma
       ? await this.mpOAuthService.recebedorEhAPropriaPlataforma(
           evento.organizadorId,
         )
       : false;
 
     const comissaoRetida = recebedorEhAPropriaPlataforma ? 0 : comissaoPlataforma;
+    // Na nossa conta nao ha application_fee: o dinheiro todo ja e nosso.
+    const applicationFee = naContaDaPlataforma ? 0 : comissaoRetida;
 
     // O teto vinha so do Brick, no navegador. Uma requisicao montada a mao
     // podia pedir 12x mesmo com o limite configurado em 5, e o parcelamento
@@ -280,9 +321,7 @@ export class PagamentoService {
     // Quem paga a comissão é escolha do organizador, por evento. Absorvendo,
     // ela sai do repasse dele; repassando, vira taxa de serviço somada ao valor
     // do atleta e o organizador recebe o preço cheio da inscrição.
-    const valorAntesDaTarifa = evento.comissaoPagaPeloAtleta
-      ? Number((valorBaseTotal + comissaoPlataforma).toFixed(2))
-      : valorBaseTotal;
+    const valorAntesDaTarifa = divisao.valorAntesDaTarifa;
 
     // A tarifa do gateway é sempre do atleta, nos dois casos: o gross-up faz
     // sobrar exatamente o valor a dividir entre organizador e plataforma.
@@ -324,7 +363,7 @@ export class PagamentoService {
             descricao,
             cliente,
             tokenRecebedor,
-            comissaoPlataforma: comissaoRetida,
+            comissaoPlataforma: applicationFee,
             expiraEm: expiraEm ?? undefined,
           })
         : await this.gateway.processarPagamentoCartao({
@@ -337,7 +376,7 @@ export class PagamentoService {
             metodoBandeira: dto.metodoBandeira,
             emissor: dto.emissor,
             tokenRecebedor,
-            comissaoPlataforma: comissaoRetida,
+            comissaoPlataforma: applicationFee,
             remoteIp,
           });
 
@@ -363,6 +402,7 @@ export class PagamentoService {
       // para os painels lerem a comissao real em vez de recalcular a partir do
       // valor cobrado — que ja embute a propria comissao e a tarifa.
       comissaoPlataforma: comissaoRetida,
+      naContaDaPlataforma,
       metodo: dto.metodo,
       status: isAprovado ? StatusPagamento.APROVADO : StatusPagamento.PENDENTE,
       gateway: this.gateway.nome,
@@ -372,6 +412,15 @@ export class PagamentoService {
       pixQrCodeUrl: resultado.pixQrCodeUrl || null,
       dataPagamento: isAprovado ? new Date() : null,
       expiraEm,
+      // Cobranca so da taxa: o organizador nao recebe nada, e o que passa da
+      // comissao e tarifa. Gravado ja aqui para o painel fechar em zero mesmo
+      // que a confirmacao chegue sem o liquido do Mercado Pago.
+      ...(naContaDaPlataforma
+        ? {
+            valorLiquido: 0,
+            taxaGateway: Math.max(0, Number((valorCobrado - comissaoRetida).toFixed(2))),
+          }
+        : {}),
       ...(tarifaCartao
         ? {
             taxaGateway: tarifaCartao,
@@ -415,6 +464,8 @@ export class PagamentoService {
         inscricaoId: dto.inscricaoId,
         metodo: dto.metodo,
         valorBase: valorBaseTotal,
+        baseComissao: baseComissaoTotal,
+        naContaDaPlataforma,
         valorCobrado,
         comissaoPlataforma,
         comissaoPagaPeloAtleta: evento.comissaoPagaPeloAtleta,
@@ -582,8 +633,15 @@ export class PagamentoService {
       return { valorDivergente: true, pagamentoId: pagamentoExistente.id };
     }
 
-    const liquido =
+    const liquidoGateway =
       typeof valorLiquido === 'number' && valorLiquido > 0 ? valorLiquido : null;
+    // Cobranca so da taxa, na nossa conta: o liquido do Mercado Pago e todo
+    // nosso. O do organizador e zero (ele nao recebe nada desta cobranca); assim
+    // os painels fecham com repasse zero, como nas cobrancas da conta dele.
+    const liquido =
+      liquidoGateway !== null && pagamentoExistente?.naContaDaPlataforma
+        ? 0
+        : liquidoGateway;
 
     const pedidoId =
       pagamentoExistente?.pedidoId ||
@@ -606,7 +664,7 @@ export class PagamentoService {
             status: StatusPagamento.APROVADO,
             dataPagamento: new Date(),
             gatewayPaymentId,
-            ...(liquido
+            ...(liquido !== null
               ? {
                   valorLiquido: liquido,
                   // O liquido do Mercado Pago ja vem sem a application_fee;
@@ -733,7 +791,11 @@ export class PagamentoService {
       });
 
       const comissaoPercentual = Number(evento.organizador?.comissaoPercentual ?? 10);
-      const comissaoPlataforma = valorTotal * (comissaoPercentual / 100);
+      // Na cobranca so da taxa o valor total ja e a comissao (mais a tarifa).
+      const comissaoPlataforma =
+        pagamento.naContaDaPlataforma && pagamento.comissaoPlataforma !== null
+          ? Number(pagamento.comissaoPlataforma)
+          : valorTotal * (comissaoPercentual / 100);
       if (comissaoPlataforma > 0) {
         this.notificacaoAdminService.notificarComissao(comissaoPlataforma, valorTotal);
       }

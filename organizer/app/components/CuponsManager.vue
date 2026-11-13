@@ -280,6 +280,10 @@ function formatarData(iso: string | null) {
               class="min-w-0 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-warning focus:outline-none focus:ring-2 focus:ring-warning/30"
             />
           </div>
+          <p class="mt-2 text-xs text-slate-500">
+            O desconto vale sobre o valor da inscrição. A taxa do site continua sendo calculada sobre o preço sem o cupom:
+            num cupom de 100%, o atleta paga só a taxa do site.
+          </p>
           <div class="mt-3 flex gap-2">
             <button
               type="button"

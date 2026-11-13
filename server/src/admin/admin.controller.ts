@@ -19,6 +19,7 @@ import { NotificacaoAdminService } from './notificacao-admin.service';
 import { MotivoDto } from './dto/motivo.dto';
 import { ComissaoDto } from './dto/comissao.dto';
 import { BloqueioCupomDto } from './dto/bloqueio-cupom.dto';
+import { CortesiaCupomDto } from './dto/cortesia-cupom.dto';
 import { FuncionariosConfigDto } from './dto/funcionarios-config.dto';
 import { ServidorPublicoConfigDto } from './dto/servidor-publico-config.dto';
 import { AlterarEmailDto } from './dto/alterar-email.dto';
@@ -205,6 +206,16 @@ export class AdminController {
     @Body() dto: BloqueioCupomDto,
   ) {
     return this.adminService.bloquearCupom(id, cupomId, dto.bloqueado);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('eventos/:id/cupons/:cupomId/cortesia')
+  definirCortesiaCupom(
+    @Param('id') id: string,
+    @Param('cupomId') cupomId: string,
+    @Body() dto: CortesiaCupomDto,
+  ) {
+    return this.adminService.definirCortesiaCupom(id, cupomId, dto.cortesiaSemTaxa);
   }
 
   @Get('usuarios')

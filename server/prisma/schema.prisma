@@ -510,6 +510,11 @@ model Cupom {
   usosAtuais         Int       @default(0)
   validoAte          DateTime?
   ativo              Boolean   @default(true)
+  /// Cortesia liberada pelo admin: a taxa do site sai do valor ja com o
+  /// desconto do cupom (num cupom de 100%, nao ha taxa nenhuma). Sem isso a
+  /// taxa e sempre calculada sobre o preco antes do cupom, e o cupom de 100%
+  /// cobra do atleta so a taxa. O organizador nao liga isto.
+  cortesiaSemTaxa    Boolean   @default(false)
   createdAt          DateTime  @default(now())
 
   evento     Evento      @relation(fields: [eventoId], references: [id])
@@ -648,6 +653,11 @@ model Pagamento {
   /// tarifa do gateway, entao aplicar o percentual sobre ele inflava a conta.
   /// Zero quando a propria plataforma organiza (nao ha o que reter).
   comissaoPlataforma Decimal?      @db.Decimal(10, 2)
+  /// Cobranca so da taxa do site (cupom de 100%, por exemplo): roda na conta da
+  /// plataforma, nao na do organizador, porque ele nao tem nada a receber. O
+  /// liquido que o Mercado Pago informa e entao nosso, e a confirmacao grava o
+  /// liquido do organizador (zero) para os painels fecharem a conta.
+  naContaDaPlataforma Boolean      @default(false)
   createdAt        DateTime        @default(now())
 
   inscricao Inscricao? @relation(fields: [inscricaoId], references: [id])
