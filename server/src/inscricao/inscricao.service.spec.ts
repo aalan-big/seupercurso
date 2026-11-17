@@ -394,6 +394,49 @@ describe('InscricaoService', () => {
     });
   });
 
+  describe('createBatch: atleta ja inscrito', () => {
+    it('so conta o CPF de quem comprou quando a inscricao nao diz quem corre', async () => {
+      prisma.categoria.findUnique.mockResolvedValue(categoriaPadrao);
+      prisma.lote.findUnique.mockResolvedValue(lotePadrao);
+      prisma.lote.findMany.mockResolvedValue([loteDisponivel]);
+      prisma.inscricao.findFirst.mockResolvedValue({ id: 'inscricao-da-filha' });
+
+      await expect(
+        service.createBatch(usuarioId, {
+          items: [
+            {
+              categoriaId: 'categoria-1',
+              loteId: 'lote-1',
+              atleta: {
+                nomeCompleto: 'Mae Que Comprou Para A Filha',
+                cpf: '12345678900',
+                dataNascimento: '1980-01-01',
+                genero: 'FEMININO' as const,
+                pcd: false,
+              },
+            },
+          ],
+        }),
+      ).rejects.toThrow(ConflictException);
+
+      // Comprar a inscricao da filha na propria conta bloqueava a mae.
+      expect(prisma.inscricao.findFirst).toHaveBeenCalledWith({
+        where: expect.objectContaining({
+          status: StatusInscricao.CONFIRMADA,
+          OR: [
+            { atletaCpf: '12345678900' },
+            { dependente: { cpf: '12345678900' } },
+            {
+              atletaCpf: null,
+              dependenteId: null,
+              cliente: { pf: { cpf: '12345678900' } },
+            },
+          ],
+        }),
+      });
+    });
+  });
+
   describe('reuso da isencao do servidor publico', () => {
     const categoriaServidor = {
       ...categoriaPadrao,

@@ -441,15 +441,22 @@ export class InscricaoService {
         categoria.modalidadeId,
       );
 
-      // Checa se o mesmo atleta já tem inscrição confirmada no evento
+      // Checa se o mesmo atleta já tem inscrição confirmada no evento. O CPF de
+      // quem comprou so vale quando a inscricao nao diz quem corre (inscricoes
+      // antigas, sem atleta*/dependente): comprar para a filha nao pode bloquear
+      // a mae de se inscrever.
       const jaInscrito = await this.prisma.inscricao.findFirst({
         where: {
           status: StatusInscricao.CONFIRMADA,
           categoria: { modalidade: { eventoId: lote.eventoId } },
           OR: [
             { atletaCpf: atletaCpf },
-            { cliente: { pf: { cpf: atletaCpf } } },
             { dependente: { cpf: atletaCpf } },
+            {
+              atletaCpf: null,
+              dependenteId: null,
+              cliente: { pf: { cpf: atletaCpf } },
+            },
           ],
         },
       });
