@@ -194,6 +194,8 @@ export class OrganizadorService {
         where: {
           status: StatusInscricao.CONFIRMADA,
           dataInscricao: { gte: desde },
+          // Importados de outro site nao sao venda do dia: fora do grafico.
+          importacaoId: null,
           categoria: { modalidade: { evento: { organizadorId: organizador.id } } },
         },
         select: { dataInscricao: true },
@@ -375,7 +377,12 @@ export class OrganizadorService {
       where: { id: eventoId },
       include: {
         modalidades: { include: { categorias: true }, orderBy: { createdAt: 'asc' } },
-        lotes: { include: { precos: true }, orderBy: { createdAt: 'asc' } },
+        // O lote interno dos importados nao aparece no painel (nao e editavel).
+        lotes: {
+          where: { somenteImportacao: false },
+          include: { precos: true },
+          orderBy: { createdAt: 'asc' },
+        },
         modelosCamisa: { orderBy: [{ ordem: 'asc' }, { createdAt: 'asc' }] },
       },
     });
@@ -431,6 +438,7 @@ export class OrganizadorService {
         select: {
           status: true,
           dataInscricao: true,
+          importacaoId: true,
           kitEntregueEm: true,
           atletaGenero: true,
           atletaDataNascimento: true,
@@ -512,8 +520,9 @@ export class OrganizadorService {
         ).length,
       },
       ...estatisticas,
+      // Importados de outro site contam como inscritos, mas nao como venda do dia.
       inscricoesPorDia: montarSerieDiaria(
-        inscricoes.map((i) => i.dataInscricao),
+        inscricoes.filter((i) => !i.importacaoId).map((i) => i.dataInscricao),
         DIAS_SERIE,
       ),
     };
@@ -1862,7 +1871,7 @@ export class OrganizadorService {
     });
 
     // Se o evento não possui nenhum lote ainda, auto-cria o "1º Lote"
-    const lotes = await this.prisma.lote.findMany({ where: { eventoId }, orderBy: { createdAt: 'asc' } });
+    const lotes = await this.prisma.lote.findMany({ where: { eventoId, somenteImportacao: false }, orderBy: { createdAt: 'asc' } });
     let lotePrincipal = lotes[0];
     if (!lotePrincipal) {
       const evento = await this.prisma.evento.findUnique({ where: { id: eventoId } });
@@ -1903,7 +1912,7 @@ export class OrganizadorService {
     const { valor, ...modalidadeData } = dto;
 
     if (valor !== undefined && valor !== null) {
-      const lotes = await this.prisma.lote.findMany({ where: { eventoId }, orderBy: { createdAt: 'asc' } });
+      const lotes = await this.prisma.lote.findMany({ where: { eventoId, somenteImportacao: false }, orderBy: { createdAt: 'asc' } });
       let lotePrincipal = lotes[0];
       if (!lotePrincipal) {
         const evento = await this.prisma.evento.findUnique({ where: { id: eventoId } });
@@ -2253,7 +2262,8 @@ export class OrganizadorService {
   private async getLoteDoEventoOuFalhar(eventoId: string, loteId: string) {
     const lote = await this.prisma.lote.findUnique({ where: { id: loteId } });
 
-    if (!lote || lote.eventoId !== eventoId) {
+    // O lote interno dos importados nao se edita, nao ganha preco e nao sai.
+    if (!lote || lote.eventoId !== eventoId || lote.somenteImportacao) {
       throw new NotFoundException('Lote não encontrado.');
     }
 
@@ -2473,10 +2483,17 @@ export class OrganizadorService {
       ],
     });
 
+    // Importado de outro site que ja veio com numero fica com ele (pode estar
+    // impresso). A sequencia pula esses numeros para nao repetir.
+    const fixos = inscricoes.filter((i) => i.importacaoId && i.numeroPeito);
+    const usados = new Set(fixos.map((i) => i.numeroPeito!.trim()));
+
     let proximoNumero = numeroInicial;
     let totalNumerados = 0;
 
     for (const inscricao of inscricoes) {
+      if (inscricao.importacaoId && inscricao.numeroPeito) continue;
+      while (usados.has(String(proximoNumero))) proximoNumero++;
       await this.prisma.inscricao.update({
         where: { id: inscricao.id },
         data: { numeroPeito: String(proximoNumero) },

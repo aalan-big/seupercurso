@@ -317,6 +317,31 @@ export class AdminService {
     };
   }
 
+  /**
+   * Liga/desliga o botao de importar atletas de outro site para o organizador.
+   * Desligar nao mexe nos atletas ja importados (continuam inscritos).
+   */
+  async configurarImportacaoAtletas(id: string, liberada: boolean) {
+    await this.getEventoOuFalhar(id);
+
+    const atualizado = await this.prisma.evento.update({
+      where: { id },
+      data: { importacaoLiberada: liberada },
+      include: EVENTO_INCLUDE,
+    });
+
+    return {
+      ...atualizado,
+      atletasImportados: await this.prisma.inscricao.count({
+        where: {
+          importacaoId: { not: null },
+          status: StatusInscricao.CONFIRMADA,
+          categoria: { modalidade: { eventoId: id } },
+        },
+      }),
+    };
+  }
+
   private contarVagasGratuitasUsadas(eventoId: string) {
     return this.prisma.inscricao.count({ where: filtroVagaGratuitaEmUso(eventoId) });
   }
@@ -403,8 +428,9 @@ export class AdminService {
         where: { status: StatusOrganizador.APROVADO },
       }),
       this.prisma.evento.count({ where: { status: StatusEvento.PUBLICADO } }),
+      // Vendas do site: importados de outro site ficam fora.
       this.prisma.inscricao.count({
-        where: { status: StatusInscricao.CONFIRMADA },
+        where: { status: StatusInscricao.CONFIRMADA, importacaoId: null },
       }),
       this.prisma.organizador.findMany({
         where: {
@@ -435,6 +461,7 @@ export class AdminService {
         where: {
           status: StatusInscricao.CONFIRMADA,
           dataInscricao: { gte: desde },
+          importacaoId: null,
         },
         select: { dataInscricao: true },
       }),

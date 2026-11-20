@@ -5,6 +5,7 @@ import { ServidorPublicoService } from './servidor-publico.service';
 import { ServidorPublicoParserService } from './servidor-publico-parser.service';
 import { FuncionarioEmpresaService } from './funcionario-empresa.service';
 import { FuncionarioEmpresaParserService } from './funcionario-empresa-parser.service';
+import { ImportacaoAtletasService } from './importacao-atletas.service';
 import { PagamentoModule } from '../pagamento/pagamento.module';
 import { EmailModule } from '../email/email.module';
 
@@ -17,6 +18,7 @@ import { EmailModule } from '../email/email.module';
     ServidorPublicoParserService,
     FuncionarioEmpresaService,
     FuncionarioEmpresaParserService,
+    ImportacaoAtletasService,
   ],
   exports: [OrganizadorService, ServidorPublicoService],
 })

@@ -132,6 +132,8 @@ export class EventoService {
       select: {
         ...RESUMO_SELECT,
         lotes: {
+          // O lote interno dos importados nao e venda: fora da vitrine.
+          where: { somenteImportacao: false },
           select: {
             inicioVenda: true,
             fimVenda: true,
@@ -314,6 +316,7 @@ export class EventoService {
           },
         },
         lotes: {
+          where: { somenteImportacao: false },
           select: {
             id: true,
             nome: true,

@@ -968,6 +968,9 @@ export class InscricaoService {
       throw new NotFoundException('Inscrição não encontrada.');
     }
 
+    // Importada de outro site: o pagamento foi la, quem mexe e o organizador.
+    this.garantirNaoImportada(inscricao);
+
     if (inscricao.kitEntregueEm) {
       throw new BadRequestException(
         'O kit já foi retirado e o tamanho da camisa não pode mais ser alterado.',
@@ -1016,6 +1019,9 @@ export class InscricaoService {
     if (!inscricao || inscricao.clienteId !== clienteId) {
       throw new NotFoundException('Inscrição não encontrada.');
     }
+
+    // Importada de outro site: o pagamento foi la, quem mexe e o organizador.
+    this.garantirNaoImportada(inscricao);
 
     if (inscricao.kitEntregueEm) {
       throw new BadRequestException(
@@ -1081,6 +1087,9 @@ export class InscricaoService {
     if (!inscricao || inscricao.clienteId !== clienteId) {
       throw new NotFoundException('Inscrição não encontrada.');
     }
+
+    // Importada de outro site: o pagamento foi la, quem mexe e o organizador.
+    this.garantirNaoImportada(inscricao);
 
     if (inscricao.status === StatusInscricao.CANCELADA || inscricao.status === StatusInscricao.EXPIRADA) {
       throw new BadRequestException(
@@ -1306,6 +1315,8 @@ export class InscricaoService {
     const lotes = await this.prisma.lote.findMany({
       where: {
         eventoId,
+        // O lote interno dos importados nunca vende (nem tem preco).
+        somenteImportacao: false,
         inicioVenda: { lte: agora },
         fimVenda: { gte: agora },
         precos: { some: { modalidadeId } },
@@ -1348,7 +1359,7 @@ export class InscricaoService {
   ): Promise<string> {
     const generica = 'Não há vagas disponíveis pra essa modalidade no momento.';
     const lotes = await this.prisma.lote.findMany({
-      where: { eventoId, precos: { some: { modalidadeId } } },
+      where: { eventoId, somenteImportacao: false, precos: { some: { modalidadeId } } },
       select: { inicioVenda: true, fimVenda: true },
       orderBy: { inicioVenda: 'asc' },
     });
@@ -1574,6 +1585,14 @@ export class InscricaoService {
     }
 
     return cupom.id;
+  }
+
+  private garantirNaoImportada(inscricao: { importacaoId: string | null }) {
+    if (inscricao.importacaoId) {
+      throw new BadRequestException(
+        'Esta inscrição foi feita em outro site. Para trocar camisa, categoria ou transferir, fale com o organizador do evento.',
+      );
+    }
   }
 
   private async getClienteComPfOuFalhar(usuarioId: string) {

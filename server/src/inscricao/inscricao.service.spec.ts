@@ -128,6 +128,35 @@ describe('InscricaoService', () => {
     });
   });
 
+  describe('atletas importados de outro site', () => {
+    it('a compra nunca usa o lote interno dos importados', async () => {
+      await service.create(usuarioId, dto);
+      const where = prisma.lote.findMany.mock.calls[0][0].where;
+      expect(where.somenteImportacao).toBe(false);
+    });
+
+    it('inscricao importada nao pode ser transferida nem trocar camisa ou categoria', async () => {
+      prisma.inscricao.findUnique = jest.fn().mockResolvedValue({
+        id: 'inscricao-1',
+        clienteId,
+        status: StatusInscricao.CONFIRMADA,
+        kitEntregueEm: null,
+        isFuncionario: false,
+        importacaoId: 'imp-1',
+        categoria: { modalidade: { evento: { permiteTransferencia: true, camisasBloqueadas: false } } },
+      });
+      await expect(
+        service.transferirInscricao(usuarioId, 'inscricao-1', 'outro@exemplo.com'),
+      ).rejects.toThrow('feita em outro site');
+      await expect(
+        service.atualizarTamanhoCamisa(usuarioId, 'inscricao-1', 'G' as any),
+      ).rejects.toThrow('feita em outro site');
+      await expect(
+        service.trocarCategoria(usuarioId, 'inscricao-1', 'categoria-2' as any),
+      ).rejects.toThrow('feita em outro site');
+    });
+  });
+
   describe('create', () => {
     it('inscreve mesmo com e-mail ainda nao confirmado', async () => {
       // A trava barrava metade das compras; o e-mail agora e conferido na

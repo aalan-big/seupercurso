@@ -20,6 +20,7 @@ import { MotivoDto } from './dto/motivo.dto';
 import { ComissaoDto } from './dto/comissao.dto';
 import { BloqueioCupomDto } from './dto/bloqueio-cupom.dto';
 import { CortesiaCupomDto } from './dto/cortesia-cupom.dto';
+import { ImportacaoAtletasConfigDto } from './dto/importacao-atletas-config.dto';
 import { FuncionariosConfigDto } from './dto/funcionarios-config.dto';
 import { ServidorPublicoConfigDto } from './dto/servidor-publico-config.dto';
 import { AlterarEmailDto } from './dto/alterar-email.dto';
@@ -216,6 +217,16 @@ export class AdminController {
     @Body() dto: CortesiaCupomDto,
   ) {
     return this.adminService.definirCortesiaCupom(id, cupomId, dto.cortesiaSemTaxa);
+  }
+
+  // Importar atletas de outro site: o admin libera evento a evento.
+  @HttpCode(HttpStatus.OK)
+  @Post('eventos/:id/importacao-atletas')
+  configurarImportacaoAtletas(
+    @Param('id') id: string,
+    @Body() dto: ImportacaoAtletasConfigDto,
+  ) {
+    return this.adminService.configurarImportacaoAtletas(id, dto.liberada);
   }
 
   @Get('usuarios')

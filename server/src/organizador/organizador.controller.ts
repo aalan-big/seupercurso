@@ -7,6 +7,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Put,
@@ -30,6 +31,7 @@ import {
 import { OrganizadorService } from './organizador.service';
 import { ServidorPublicoService } from './servidor-publico.service';
 import { FuncionarioEmpresaService } from './funcionario-empresa.service';
+import { ImportacaoAtletasService } from './importacao-atletas.service';
 import { CreateEventoDto } from './dto/create-evento.dto';
 import { UpdateEventoDto } from './dto/update-evento.dto';
 import { CreateModalidadeDto } from './dto/create-modalidade.dto';
@@ -52,6 +54,7 @@ export class OrganizadorController {
     private readonly organizadorService: OrganizadorService,
     private readonly servidorPublicoService: ServidorPublicoService,
     private readonly funcionarioEmpresaService: FuncionarioEmpresaService,
+    private readonly importacaoAtletasService: ImportacaoAtletasService,
   ) {}
 
   @HttpCode(HttpStatus.CREATED)
@@ -1005,4 +1008,97 @@ export class OrganizadorController {
   ) {
     return this.funcionarioEmpresaService.removerNaoUtilizados(user.userId, id);
   }
+
+  // Importar atletas vendidos em outro site (so com o evento liberado pelo admin)
+  @Get('eventos/:id/importacoes-atletas')
+  listarImportacoesAtletas(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.importacaoAtletasService.listar(user.userId, id);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('eventos/:id/importacoes-atletas/previa')
+  @UseInterceptors(
+    FileInterceptor('arquivo', {
+      storage: memoryStorage(),
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }),
+  )
+  previaImportacaoAtletas(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body('mapeamento') mapeamento?: string,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('Envie a planilha dos atletas.');
+    return this.importacaoAtletasService.previa(
+      user.userId,
+      id,
+      file,
+      lerMapeamento(mapeamento),
+    );
+  }
+
+  @Post('eventos/:id/importacoes-atletas')
+  @UseInterceptors(
+    FileInterceptor('arquivo', {
+      storage: memoryStorage(),
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }),
+  )
+  confirmarImportacaoAtletas(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body('siteOrigem') siteOrigem?: string,
+    @Body('autorizacaoAtletas') autorizacaoAtletas?: string,
+    @Body('mapeamento') mapeamento?: string,
+    @Body('esperados') esperados?: string,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('Envie a planilha dos atletas.');
+    const esperadosNum = Number(esperados);
+    if (!Number.isInteger(esperadosNum) || esperadosNum < 1) {
+      throw new BadRequestException('Revise a planilha antes de confirmar.');
+    }
+    return this.importacaoAtletasService.confirmar(user.userId, id, file, {
+      siteOrigem: typeof siteOrigem === 'string' ? siteOrigem : '',
+      autorizacaoAtletas: autorizacaoAtletas === 'true',
+      mapeamento: lerMapeamento(mapeamento),
+      esperados: esperadosNum,
+    });
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('eventos/:id/importacoes-atletas/:importacaoId/desfazer')
+  desfazerImportacaoAtletas(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('importacaoId', new ParseUUIDPipe()) importacaoId: string,
+  ) {
+    return this.importacaoAtletasService.desfazer(user.userId, id, importacaoId);
+  }
+}
+
+/**
+ * Escolhas do organizador para os grupos da planilha, vindas como JSON no
+ * formulario: { "5km|": "<categoriaId>" ou "auto:<modalidadeId>" }.
+ */
+function lerMapeamento(bruto?: string): Record<string, string> {
+  if (!bruto || typeof bruto !== 'string') return {};
+  let valor: unknown;
+  try {
+    valor = JSON.parse(bruto);
+  } catch {
+    throw new BadRequestException('Escolhas de categoria inválidas.');
+  }
+  if (!valor || typeof valor !== 'object' || Array.isArray(valor)) return {};
+  const limpo: Record<string, string> = {};
+  for (const [chave, destino] of Object.entries(valor).slice(0, 500)) {
+    if (typeof destino === 'string' && chave.length <= 300 && destino.length <= 60) {
+      limpo[chave] = destino;
+    }
+  }
+  return limpo;
 }

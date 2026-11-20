@@ -372,6 +372,9 @@ model Evento {
   percentualFuncionarios  Decimal?     @db.Decimal(5, 2)
   vagasFuncionarios       Int?
   nomeEmpresaFuncionarios String?
+  // Importar atletas vendidos em outro site (planilha). So o admin libera,
+  // evento a evento; desligado o organizador nao ve o botao.
+  importacaoLiberada      Boolean      @default(false)
   status                  StatusEvento @default(RASCUNHO)
   motivoRejeicao          String?
   createdAt               DateTime     @default(now())
@@ -390,8 +393,31 @@ model Evento {
   passagensCronometragem    PassagemCronometragem[]
   chipsCronometragem        ChipsCronometragem[]
   cotacoesCronometragem     CotacaoCronometragem[]
+  importacoesAtletas        ImportacaoAtletas[]
 
   @@index([status, dataInicio])
+}
+
+/// Uma planilha de atletas vendidos em outro site, importada pelo organizador.
+/// As inscricoes nascem CONFIRMADAS, sem pedido e sem pagamento, num lote
+/// interno (`Lote.somenteImportacao`). Desfazer marca as inscricoes como
+/// CANCELADAS; nada e apagado.
+model ImportacaoAtletas {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventoId      String    @db.Uuid
+  /// Usuario do organizador que importou.
+  usuarioId     String    @db.Uuid
+  /// Site onde os atletas compraram (ex.: "Ticket Sports").
+  siteOrigem    String
+  nomeArquivo   String
+  totalAtletas  Int
+  desfeitaEm    DateTime?
+  createdAt     DateTime  @default(now())
+
+  evento     Evento      @relation(fields: [eventoId], references: [id])
+  inscricoes Inscricao[]
+
+  @@index([eventoId])
 }
 
 model ModeloCamisa {
@@ -480,6 +506,10 @@ model Lote {
   quantidade  Int?
   inicioVenda DateTime
   fimVenda    DateTime
+  /// Lote interno dos atletas importados de outro site. Nunca tem preco, nao
+  /// aparece no site nem no painel e nao e editavel: so segura as inscricoes
+  /// importadas sem comer a quantidade dos lotes de venda.
+  somenteImportacao Boolean @default(false)
   createdAt   DateTime @default(now())
 
   evento     Evento                @relation(fields: [eventoId], references: [id])
@@ -606,6 +636,10 @@ model Inscricao {
   isFuncionario      Boolean  @default(false)
   matriculaFuncionario String?
   percentualFuncionario Decimal? @db.Decimal(5, 2)
+  /// Veio de uma planilha de outro site (ver ImportacaoAtletas). Nulo = vendida aqui.
+  importacaoId      String?         @db.Uuid
+  /// E-mail do atleta trazido na planilha (so inscricao importada).
+  atletaEmail       String?
   dataInscricao     DateTime        @default(now())
   status            StatusInscricao @default(PENDENTE_PAGAMENTO)
 
@@ -621,9 +655,11 @@ model Inscricao {
   resultado       Resultado?
   servidorPublico ServidorPublico?
   funcionario     FuncionarioEmpresa?
+  importacao      ImportacaoAtletas? @relation(fields: [importacaoId], references: [id])
 
   @@index([status])
   @@index([pedidoId])
+  @@index([importacaoId])
 }
 
 // 1 inscrição (ou 1 pedido agrupado) pode ter N tentativas de pagamento.
