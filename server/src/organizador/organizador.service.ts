@@ -66,6 +66,7 @@ import {
   StatusDocumentoIdoso,
 } from '../generated/prisma/enums';
 import { EmailService } from '../email/email.service';
+import { EMAIL_CONTA_IMPORTACAO } from '../common/conta-importacao';
 import { tarifaGatewayDoPagamento } from '../common/tarifa-pagamento';
 
 @Injectable()
@@ -1183,7 +1184,7 @@ export class OrganizadorService {
       }
     }
 
-    return this.prisma.inscricao.findMany({
+    const inscritos = await this.prisma.inscricao.findMany({
       where: this.whereInscritos(organizador.id, filtros),
       include: {
         cliente: {
@@ -1198,9 +1199,22 @@ export class OrganizadorService {
         lote: true,
         modeloCamisa: true,
         pagamentos: { orderBy: { createdAt: 'desc' } },
+        importacao: { select: { siteOrigem: true } },
       },
       orderBy: { dataInscricao: 'desc' },
     });
+
+    // Importado de outro site que o atleta ainda nao assumiu (pelo CPF): esta
+    // na conta interna, que nao e de ninguem. No lugar do e-mail dela vai o do
+    // atleta trazido na planilha, na tela e nas exportacoes.
+    return inscritos.map((i) =>
+      i.cliente.usuario.email === EMAIL_CONTA_IMPORTACAO
+        ? {
+            ...i,
+            cliente: { ...i.cliente, usuario: { email: i.atletaEmail ?? '' } },
+          }
+        : i,
+    );
   }
 
   async atualizarInscricao(
@@ -1477,7 +1491,11 @@ export class OrganizadorService {
         inscricao.atletaCpf ??
         inscricao.cliente.pf?.cpf ??
         '';
-      const comprador = inscricao.cliente.pf?.nomeCompleto || inscricao.cliente.usuario.email;
+      const comprador =
+        inscricao.cliente.pf?.nomeCompleto ||
+        (inscricao.importacao
+          ? `Importado (${inscricao.importacao.siteOrigem})`
+          : inscricao.cliente.usuario.email);
 
       const semCamisa =
         inscricao.categoria.modalidade.evento.camisaOpcional &&

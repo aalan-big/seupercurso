@@ -310,6 +310,10 @@ async function onConferirDocumentoIdoso(decisao: 'APROVADO' | 'REJEITADO') {
 }
 
 function compradorTitular(inscrito: any) {
+  // Veio da planilha de outro site e o atleta ainda nao assumiu pelo CPF.
+  if (inscrito.importacao && !inscrito.cliente?.pf) {
+    return `Importado – ${inscrito.importacao.siteOrigem}`
+  }
   const nomeTitular = inscrito.cliente?.pf?.nomeCompleto || inscrito.cliente?.usuario?.email
   const nomeAtletaAtual = nomeCliente(inscrito)
   if (nomeTitular && nomeTitular !== nomeAtletaAtual) {

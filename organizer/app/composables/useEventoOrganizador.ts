@@ -96,6 +96,8 @@ export interface EventoOrganizador {
   // Desconto para funcionarios: liberado e configurado so pelo admin.
   permiteFuncionarios?: boolean
   percentualFuncionarios?: string | null
+  // Importar atletas vendidos em outro site: so o admin libera.
+  importacaoLiberada?: boolean
   createdAt: string
   updatedAt: string
   modalidades?: ModalidadeOrganizador[]

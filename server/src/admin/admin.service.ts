@@ -177,6 +177,7 @@ export class AdminService {
       ...evento,
       resumoFuncionarios: await this.resumoFuncionarios(id),
       vagasGratuitasUsadas: await this.contarVagasGratuitasUsadas(id),
+      atletasImportados: await this.contarAtletasImportados(id),
     };
   }
 
@@ -332,14 +333,19 @@ export class AdminService {
 
     return {
       ...atualizado,
-      atletasImportados: await this.prisma.inscricao.count({
-        where: {
-          importacaoId: { not: null },
-          status: StatusInscricao.CONFIRMADA,
-          categoria: { modalidade: { eventoId: id } },
-        },
-      }),
+      atletasImportados: await this.contarAtletasImportados(id),
     };
+  }
+
+  /** Atletas importados de outro site que seguem inscritos no evento. */
+  private contarAtletasImportados(eventoId: string) {
+    return this.prisma.inscricao.count({
+      where: {
+        importacaoId: { not: null },
+        status: StatusInscricao.CONFIRMADA,
+        categoria: { modalidade: { eventoId } },
+      },
+    });
   }
 
   private contarVagasGratuitasUsadas(eventoId: string) {

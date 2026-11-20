@@ -17,6 +17,9 @@ export interface InscritoOrganizador {
   documentoIdosoRevisadoEm?: string | null
   /** O documento acima comprova PCD (desconto PCD), e nao a idade. */
   descontoPcd?: boolean
+  /** Veio de uma planilha de outro site (nulo = vendida aqui). */
+  importacao?: { siteOrigem: string } | null
+  atletaEmail?: string | null
   cliente: {
     usuario: { email: string }
     pf: { nomeCompleto: string; cpf: string; celular: string } | null

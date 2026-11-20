@@ -24,6 +24,10 @@ export interface EventoAdmin {
   nomeEmpresaFuncionarios?: string | null
   // So vem no detalhe do evento e na resposta do card de funcionarios
   resumoFuncionarios?: { naLista: number; inscritos: number; percentualTravado: boolean }
+  // Importar atletas vendidos em outro site: o admin libera evento a evento
+  importacaoLiberada?: boolean
+  // So vem no detalhe do evento e na resposta do card de importacao
+  atletasImportados?: number
   _count?: { cupons: number }
   cupons?: {
     id: string
@@ -113,5 +117,12 @@ export function useAdminEventos() {
     })
   }
 
-  return { eventos, fetchLista, buscar, aprovar, rejeitar, suspender, configurarServidorPublico, bloquearCupom, definirCortesiaCupom, configurarFuncionarios }
+  async function configurarImportacaoAtletas(id: string, liberada: boolean) {
+    return api<EventoAdmin>(`/admin/eventos/${id}/importacao-atletas`, {
+      method: 'POST',
+      body: { liberada }
+    })
+  }
+
+  return { eventos, fetchLista, buscar, aprovar, rejeitar, suspender, configurarServidorPublico, bloquearCupom, definirCortesiaCupom, configurarFuncionarios, configurarImportacaoAtletas }
 }

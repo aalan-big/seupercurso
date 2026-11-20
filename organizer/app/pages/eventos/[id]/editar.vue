@@ -14,7 +14,7 @@ const sucesso = ref(false)
 // despercebido. O popup cobre a tela e so some quando ela fechar.
 const popupSucesso = ref<'salvo' | 'criado' | null>(null)
 
-const abaAtiva = ref<'dados' | 'modalidades' | 'lotes' | 'camisas' | 'descontos' | 'cronometragem'>('dados')
+const abaAtiva = ref<'dados' | 'modalidades' | 'lotes' | 'camisas' | 'descontos' | 'cronometragem' | 'importar'>('dados')
 
 onMounted(async () => {
   if (route.query.criado === '1') {
@@ -137,6 +137,15 @@ async function onSubmit(payload: Record<string, unknown>, _arquivoRegulamento: F
         >
           ⏱️ Cronometragem
         </button>
+        <button
+          v-if="eventoSelecionado.importacaoLiberada"
+          type="button"
+          class="shrink-0 whitespace-nowrap rounded-lg px-4 py-2 transition flex items-center gap-1.5"
+          :class="abaAtiva === 'importar' ? 'bg-white text-primary shadow' : 'text-slate-500'"
+          @click="abaAtiva = 'importar'"
+        >
+          Importar atletas
+        </button>
       </div>
 
       <div class="mt-6 max-w-2xl">
@@ -188,6 +197,10 @@ async function onSubmit(payload: Record<string, unknown>, _arquivoRegulamento: F
       <div v-if="abaAtiva === 'descontos'" class="mt-6 max-w-2xl">
         <CuponsManager :evento-id="id" :evento="eventoSelecionado" />
         <FuncionariosManager v-if="eventoSelecionado.permiteFuncionarios" class="mt-8" :evento-id="id" />
+      </div>
+
+      <div v-if="abaAtiva === 'importar' && eventoSelecionado.importacaoLiberada" class="mt-6 max-w-4xl">
+        <ImportacaoAtletasManager :evento-id="id" />
       </div>
 
       <div v-if="abaAtiva === 'cronometragem'" class="mt-6">

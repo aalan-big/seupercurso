@@ -17,6 +17,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { cpfEhValido } from '../common/validators/is-cpf.validator';
 import { calcularIdade } from '../common/calcular-idade';
+import { EMAIL_CONTA_IMPORTACAO } from '../common/conta-importacao';
 import {
   chaveTexto,
   lerPlanilhaAtletas,
@@ -25,12 +26,6 @@ import {
   normalizarGenero,
 } from './importacao-atletas-parser';
 
-/**
- * Conta interna que guarda as inscricoes importadas ate o atleta entrar no
- * site com o mesmo CPF (ai a inscricao passa para a conta dele). Ninguem entra
- * nela: senha aleatoria que ninguem conhece, usuario e cliente INATIVOS.
- */
-export const EMAIL_CONTA_IMPORTACAO = 'importacao@sistema.seupercurso.interno';
 
 /** Destino de um grupo da planilha: uma categoria, ou "auto:<modalidadeId>". */
 type Destino = string;
@@ -264,6 +259,8 @@ export class ImportacaoAtletasService {
             atletaDataNascimento: new Date(`${l.dataNascimento}T00:00:00.000Z`),
             atletaGenero: l.genero as 'MASCULINO' | 'FEMININO' | 'OUTRO',
             tamanhoCamisa: l.tamanhoCamisa || null,
+            // Evento de camisa opcional: quem veio com tamanho tem camisa.
+            incluiCamisa: !!l.tamanhoCamisa,
             numeroPeito: l.numeroPeito || null,
             atletaEmail: l.email || null,
           })),

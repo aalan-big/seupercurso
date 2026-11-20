@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { EMAIL_CONTA_IMPORTACAO } from '../common/conta-importacao';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
@@ -206,7 +207,8 @@ export class AuthService {
       include: { cliente: { include: { pf: true } } },
     });
 
-    if (!usuario) {
+    // A conta interna dos importados nao recebe e-mail (o dominio nao existe).
+    if (!usuario || usuario.email === EMAIL_CONTA_IMPORTACAO) {
       // Retorna sucesso para evitar enumeração de usuários
       return { sucesso: true, mensagem: 'Se o e-mail estiver cadastrado, você receberá um link de recuperação.' };
     }

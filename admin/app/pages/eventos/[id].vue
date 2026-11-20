@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ArrowLeft, Ban, FileText, CheckCircle, Landmark, Ticket, BriefcaseBusiness, Lock } from 'lucide-vue-next'
+import { ArrowLeft, Ban, FileText, CheckCircle, Landmark, Ticket, BriefcaseBusiness, Lock, FileUp } from 'lucide-vue-next'
 import type { EventoAdmin } from '../../composables/useAdminEventos'
 
 const route = useRoute()
 const config = useRuntimeConfig()
-const { buscar, aprovar, rejeitar, suspender, configurarServidorPublico, bloquearCupom, definirCortesiaCupom, configurarFuncionarios } = useAdminEventos()
+const { buscar, aprovar, rejeitar, suspender, configurarServidorPublico, bloquearCupom, definirCortesiaCupom, configurarFuncionarios, configurarImportacaoAtletas } = useAdminEventos()
 
 const evento = ref<EventoAdmin | null>(null)
 const carregando = ref(true)
@@ -123,6 +123,40 @@ async function onSalvarFuncionarios() {
     erro.value = extrairErro(e)
   } finally {
     salvandoFuncionarios.value = false
+  }
+}
+
+// Importar atletas vendidos em outro site. O total so vem no detalhe e neste
+// card; as outras acoes devolvem o evento sem ele, entao fica guardado a parte.
+const atletasImportados = ref(0)
+const salvandoImportacao = ref(false)
+
+watch(
+  evento,
+  (ev) => {
+    if (ev?.atletasImportados !== undefined) atletasImportados.value = ev.atletasImportados
+  },
+  { immediate: true }
+)
+
+async function alternarImportacao(liberar: boolean) {
+  if (!evento.value) return
+  const pergunta = liberar
+    ? 'Liberar a importação de atletas neste evento? O organizador passa a ver o botão "Importar atletas de outro site".'
+    : 'Desligar a importação neste evento? O organizador deixa de ver o botão. Os atletas já importados continuam inscritos.'
+  if (!confirm(pergunta)) return
+  erro.value = ''
+  sucesso.value = ''
+  salvandoImportacao.value = true
+  try {
+    evento.value = await configurarImportacaoAtletas(route.params.id as string, liberar)
+    sucesso.value = liberar
+      ? 'Importação de atletas liberada para este evento.'
+      : 'Importação de atletas desligada para este evento.'
+  } catch (e) {
+    erro.value = extrairErro(e)
+  } finally {
+    salvandoImportacao.value = false
   }
 }
 
@@ -459,6 +493,45 @@ async function confirmarSuspensao() {
           Na lista do organizador: <span class="text-slate-900">{{ resumoFuncionarios.naLista }}</span> ·
           Inscritos com desconto: <span class="text-slate-900">{{ resumoFuncionarios.inscritos }}</span>
         </p>
+      </div>
+
+      <!-- Importar atletas vendidos em outro site: so o admin libera -->
+      <div class="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="flex items-start gap-3">
+            <FileUp :size="24" class="shrink-0 text-slate-600" />
+            <div>
+              <h2 class="text-sm font-bold uppercase tracking-wide text-slate-800">Importar atletas de outro site</h2>
+              <p class="text-xs text-slate-500 mt-0.5">
+                O organizador envia a planilha dos atletas que comprou em outro site e eles entram na lista de inscritos
+                (kit, nº de peito, chip, resultado). Não passa por pagamento nem cobra taxa. Ocupam vaga do evento.
+              </p>
+            </div>
+          </div>
+          <span
+            class="self-start sm:self-auto rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-wider"
+            :class="evento.importacaoLiberada ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-slate-100 text-slate-600'"
+          >
+            {{ evento.importacaoLiberada ? 'Liberado para o Organizador' : 'Bloqueado' }}
+          </span>
+        </div>
+
+        <div class="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-100 pt-4">
+          <p class="text-xs font-semibold text-slate-500">
+            Atletas importados neste evento: <span class="text-slate-900">{{ atletasImportados }}</span>
+          </p>
+          <button
+            type="button"
+            :disabled="salvandoImportacao"
+            class="rounded-xl px-4 py-2.5 text-xs font-black uppercase tracking-wide transition disabled:opacity-50"
+            :class="evento.importacaoLiberada
+              ? 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+              : 'bg-slate-900 text-white hover:bg-slate-800'"
+            @click="alternarImportacao(!evento.importacaoLiberada)"
+          >
+            {{ salvandoImportacao ? 'Salvando...' : evento.importacaoLiberada ? 'Desligar importação' : 'Liberar importação' }}
+          </button>
+        </div>
       </div>
 
       <!-- Cupons do evento: o organizador cria a vontade, a equipe pode bloquear -->
