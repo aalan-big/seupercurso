@@ -330,7 +330,7 @@ export class InscricaoService {
       documentoIdosoUrl: string | null;
       descontoPcd: boolean;
       valor: number;
-      /** Preco antes do cupom, base da taxa do site (ver calcularValoresInscricao). */
+      /** Base da taxa do site (ver calcularValoresInscricao). */
       baseComissao: number;
       isServidorPublico?: boolean;
       matriculaServidor?: string | null;

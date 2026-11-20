@@ -886,11 +886,12 @@ const valorTotalCalculado = computed(() => {
   return carrinho.value.reduce((total, item) => total + calcularPrecoItem(item), 0)
 })
 
-// Base da taxa do site: o preco antes do cupom (o cupom e desconto do
-// organizador e nao tira a parte do site). So a cortesia liberada pelo admin
-// leva a taxa junto. Mesma regra do servidor (calcularValoresInscricao).
+// Base da taxa do site: o valor que o atleta paga, com cupom parcial e tudo.
+// So o cupom de 100% (sem cortesia do admin) usa o preco antes do cupom, para a
+// inscricao nao sair sem a taxa. Mesma regra do servidor (calcularValoresInscricao).
 const baseComissaoTotal = computed(() => {
-  const ignorarCupom = !!cupomAplicadoInfo.value && !cupomAplicadoInfo.value.cortesiaSemTaxa
+  const cupom = cupomAplicadoInfo.value
+  const ignorarCupom = !!cupom && cupom.percentualDesconto >= 100 && !cupom.cortesiaSemTaxa
   return carrinho.value.reduce((total, item) => total + calcularPrecoItem(item, ignorarCupom), 0)
 })
 

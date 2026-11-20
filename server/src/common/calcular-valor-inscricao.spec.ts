@@ -331,9 +331,34 @@ describe('taxa do site com cupom', () => {
     expect(r).toEqual({ valor: 0, baseComissao: 40 });
   });
 
-  it('cupom parcial: taxa tambem sobre o preco antes do cupom', async () => {
+  it('cupom parcial: taxa sobre o valor com desconto', async () => {
     const r = await calcularValoresInscricao(comCupom(50), { ...ctx, cupomId: 'cupom-1' });
-    expect(r).toEqual({ valor: 20, baseComissao: 40 });
+    expect(r).toEqual({ valor: 20, baseComissao: 20 });
+  });
+
+  it('evento de R$ 70 com cupom de 10%: taxa sobre R$ 63', async () => {
+    const prisma = prismaFalso({ preco: '70' });
+    prisma.cupom.findUnique.mockResolvedValue({
+      id: 'cupom-1',
+      ativo: true,
+      percentualDesconto: '10',
+      cortesiaSemTaxa: false,
+    });
+    const r = await calcularValoresInscricao(prisma, { ...ctx, cupomId: 'cupom-1' });
+    expect(r).toEqual({ valor: 63, baseComissao: 63 });
+  });
+
+  it('cupom de 99%: taxa sobre o pouco que sobra (so o 100% usa o preco cheio)', async () => {
+    const r = await calcularValoresInscricao(comCupom(99), { ...ctx, cupomId: 'cupom-1' });
+    expect(r).toEqual({ valor: 0.4, baseComissao: 0.4 });
+  });
+
+  it('cupom parcial com camisa opcional: taxa sobre inscricao com desconto + camisa', async () => {
+    const r = await calcularValoresInscricao(
+      comCupom(50, false, { camisaOpcional: true, valorCamisaOpcional: 30 }),
+      { ...ctx, cupomId: 'cupom-1', incluiCamisa: true },
+    );
+    expect(r).toEqual({ valor: 50, baseComissao: 50 });
   });
 
   it('cortesia liberada pelo admin: sem taxa no cupom de 100%', async () => {

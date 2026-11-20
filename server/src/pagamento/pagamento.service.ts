@@ -213,7 +213,7 @@ export class PagamentoService {
     }
 
     let valorBaseTotal = 0;
-    // Preco antes do cupom: a comissao sai daqui (ver calcularValoresInscricao).
+    // Base da comissao: o valor pago, ou o preco antes do cupom no cupom de 100% (ver calcularValoresInscricao).
     // Sem cupom e igual ao valorBaseTotal.
     let baseComissaoTotal = 0;
     for (const inscricao of inscricoes) {

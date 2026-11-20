@@ -145,8 +145,8 @@ async function alternarBloqueioCupom(cupomId: string, bloquear: boolean, codigo:
   }
 }
 
-// Cortesia sem taxa: so o admin libera. Sem ela, a taxa do site sai do preco
-// antes do cupom e o cupom de 100% cobra do atleta so a taxa.
+// Cortesia sem taxa: so o admin libera. Sem ela, o cupom de 100% cobra do
+// atleta so a taxa do site (sobre o preco antes do cupom).
 async function alternarCortesiaCupom(cupomId: string, liberar: boolean, codigo: string) {
   const pergunta = liberar
     ? `Liberar ${codigo} como cortesia sem taxa? Quem usar este cupom não paga a taxa do site (num cupom de 100%, a inscrição sai de graça e o site não recebe nada).`
@@ -472,7 +472,7 @@ async function confirmarSuspensao() {
               novas, as já pagas não mudam, e o organizador não consegue remover nem liberar.
             </p>
             <p class="mt-1 text-xs text-slate-500">
-              A taxa do site é cobrada sobre o preço antes do cupom: num cupom de 100%, o atleta paga só a taxa.
+              A taxa do site é cobrada sobre o valor com desconto do cupom. Num cupom de 100%, o atleta paga só a taxa (sobre o preço cheio).
               Para uma cortesia de verdade, sem taxa, libere o cupom como <strong>cortesia sem taxa</strong>.
             </p>
 

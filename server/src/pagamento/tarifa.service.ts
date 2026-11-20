@@ -76,7 +76,7 @@ export class TarifaService {
    * inscricoes, antes da tarifa do gateway. Mesma regra de `dividirComissao`,
    * que e a que a cobranca usa.
    *
-   * @param baseComissao preco antes do cupom (ver `calcularValoresInscricao`);
+   * @param baseComissao base da taxa (ver `calcularValoresInscricao`);
    *   sem ela, vale o proprio `valorBase`, como antes.
    */
   async calcularTaxaServico(

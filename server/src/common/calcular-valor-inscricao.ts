@@ -35,10 +35,11 @@ export interface ValoresInscricao {
   /** O que o atleta paga pela inscricao (sem a taxa do site). */
   valor: number;
   /**
-   * Base sobre a qual sai a taxa do site: o preco antes do cupom. O cupom e
-   * desconto do organizador e nao diminui a parte da plataforma; senao um
-   * cupom de 100% (ou de 99%) virava inscricao sem taxa nenhuma. So o cupom de
-   * cortesia liberado pelo admin (`Cupom.cortesiaSemTaxa`) leva a taxa junto.
+   * Base sobre a qual sai a taxa do site: o valor que o atleta paga, cupom
+   * parcial incluido (evento de R$ 70 com cupom de 10% = taxa sobre R$ 63).
+   * Excecao: cupom de 100% zeraria a taxa junto, entao nele a taxa sai do preco
+   * antes do cupom e o atleta paga so ela. So o cupom de cortesia liberado pelo
+   * admin (`Cupom.cortesiaSemTaxa`) entra sem taxa nenhuma.
    */
   baseComissao: number;
 }
@@ -95,12 +96,13 @@ export async function calcularValoresInscricao(
   }
 
   let descontoCupom = 0;
-  let cupomLevaATaxa = false;
+  let cupomZeraInscricao = false;
   if (ctx.cupomId && percentualFuncionario <= 0) {
     const cupom = await prisma.cupom.findUnique({ where: { id: ctx.cupomId } });
     if (cupom?.ativo) {
       descontoCupom = valor * (Number(cupom.percentualDesconto) / 100);
-      cupomLevaATaxa = cupom.cortesiaSemTaxa;
+      cupomZeraInscricao =
+        Number(cupom.percentualDesconto) >= 100 && !cupom.cortesiaSemTaxa;
     }
   }
   const valorSemCupom = valor;
@@ -123,8 +125,10 @@ export async function calcularValoresInscricao(
   // `Evento.comissaoPagaPeloAtleta`, e somada la como taxa de servico. Somar
   // aqui inflava a base sobre a qual a propria comissao era calculada.
   const valorFinal = Math.max(0, Number(valor.toFixed(2)));
-  const baseComissao = cupomLevaATaxa
-    ? valorFinal
-    : Math.max(0, Number((valorSemCupom + camisa).toFixed(2)));
+  // Taxa sobre o que o atleta paga; so o cupom de 100% (sem cortesia do admin)
+  // usa o preco antes do cupom, para a inscricao nao sair sem a taxa do site.
+  const baseComissao = cupomZeraInscricao
+    ? Math.max(0, Number((valorSemCupom + camisa).toFixed(2)))
+    : valorFinal;
   return { valor: valorFinal, baseComissao };
 }

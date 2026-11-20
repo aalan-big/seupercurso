@@ -39,7 +39,7 @@ export class PagamentoController {
   async obterTarifas(
     @Query('valorBase') valorBase?: string,
     @Query('eventoId') eventoId?: string,
-    // Preco antes do cupom: a taxa do site sai dele (ver calcularValoresInscricao).
+    // Base da taxa do site (ver calcularValoresInscricao); difere do valorBase so no cupom de 100%.
     // Sem o parametro vale o proprio valorBase, como antes.
     @Query('baseComissao') baseComissao?: string,
   ) {

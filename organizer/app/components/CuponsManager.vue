@@ -281,8 +281,8 @@ function formatarData(iso: string | null) {
             />
           </div>
           <p class="mt-2 text-xs text-slate-500">
-            O desconto vale sobre o valor da inscrição. A taxa do site continua sendo calculada sobre o preço sem o cupom:
-            num cupom de 100%, o atleta paga só a taxa do site.
+            O desconto vale sobre o valor da inscrição, e a taxa do site é calculada sobre o valor com desconto.
+            Num cupom de 100%, o atleta paga só a taxa do site.
           </p>
           <div class="mt-3 flex gap-2">
             <button

@@ -28,7 +28,7 @@ export function useTarifas() {
   const api = useApi()
 
   /**
-   * @param baseComissao preco antes do cupom, quando difere do valorBase: a
+   * @param baseComissao base da taxa (cupom de 100%), quando difere do valorBase: a
    *   taxa do site sai dele. Omitido, a consulta e exatamente a de antes.
    */
   async function buscar(valorBase?: number, eventoId?: string, baseComissao?: number) {

@@ -110,7 +110,7 @@ export class EventoService {
       valido: true,
       codigo: cupom.codigo,
       percentualDesconto: Number(cupom.percentualDesconto),
-      // A tela calcula a taxa do site sobre o preco antes do cupom, exceto na
+      // No cupom de 100% a tela calcula a taxa do site sobre o preco antes do cupom, exceto na
       // cortesia liberada pelo admin.
       cortesiaSemTaxa: cupom.cortesiaSemTaxa,
     };
