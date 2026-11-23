@@ -52,7 +52,6 @@ const statusOpcoes = [
 ]
 
 const modalCategoriasAberto = ref(false)
-const abaCategoriaAtiva = ref('')
 
 // Eventos sem camisa nao tem tamanho pra mostrar nem editar. A lista pode
 // misturar varios eventos, entao a coluna so some quando nenhum deles usa camisa.
@@ -85,39 +84,28 @@ const atletaSelecionadoPossuiCamisa = computed(() => {
   return true
 })
 
-const inscritosPorCategoria = computed(() => {
-  const grupos = new Map<string, { id: string; titulo: string; itens: typeof inscritos.value }>()
-
-  for (const inscrito of inscritos.value) {
-    const chave = inscrito.categoria.id
-    const titulo = `${inscrito.categoria.modalidade.nome} · ${inscrito.categoria.nome}`
-    if (!grupos.has(chave)) {
-      grupos.set(chave, { id: chave, titulo, itens: [] })
-    }
-    grupos.get(chave)!.itens.push(inscrito)
+// Se a lista de eventos falhar, ainda da pra usar os eventos dos inscritos na tela.
+const eventosDoModal = computed(() => {
+  const opcoes = new Map<string, { id: string; nome: string }>()
+  for (const ev of eventos.value) opcoes.set(ev.id, { id: ev.id, nome: ev.nome })
+  for (const i of inscritos.value) {
+    const ev = i.categoria.modalidade.evento
+    if (!opcoes.has(ev.id)) opcoes.set(ev.id, { id: ev.id, nome: ev.nome })
   }
-
-  return Array.from(grupos.values())
-    .map((grupo) => ({
-      ...grupo,
-      // Mantém a numeração de peito exatamente como já foi gerada — aqui só
-      // ordena a exibição por ela dentro de cada categoria, sem recalcular nada.
-      itens: [...grupo.itens].sort((a, b) => {
-        const pa = a.numeroPeito ? Number(a.numeroPeito) : Infinity
-        const pb = b.numeroPeito ? Number(b.numeroPeito) : Infinity
-        return pa - pb
-      })
-    }))
-    .sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR'))
+  return [...opcoes.values()]
 })
 
-const grupoCategoriaAtivo = computed(() => {
-  return inscritosPorCategoria.value.find((g) => g.id === abaCategoriaAtiva.value) || inscritosPorCategoria.value[0] || null
-})
+// Evento filtrado na pagina; sem filtro, o da inscricao mais recente.
+const eventoInicialModal = computed(
+  () =>
+    filtroEvento.value ||
+    inscritos.value[0]?.categoria.modalidade.evento.id ||
+    (eventosDoModal.value.length === 1 ? eventosDoModal.value[0]!.id : '')
+)
 
-function abrirModalCategorias() {
-  abaCategoriaAtiva.value = inscritosPorCategoria.value[0]?.id || ''
-  modalCategoriasAberto.value = true
+function abrirAtletaDoModal(inscrito: (typeof inscritos.value)[number]) {
+  modalCategoriasAberto.value = false
+  abrirModal360(inscrito)
 }
 
 const statusInfo: Record<string, { texto: string; classe: string }> = {
@@ -365,9 +353,9 @@ function formatarData(iso: string) {
       <div class="flex flex-wrap items-center gap-2">
         <button
           type="button"
-          :disabled="inscritos.length === 0"
+          :disabled="carregando || eventosDoModal.length === 0"
           class="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-100 transition disabled:opacity-40"
-          @click="abrirModalCategorias"
+          @click="modalCategoriasAberto = true"
         >
           <ListTree :size="16" /> Ver por Categoria
         </button>
@@ -849,112 +837,19 @@ function formatarData(iso: string) {
     </Teleport>
 
     <!-- MODAL: INSCRITOS AGRUPADOS POR CATEGORIA -->
-    <Teleport to="body">
-      <div v-if="modalCategoriasAberto" class="fixed inset-0 z-[300] flex items-center justify-center p-4">
-        <div class="fixed inset-0 bg-slate-950/75 backdrop-blur-xs" @click="modalCategoriasAberto = false"></div>
-
-        <div class="relative flex w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl z-[301] max-h-[85vh]">
-          <div class="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-            <div>
-              <h3 class="font-black text-base text-slate-900 flex items-center gap-2">
-                <ListTree :size="18" class="text-primary" /> Inscritos por Categoria
-              </h3>
-              <p class="text-xs text-slate-500 mt-0.5">
-                Mesma numeração de peito de sempre — só agrupada pra facilitar a visualização.
-              </p>
-            </div>
-            <button
-              type="button"
-              class="rounded-xl bg-slate-100 p-2 text-xs font-bold text-slate-500 hover:bg-slate-200 transition inline-flex items-center gap-1"
-              @click="modalCategoriasAberto = false"
-            >
-              <X :size="13" /> Fechar
-            </button>
-          </div>
-
-          <div v-if="inscritosPorCategoria.length === 0" class="px-6 py-12 text-center text-xs text-slate-400">
-            Nenhum inscrito pra agrupar com os filtros atuais.
-          </div>
-
-          <template v-else>
-            <!-- Abas por categoria -->
-            <div class="flex gap-1.5 overflow-x-auto border-b border-slate-200 bg-slate-50 px-4 pt-3">
-              <button
-                v-for="grupo in inscritosPorCategoria"
-                :key="grupo.id"
-                type="button"
-                class="flex shrink-0 items-center gap-2 rounded-t-xl border border-b-0 px-3.5 py-2 text-xs font-bold transition"
-                :class="
-                  grupoCategoriaAtivo?.id === grupo.id
-                    ? 'border-slate-200 bg-white text-primary'
-                    : 'border-transparent text-slate-500 hover:text-slate-700'
-                "
-                @click="abaCategoriaAtiva = grupo.id"
-              >
-                {{ grupo.titulo }}
-                <span
-                  class="rounded-full px-1.5 py-0.5 text-[10px]"
-                  :class="grupoCategoriaAtivo?.id === grupo.id ? 'bg-primary/10 text-primary' : 'bg-slate-200 text-slate-500'"
-                >
-                  {{ grupo.itens.length }}
-                </span>
-              </button>
-            </div>
-
-            <!-- Conteúdo da aba ativa -->
-            <div class="overflow-y-auto px-6 py-4">
-              <div v-if="grupoCategoriaAtivo" class="overflow-x-auto rounded-2xl border border-slate-200">
-                <table class="w-full text-left text-xs">
-                  <thead class="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                    <tr>
-                      <th class="px-3 py-2 text-center">Nº Peito</th>
-                      <th class="px-3 py-2">Nome do Atleta</th>
-                      <th class="px-3 py-2">CPF</th>
-                      <th v-if="mostrarColunaCamisa" class="px-3 py-2 text-center">Camisa</th>
-                      <th class="px-3 py-2 text-center">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-slate-100">
-                    <tr
-                      v-for="inscrito in grupoCategoriaAtivo.itens"
-                      :key="inscrito.id"
-                      class="cursor-pointer hover:bg-blue-50/60 transition"
-                      title="Clique para visualizar e editar os dados do atleta"
-                      @click="modalCategoriasAberto = false; abrirModal360(inscrito)"
-                    >
-                      <td class="px-3 py-2.5 text-center font-mono font-black text-slate-900">
-                        <span v-if="inscrito.numeroPeito" class="rounded-lg bg-slate-900 text-white px-2 py-1 text-[11px] shadow-2xs">
-                          #{{ inscrito.numeroPeito }}
-                        </span>
-                        <span v-else class="text-slate-400 font-normal">—</span>
-                      </td>
-                      <td class="px-3 py-2.5">
-                        <div class="font-bold text-slate-900">{{ nomeCliente(inscrito) }}</div>
-                        <span v-if="compradorTitular(inscrito)" class="text-[10px] font-semibold text-slate-400 block">
-                          {{ compradorTitular(inscrito) }}
-                        </span>
-                      </td>
-                      <td class="px-3 py-2.5 text-slate-600 font-mono">{{ documentoCliente(inscrito) }}</td>
-                      <td v-if="mostrarColunaCamisa" class="px-3 py-2.5 text-center font-bold text-slate-700">
-                        {{ formatarCamisa(inscrito) }}
-                      </td>
-                      <td class="px-3 py-2.5 text-center">
-                        <span
-                          class="whitespace-nowrap rounded-full px-2 py-1 text-[10px] uppercase"
-                          :class="statusInfo[inscrito.status]?.classe || 'bg-slate-100 text-slate-500'"
-                        >
-                          {{ statusInfo[inscrito.status]?.texto || inscrito.status }}
-                        </span>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </template>
-        </div>
-      </div>
-    </Teleport>
+    <InscritosPorCategoriaModal
+      v-if="modalCategoriasAberto"
+      :eventos="eventosDoModal"
+      :evento-inicial="eventoInicialModal"
+      :status-info="statusInfo"
+      :nome-cliente="nomeCliente"
+      :documento-cliente="documentoCliente"
+      :comprador-titular="compradorTitular"
+      :formatar-camisa="formatarCamisa"
+      :evento-possui-camisa="eventoPossuiCamisa"
+      @fechar="modalCategoriasAberto = false"
+      @selecionar="abrirAtletaDoModal"
+    />
 
     <!-- MODAL FOTO AMPLIADA -->
     <Teleport to="body">

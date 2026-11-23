@@ -58,8 +58,13 @@ export function useInscritosOrganizador() {
   const inscritos = useState<InscritoOrganizador[]>('organizador_inscritos', () => [])
   const api = useApi()
 
+  // Só consulta, sem trocar a lista que a página está mostrando.
+  async function buscarInscritos(filtros: FiltrosInscritos = {}) {
+    return api<InscritoOrganizador[]>(`/organizadores/me/inscritos${paraQueryString(filtros)}`)
+  }
+
   async function fetchInscritos(filtros: FiltrosInscritos = {}) {
-    const res = await api<InscritoOrganizador[]>(`/organizadores/me/inscritos${paraQueryString(filtros)}`)
+    const res = await buscarInscritos(filtros)
     inscritos.value = res
     return res
   }
@@ -108,5 +113,5 @@ export function useInscritosOrganizador() {
     })
   }
 
-  return { inscritos, fetchInscritos, exportarCsv, atualizarInscricao, conferirDocumentoIdoso }
+  return { inscritos, buscarInscritos, fetchInscritos, exportarCsv, atualizarInscricao, conferirDocumentoIdoso }
 }
