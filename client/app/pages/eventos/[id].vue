@@ -51,10 +51,10 @@ const { minhasInscricoes, fetchMinhas, criarBatch, uploadDocumentoIdoso, validar
 const { cliente, fetchMe: fetchClienteMe } = useCliente()
 const { dependentes, fetchDependentes } = useDependente()
 
-const titularJaInscrito = computed(() => {
-  if (!cliente.value?.pf?.cpf) return false
+const inscricoesDoTitular = computed(() => {
+  if (!cliente.value?.pf?.cpf) return []
   const cpfTitular = cliente.value.pf.cpf.replace(/\D/g, '')
-  return (minhasInscricoes.value || []).some((insc) => {
+  return (minhasInscricoes.value || []).filter((insc) => {
     if (insc.status === 'CANCELADA' || insc.status === 'EXPIRADA') return false
     const evId = insc.categoria?.modalidade?.evento?.id
     if (evId !== eventoId) return false
@@ -62,6 +62,11 @@ const titularJaInscrito = computed(() => {
     return !cpfInscrito || cpfInscrito === cpfTitular
   })
 })
+const titularJaInscrito = computed(() => inscricoesDoTitular.value.length > 0)
+// Inscreveu mas nao pagou: precisa do caminho para pagar, nao de "ja inscrito".
+const titularPendente = computed(
+  () => titularJaInscrito.value && inscricoesDoTitular.value.every((i) => i.status === 'PENDENTE_PAGAMENTO')
+)
 
 // Arte "Eu vou": inscrições confirmadas desta conta nesta prova, se ela tem moldura.
 // A arte é igual para todos (sem nome), então basta uma delas para abrir.
@@ -1659,8 +1664,16 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
           <div v-if="titularJaInscrito" class="p-4 bg-amber-50 border border-amber-200 text-amber-950 text-xs font-semibold rounded-2xl flex items-center justify-between gap-3 shadow-sm">
             <div class="flex items-center gap-2.5">
               <CheckCircle class="w-5 h-5 text-amber-600 shrink-0" />
-              <span><strong>Você (Titular) já possui inscrição neste evento.</strong> Selecione ou cadastre abaixo apenas os dependentes que deseja inscrever.</span>
+              <span v-if="titularPendente"><strong>Você tem uma inscrição aguardando pagamento neste evento.</strong> Pague dentro do prazo de 24 horas para garantir a vaga.</span>
+              <span v-else><strong>Você (Titular) já possui inscrição neste evento.</strong> Selecione ou cadastre abaixo apenas os dependentes que deseja inscrever.</span>
             </div>
+            <NuxtLink
+              v-if="titularPendente"
+              to="/meus-eventos"
+              class="shrink-0 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-black uppercase tracking-wider rounded-xl transition"
+            >
+              Pagar
+            </NuxtLink>
           </div>
 
           <!-- PASSO 1: ESCOLHA DOS ATLETAS -->
@@ -1735,7 +1748,7 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
               </div>
               <h3 class="text-base sm:text-lg font-extrabold text-slate-800">Nenhum atleta no carrinho para este evento</h3>
               <p class="text-xs sm:text-sm text-slate-500 max-w-md mx-auto">
-                {{ titularJaInscrito ? 'Como você já possui inscrição neste evento, selecione ou cadastre seus dependentes para continuar.' : 'Adicione os participantes que deseja inscrever neste evento.' }}
+                {{ titularPendente ? 'Sua inscrição está aguardando pagamento. Você também pode inscrever seus dependentes.' : titularJaInscrito ? 'Como você já possui inscrição neste evento, selecione ou cadastre seus dependentes para continuar.' : 'Adicione os participantes que deseja inscrever neste evento.' }}
               </p>
               <button
                 @click="abrirModalAdicionarAtleta"

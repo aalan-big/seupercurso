@@ -96,4 +96,10 @@ export interface GatewayPagamento {
     referenciaExterna: string,
     tokenRecebedor?: string | null,
   ): Promise<CobrancaEncontrada[] | null>;
+
+  /** Cancela cobranca ainda nao paga. `false` = nao deu para garantir. */
+  cancelarCobranca(
+    gatewayPaymentId: string,
+    tokenRecebedor?: string | null,
+  ): Promise<boolean>;
 }

@@ -45,6 +45,7 @@ import { CreateInscricaoBatchDto } from './dto/create-inscricao-batch.dto';
 import { ValidarServidorDto } from './dto/validar-servidor.dto';
 import { ValidarFuncionarioDto } from './dto/validar-funcionario.dto';
 import { EmailService } from '../email/email.service';
+import { TentativaAnteriorService } from '../pagamento/tentativa-anterior.service';
 
 @Injectable()
 export class InscricaoService {
@@ -53,6 +54,7 @@ export class InscricaoService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
+    private readonly tentativaAnterior: TentativaAnteriorService,
   ) {}
 
   async create(usuarioId: string, dto: CreateInscricaoDto) {
@@ -313,6 +315,10 @@ export class InscricaoService {
       throw new BadRequestException('Selecione ao menos um participante para a inscrição.');
     }
 
+    // A vaga da tentativa nao paga da propria pessoa nao conta contra ela.
+    const substituicao = await this.tentativaAnterior.avaliar(cliente, dto.items);
+    const substituidas = substituicao.ids;
+
     const inscricoesParaCriar: Array<{
       categoriaId: string;
       loteId: string;
@@ -415,14 +421,20 @@ export class InscricaoService {
         categoria.modalidade.evento.dataInicio,
       );
 
-      await this.garantirVagaNaCategoria(categoria.id, categoria.capacidade);
+      await this.garantirVagaNaCategoria(
+        categoria.id,
+        categoria.capacidade,
+        substituidas,
+      );
       await this.garantirVagaNaModalidade(
         categoria.modalidadeId,
         categoria.modalidade.capacidade,
+        substituidas,
       );
       await this.garantirVagaNoEvento(
         categoria.modalidade.eventoId,
         categoria.modalidade.evento.capacidade,
+        substituidas,
       );
 
       const loteRequisitado = await this.prisma.lote.findUnique({
@@ -439,6 +451,7 @@ export class InscricaoService {
       const lote = await this.resolverLoteDisponivel(
         loteRequisitado.eventoId,
         categoria.modalidadeId,
+        substituidas,
       );
 
       // Checa se o mesmo atleta já tem inscrição confirmada no evento. O CPF de
@@ -518,6 +531,7 @@ export class InscricaoService {
             where: {
               eventoId: categoria.modalidade.eventoId,
               ...FILTRO_SERVIDOR_EM_USO,
+              ...(substituidas.length ? { inscricaoId: { notIn: substituidas } } : {}),
             },
           });
           if (
@@ -545,7 +559,10 @@ export class InscricaoService {
           );
         }
 
-        if (servidorEstaEmUso(servidor)) {
+        if (
+          servidorEstaEmUso(servidor) &&
+          !(servidor.inscricaoId && substituidas.includes(servidor.inscricaoId))
+        ) {
           throw new ConflictException(
             `A matrícula "${matriculaLimpa}" do servidor ${atletaNome} já foi utilizada para outra inscrição gratuita neste evento.`,
           );
@@ -682,7 +699,13 @@ export class InscricaoService {
         : 0;
     const ehTotalmenteGratuito = valorTotal === 0 && taxaSemValor <= 0;
 
+    // Depois de toda a validacao: se a compra for recusada antes daqui, a
+    // tentativa antiga segue intacta.
+    await this.tentativaAnterior.cancelarPix(substituicao);
+
     const resultado = await this.prisma.$transaction(async (tx) => {
+      await this.tentativaAnterior.substituir(tx, clienteId, substituicao);
+
       // A checagem de vagas la de cima roda fora da transacao: duas compras na
       // ultima vaga passavam juntas e o evento fechava com 501. A trava por
       // evento faz as compras com servidor entrarem uma de cada vez, e a
@@ -1309,7 +1332,11 @@ export class InscricaoService {
   // Escolhe, entre os lotes do evento com preço definido pra essa modalidade
   // e dentro da própria janela de venda, o mais antigo que ainda tem vaga —
   // isso implementa a "virada automática" quando um lote esgota por quantidade.
-  private async resolverLoteDisponivel(eventoId: string, modalidadeId: string) {
+  private async resolverLoteDisponivel(
+    eventoId: string,
+    modalidadeId: string,
+    ignorar: string[] = [],
+  ) {
     const agora = new Date();
 
     const lotes = await this.prisma.lote.findMany({
@@ -1329,6 +1356,7 @@ export class InscricaoService {
                 status: {
                   notIn: [StatusInscricao.CANCELADA, StatusInscricao.EXPIRADA],
                 },
+                ...(ignorar.length ? { id: { notIn: ignorar } } : {}),
               },
             },
           },
@@ -1381,13 +1409,18 @@ export class InscricaoService {
 
   // Mesmo padrão de resolverLoteDisponivel, mas pro limite de vagas da
   // categoria (capacidade null = sem limite).
-  private async garantirVagaNaCategoria(categoriaId: string, capacidade: number | null) {
+  private async garantirVagaNaCategoria(
+    categoriaId: string,
+    capacidade: number | null,
+    ignorar: string[] = [],
+  ) {
     if (capacidade === null) return;
 
     const inscritos = await this.prisma.inscricao.count({
       where: {
         categoriaId,
         status: { notIn: [StatusInscricao.CANCELADA, StatusInscricao.EXPIRADA] },
+        ...(ignorar.length ? { id: { notIn: ignorar } } : {}),
       },
     });
 
@@ -1401,13 +1434,18 @@ export class InscricaoService {
   // Mesmo padrão, mas pro limite de vagas da modalidade inteira (percurso) —
   // soma todas as categorias dela, já que a maioria das plataformas de
   // corrida controla vaga por percurso/distância, não por categoria.
-  private async garantirVagaNaModalidade(modalidadeId: string, capacidade: number | null) {
+  private async garantirVagaNaModalidade(
+    modalidadeId: string,
+    capacidade: number | null,
+    ignorar: string[] = [],
+  ) {
     if (capacidade === null) return;
 
     const inscritos = await this.prisma.inscricao.count({
       where: {
         categoria: { modalidadeId },
         status: { notIn: [StatusInscricao.CANCELADA, StatusInscricao.EXPIRADA] },
+        ...(ignorar.length ? { id: { notIn: ignorar } } : {}),
       },
     });
 
@@ -1420,13 +1458,18 @@ export class InscricaoService {
 
   // Mesmo padrão, mas pro limite total de vagas do evento inteiro
   // (evento.capacidade null = sem limite).
-  private async garantirVagaNoEvento(eventoId: string, capacidade: number | null) {
+  private async garantirVagaNoEvento(
+    eventoId: string,
+    capacidade: number | null,
+    ignorar: string[] = [],
+  ) {
     if (capacidade === null) return;
 
     const inscritos = await this.prisma.inscricao.count({
       where: {
         categoria: { modalidade: { eventoId } },
         status: { notIn: [StatusInscricao.CANCELADA, StatusInscricao.EXPIRADA] },
+        ...(ignorar.length ? { id: { notIn: ignorar } } : {}),
       },
     });
 

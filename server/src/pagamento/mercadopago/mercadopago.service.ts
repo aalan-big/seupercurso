@@ -202,6 +202,33 @@ export class MercadoPagoService implements GatewayPagamento {
     }
   }
 
+  async cancelarCobranca(
+    gatewayPaymentId: string,
+    tokenRecebedor?: string | null,
+  ): Promise<boolean> {
+    try {
+      const res = await fetch(`${API}/v1/payments/${gatewayPaymentId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${tokenRecebedor || this.accessTokenPlataforma}`,
+          'X-Idempotency-Key': randomUUID(),
+        },
+        body: JSON.stringify({ status: 'cancelled' }),
+        signal: AbortSignal.timeout(15_000),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.status === 'cancelled') return true;
+      this.logger.warn(
+        `Cancelamento do pagamento ${gatewayPaymentId}: HTTP ${res.status} ${data?.message ?? ''}`,
+      );
+      return false;
+    } catch (err) {
+      this.logger.warn(`Falha ao cancelar o pagamento ${gatewayPaymentId}: ${err}`);
+      return false;
+    }
+  }
+
   private async consultarComToken(
     gatewayPaymentId: string,
     token: string,

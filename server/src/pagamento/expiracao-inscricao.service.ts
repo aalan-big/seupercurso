@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '../generated/prisma/client';
 import {
   CategoriaAuditLog,
   MetodoPagamento,
@@ -36,6 +37,7 @@ const INCLUDE = {
   cliente: { include: { pf: true, pj: true, usuario: true } },
   pagamentos: true,
   pedido: { include: { pagamentos: true } },
+  dependente: true,
   categoria: { include: { modalidade: { include: { evento: true } } } },
 } as const;
 
@@ -47,12 +49,18 @@ interface PagamentoAprovado {
   metodo: MetodoPagamento;
 }
 
-type Situacao =
-  | { tipo: 'NAO_PAGO' }
-  | { tipo: 'PAGO'; pagamento: PagamentoAprovado }
-  | { tipo: 'AGUARDAR'; motivo: string };
+export interface PixAberto {
+  gatewayPaymentId: string;
+  /** Conta onde a cobranca esta; null = plataforma. */
+  token: string | null;
+}
 
-type Grupo = Awaited<ReturnType<ExpiracaoInscricaoService['buscarInscricoes']>>;
+export type Situacao =
+  | { tipo: 'NAO_PAGO'; pixAbertos: PixAberto[] }
+  | { tipo: 'PAGO'; pagamento: PagamentoAprovado }
+  | { tipo: 'AGUARDAR'; motivo: string; emAndamento?: boolean };
+
+export type Grupo = Awaited<ReturnType<ExpiracaoInscricaoService['buscarInscricoes']>>;
 
 /**
  * Libera a vaga de quem nao pagou no prazo e lembra quem ainda pode pagar.
@@ -137,12 +145,12 @@ export class ExpiracaoInscricaoService implements OnModuleInit, OnModuleDestroy 
     }
   }
 
-  buscarInscricoes(dataInscricao: { gte?: Date; lt?: Date }) {
+  buscarInscricoes(filtro: Prisma.InscricaoWhereInput) {
     return this.prisma.inscricao.findMany({
       where: {
+        ...filtro,
         status: StatusInscricao.PENDENTE_PAGAMENTO,
         importacaoId: null,
-        dataInscricao,
       },
       include: INCLUDE,
       orderBy: { dataInscricao: 'asc' },
@@ -152,7 +160,7 @@ export class ExpiracaoInscricaoService implements OnModuleInit, OnModuleDestroy 
   /** O pedido e pago inteiro, entao tambem expira inteiro. */
   private async buscarGrupos(dataInscricao: { gte?: Date; lt?: Date }) {
     const grupos = new Map<string, Grupo>();
-    for (const i of await this.buscarInscricoes(dataInscricao)) {
+    for (const i of await this.buscarInscricoes({ dataInscricao })) {
       const chave = i.pedidoId ?? i.id;
       grupos.set(chave, [...(grupos.get(chave) ?? []), i]);
     }
@@ -225,7 +233,7 @@ export class ExpiracaoInscricaoService implements OnModuleInit, OnModuleDestroy 
     });
   }
 
-  private confirmar(p: PagamentoAprovado) {
+  confirmar(p: PagamentoAprovado) {
     return this.pagamentoService.confirmarPagamento({
       gatewayPaymentId: p.gatewayPaymentId,
       referenciaExterna: p.referenciaExterna,
@@ -237,10 +245,10 @@ export class ExpiracaoInscricaoService implements OnModuleInit, OnModuleDestroy 
   }
 
   /**
-   * @param ignorarPixAberto para o lembrete: PIX em aberto e o caso normal de
-   *   quem ainda nao pagou, nao motivo para esperar.
+   * @param ignorarPixAberto para o lembrete e a nova tentativa: PIX em aberto e
+   *   o caso normal de quem ainda nao pagou, nao motivo para esperar.
    */
-  private async verificar(
+  async verificar(
     grupo: Grupo,
     ignorarPixAberto = false,
   ): Promise<Situacao> {
@@ -278,6 +286,7 @@ export class ExpiracaoInscricaoService implements OnModuleInit, OnModuleDestroy 
     if (grupo[0].pedidoId) referencias.unshift(grupo[0].pedidoId);
 
     const vistos = new Set<string>();
+    const pixAbertos: PixAberto[] = [];
     let emAndamento = false;
     let semResposta = false;
 
@@ -306,7 +315,15 @@ export class ExpiracaoInscricaoService implements OnModuleInit, OnModuleDestroy 
           }
           if (a.status !== 'PENDENTE') continue;
           const pixVencido = a.ehPix && a.expiraEm && a.expiraEm <= agora;
-          if (!pixVencido && !(a.ehPix && ignorarPixAberto)) emAndamento = true;
+          if (pixVencido) continue;
+          if (a.ehPix && ignorarPixAberto) {
+            // As duas contas podem devolver a mesma cobranca.
+            if (!pixAbertos.some((p) => p.gatewayPaymentId === a.gatewayPaymentId)) {
+              pixAbertos.push({ gatewayPaymentId: a.gatewayPaymentId, token });
+            }
+          } else {
+            emAndamento = true;
+          }
         }
       }
     }
@@ -337,21 +354,30 @@ export class ExpiracaoInscricaoService implements OnModuleInit, OnModuleDestroy 
             metodo: p.metodo,
           },
         };
-      } else if (
-        remoto.status === 'PENDENTE' &&
-        p.metodo !== MetodoPagamento.PIX
-      ) {
-        emAndamento = true;
+      } else if (remoto.status === 'PENDENTE') {
+        if (p.metodo !== MetodoPagamento.PIX) {
+          emAndamento = true;
+        } else if (!p.expiraEm || p.expiraEm > agora) {
+          // PIX recem-criado pode ainda nao aparecer na busca.
+          pixAbertos.push({
+            gatewayPaymentId: p.gatewayPaymentId,
+            token: p.naContaDaPlataforma ? null : tokenOrganizador,
+          });
+        }
       }
     }
 
     if (emAndamento) {
-      return { tipo: 'AGUARDAR', motivo: 'pagamento em andamento no Mercado Pago' };
+      return {
+        tipo: 'AGUARDAR',
+        motivo: 'pagamento em andamento no Mercado Pago',
+        emAndamento: true,
+      };
     }
     if (semResposta) {
       return { tipo: 'AGUARDAR', motivo: 'Mercado Pago não respondeu à consulta' };
     }
-    return { tipo: 'NAO_PAGO' };
+    return { tipo: 'NAO_PAGO', pixAbertos };
   }
 
   /** Um lembrete por pedido, e nunca para quem ja pagou. */

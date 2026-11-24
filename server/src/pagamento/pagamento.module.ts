@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { PagamentoController } from './pagamento.controller';
 import { PagamentoService } from './pagamento.service';
 import { ExpiracaoInscricaoService } from './expiracao-inscricao.service';
+import { TentativaAnteriorService } from './tentativa-anterior.service';
 import { TarifaService } from './tarifa.service';
 import { GATEWAY_PAGAMENTO } from './gateway.port';
 import { MercadoPagoService } from './mercadopago/mercadopago.service';
@@ -21,12 +22,14 @@ import { NotificacaoAdminModule } from '../admin/notificacao-admin.module';
     MercadoPagoService,
     MercadoPagoOAuthService,
     ExpiracaoInscricaoService,
+    TentativaAnteriorService,
     // Trocar de gateway é apontar este provider para outro adaptador.
     { provide: GATEWAY_PAGAMENTO, useExisting: MercadoPagoService },
   ],
   exports: [
     PagamentoService,
     TarifaService,
+    TentativaAnteriorService,
     MercadoPagoOAuthService,
     GATEWAY_PAGAMENTO,
   ],

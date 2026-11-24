@@ -195,6 +195,17 @@ describe('ExpiracaoInscricaoService', () => {
     expect(prisma.inscricao.updateMany).toHaveBeenCalledTimes(1);
   });
 
+  it('PIX visto pelas duas contas entra uma vez so', async () => {
+    const service = criar('ativo', []);
+    gateway.buscarPorReferencia.mockResolvedValue([
+      achado({ ehPix: true, expiraEm: new Date(Date.now() + HORA) }),
+    ]);
+    expect(await service.verificar([inscricao()] as any, true)).toEqual({
+      tipo: 'NAO_PAGO',
+      pixAbertos: [{ gatewayPaymentId: 'mp-1', token: 'TOKEN-ORG' }],
+    });
+  });
+
   describe('lembrete', () => {
     const recente = () => inscricao({ dataInscricao: new Date(Date.now() - 3 * HORA) });
 

@@ -7,12 +7,14 @@ import { Test } from '@nestjs/testing';
 import { InscricaoService } from './inscricao.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
+import { TentativaAnteriorService } from '../pagamento/tentativa-anterior.service';
 import { StatusInscricao } from '../generated/prisma/enums';
 
 describe('InscricaoService', () => {
   let service: InscricaoService;
   let prisma: any;
   let tx: any;
+  let tentativa: any;
 
   const usuarioId = 'usuario-1';
   const clienteId = 'cliente-1';
@@ -86,10 +88,17 @@ describe('InscricaoService', () => {
       $transaction: jest.fn((fn: any) => fn(tx)),
     };
 
+    tentativa = {
+      avaliar: jest.fn().mockResolvedValue({ ids: [], pixAbertos: [] }),
+      cancelarPix: jest.fn(),
+      substituir: jest.fn(),
+    };
+
     const moduleRef = await Test.createTestingModule({
       providers: [
         InscricaoService,
         { provide: PrismaService, useValue: prisma },
+        { provide: TentativaAnteriorService, useValue: tentativa },
         {
           provide: EmailService,
           useValue: {
@@ -420,6 +429,73 @@ describe('InscricaoService', () => {
       await expect(service.createBatch(usuarioId, batchDto)).rejects.toThrow(
         BadRequestException,
       );
+    });
+  });
+
+  describe('createBatch: nova tentativa substitui a nao paga', () => {
+    const compra = {
+      items: [
+        {
+          categoriaId: 'categoria-1',
+          loteId: 'lote-1',
+          atleta: {
+            nomeCompleto: 'Atleta',
+            cpf: '12345678900',
+            dataNascimento: '1990-01-01',
+            genero: 'MASCULINO' as const,
+            pcd: false,
+          },
+        },
+      ],
+    };
+    const substituicao = { ids: ['antiga'], pixAbertos: [] };
+
+    beforeEach(() => {
+      prisma.inscricao.findFirst.mockResolvedValue(null);
+      tx.pedido = { create: jest.fn().mockResolvedValue({ id: 'pedido-novo' }) };
+      tentativa.avaliar.mockResolvedValue(substituicao);
+      prisma.categoria.findUnique.mockResolvedValue({
+        ...categoriaPadrao,
+        capacidade: 1,
+        modalidade: {
+          ...categoriaPadrao.modalidade,
+          capacidade: 1,
+          evento: { ...categoriaPadrao.modalidade.evento, capacidade: 1 },
+        },
+      });
+      // Evento lotado pela propria tentativa antiga.
+      prisma.inscricao.count.mockImplementation(({ where }: any) =>
+        Promise.resolve(where.id?.notIn?.includes('antiga') ? 0 : 1),
+      );
+    });
+
+    it('ultima vaga e da propria pessoa: deixa comprar', async () => {
+      const res = await service.createBatch(usuarioId, compra);
+      expect(res.pedidoId).toBe('pedido-novo');
+      expect(prisma.lote.findMany.mock.calls[0][0].include._count.select.inscricoes.where.id).toEqual({
+        notIn: ['antiga'],
+      });
+    });
+
+    it('cancela o PIX, depois a antiga, e so entao cria a nova', async () => {
+      await service.createBatch(usuarioId, compra);
+      const ordem = (m: jest.Mock) => m.mock.invocationCallOrder[0];
+      expect(ordem(tentativa.cancelarPix)).toBeLessThan(ordem(tentativa.substituir));
+      expect(ordem(tentativa.substituir)).toBeLessThan(ordem(tx.pedido.create));
+      expect(tentativa.substituir).toHaveBeenCalledWith(tx, clienteId, substituicao);
+    });
+
+    it('compra recusada na validacao nao mexe na antiga', async () => {
+      prisma.lote.findUnique.mockResolvedValue(null);
+      await expect(service.createBatch(usuarioId, compra)).rejects.toThrow(NotFoundException);
+      expect(tentativa.cancelarPix).not.toHaveBeenCalled();
+      expect(tentativa.substituir).not.toHaveBeenCalled();
+    });
+
+    it('PIX nao cancelado: nao cria pedido', async () => {
+      tentativa.cancelarPix.mockRejectedValue(new ConflictException('x'));
+      await expect(service.createBatch(usuarioId, compra)).rejects.toThrow(ConflictException);
+      expect(tx.pedido.create).not.toHaveBeenCalled();
     });
   });
 
