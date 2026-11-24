@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  CobrancaEncontrada,
   ConsultaCobranca,
   GatewayPagamento,
   GerarPixParams,
@@ -149,30 +150,88 @@ export class MercadoPagoService implements GatewayPagamento {
 
   async consultarCobranca(
     gatewayPaymentId: string,
+    tokenRecebedor?: string | null,
   ): Promise<ConsultaCobranca | null> {
     if (!gatewayPaymentId) return null;
 
+    const daPlataforma = await this.consultarComToken(
+      gatewayPaymentId,
+      this.accessTokenPlataforma,
+    );
+    if (daPlataforma || !tokenRecebedor) return daPlataforma;
+    return this.consultarComToken(gatewayPaymentId, tokenRecebedor);
+  }
+
+  async buscarPorReferencia(
+    referenciaExterna: string,
+    tokenRecebedor?: string | null,
+  ): Promise<CobrancaEncontrada[] | null> {
+    try {
+      const query = new URLSearchParams({
+        external_reference: referenciaExterna,
+        sort: 'date_created',
+        criteria: 'desc',
+        limit: '50',
+      });
+      const res = await fetch(`${API}/v1/payments/search?${query}`, {
+        headers: {
+          Authorization: `Bearer ${tokenRecebedor || this.accessTokenPlataforma}`,
+        },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!res.ok) {
+        this.logger.warn(
+          `Busca por referência ${referenciaExterna}: HTTP ${res.status}.`,
+        );
+        return null;
+      }
+      const data = await res.json();
+      if (!Array.isArray(data?.results)) return null;
+
+      return data.results
+        .filter((r: any) => r?.external_reference === referenciaExterna)
+        .map((r: any) => ({
+          ...this.montarConsulta(r),
+          gatewayPaymentId: String(r.id),
+          ehPix: r.payment_method_id === 'pix',
+          expiraEm: r.date_of_expiration ? new Date(r.date_of_expiration) : null,
+        }));
+    } catch (err) {
+      this.logger.warn(`Falha na busca por referência ${referenciaExterna}: ${err}`);
+      return null;
+    }
+  }
+
+  private async consultarComToken(
+    gatewayPaymentId: string,
+    token: string,
+  ): Promise<ConsultaCobranca | null> {
+
     try {
       const res = await fetch(`${API}/v1/payments/${gatewayPaymentId}`, {
-        headers: { Authorization: `Bearer ${this.accessTokenPlataforma}` },
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(15_000),
       });
       if (!res.ok) return null;
 
-      const data = await res.json();
-      return {
-        status: STATUS[data.status] ?? 'PENDENTE',
-        valor: Number(data.transaction_amount ?? 0),
-        // net_received_amount ja desconta a tarifa do Mercado Pago.
-        valorLiquido:
-          data.transaction_details?.net_received_amount === undefined
-            ? null
-            : Number(data.transaction_details.net_received_amount),
-        referenciaExterna: data.external_reference ?? null,
-      };
+      return this.montarConsulta(await res.json());
     } catch (err) {
       this.logger.warn(`Falha ao consultar pagamento ${gatewayPaymentId}: ${err}`);
       return null;
     }
+  }
+
+  private montarConsulta(data: any): ConsultaCobranca {
+    return {
+      status: STATUS[data.status] ?? 'PENDENTE',
+      valor: Number(data.transaction_amount ?? 0),
+      // net_received_amount ja desconta a tarifa do Mercado Pago.
+      valorLiquido:
+        data.transaction_details?.net_received_amount === undefined
+          ? null
+          : Number(data.transaction_details.net_received_amount),
+      referenciaExterna: data.external_reference ?? null,
+    };
   }
 
   /**

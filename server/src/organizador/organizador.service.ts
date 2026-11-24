@@ -535,9 +535,8 @@ export class OrganizadorService {
 
     const inscricoes = await this.prisma.inscricao.findMany({
       where: {
-        status: {
-          notIn: [StatusInscricao.CANCELADA, StatusInscricao.EXPIRADA],
-        },
+        // So quem pagou: nao se produz camisa para inscricao pendente.
+        status: StatusInscricao.CONFIRMADA,
         categoria: { modalidade: { eventoId } },
       },
       select: {
@@ -1842,7 +1841,11 @@ export class OrganizadorService {
       ...(documentoIdoso ? { documentoIdosoStatus: documentoIdoso } : {}),
       status: statusValido
         ? statusValido
-        : { notIn: [StatusInscricao.CANCELADA, StatusInscricao.EXPIRADA] },
+        : // Sem filtro a lista e de quem pagou. ATIVAS (confirmadas +
+          // pendentes) serve ao modal que separa os dois na tela.
+          filtros.status === 'ATIVAS'
+          ? { notIn: [StatusInscricao.CANCELADA, StatusInscricao.EXPIRADA] }
+          : StatusInscricao.CONFIRMADA,
       ...(busca
         ? {
             OR: [

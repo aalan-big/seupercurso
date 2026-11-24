@@ -65,6 +65,12 @@ export interface ConsultaCobranca {
   referenciaExterna?: string | null;
 }
 
+export interface CobrancaEncontrada extends ConsultaCobranca {
+  gatewayPaymentId: string;
+  ehPix: boolean;
+  expiraEm: Date | null;
+}
+
 export interface GatewayPagamento {
   /** Nome curto do provedor, gravado em cada pagamento. */
   readonly nome: string;
@@ -75,5 +81,19 @@ export interface GatewayPagamento {
     params: ProcessarCartaoParams,
   ): Promise<ResultadoCobranca>;
 
-  consultarCobranca(gatewayPaymentId: string): Promise<ConsultaCobranca | null>;
+  /** `tokenRecebedor`: segunda tentativa quando a conta da plataforma nao enxerga a cobranca. */
+  consultarCobranca(
+    gatewayPaymentId: string,
+    tokenRecebedor?: string | null,
+  ): Promise<ConsultaCobranca | null>;
+
+  /**
+   * Cobrancas com a nossa referencia na conta do token (sem token, na da
+   * plataforma). Acha ate a que nao chegou a ser gravada aqui. `null` = o
+   * gateway nao respondeu, o que e diferente de "nao ha cobranca".
+   */
+  buscarPorReferencia(
+    referenciaExterna: string,
+    tokenRecebedor?: string | null,
+  ): Promise<CobrancaEncontrada[] | null>;
 }

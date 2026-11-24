@@ -60,6 +60,7 @@ describe('PagamentoService', () => {
       cupom: { findUnique: jest.fn().mockResolvedValue(null) },
       pagamento: {
         findFirst: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
         create: jest.fn(),
         findUnique: jest.fn(),
         update: jest.fn(),
@@ -600,6 +601,48 @@ describe('PagamentoService', () => {
           data: { status: 'EXPIRADO' },
         }),
       );
+    });
+  });
+
+  describe('vaga ja liberada e tentativa anterior em aberto', () => {
+    const dto = { pedidoId: 'pedido-1', metodo: 'CARTAO_CREDITO', tokenCartao: 't' } as any;
+
+    it.each(['EXPIRADA', 'CANCELADA'])('nao cobra inscricao %s', async (status) => {
+      prisma.inscricao.findMany.mockResolvedValue([{ ...inscricaoPadrao, status }]);
+      await expect(service.create(usuarioId, dto)).rejects.toThrow(BadRequestException);
+      expect(gateway.processarPagamentoCartao).not.toHaveBeenCalled();
+    });
+
+    const aberto = {
+      id: 'pag-1',
+      status: 'PENDENTE',
+      metodo: 'CARTAO_CREDITO',
+      gatewayPaymentId: 'mp-antigo',
+    };
+
+    it('cartao em analise: nao cobra de novo', async () => {
+      prisma.pagamento.findMany.mockResolvedValue([aberto]);
+      prisma.pagamento.findUnique.mockResolvedValue(aberto);
+      gateway.consultarCobranca.mockResolvedValue({ status: 'PENDENTE', valor: 60 });
+      await expect(service.create(usuarioId, dto)).rejects.toThrow(ConflictException);
+      expect(gateway.processarPagamentoCartao).not.toHaveBeenCalled();
+    });
+
+    it('tentativa anterior ja paga: devolve a confirmada sem cobrar', async () => {
+      prisma.pagamento.findMany.mockResolvedValue([aberto]);
+      prisma.pagamento.findUnique.mockResolvedValue({ ...aberto, status: 'APROVADO' });
+      const res = await service.create(usuarioId, dto);
+      expect(res.status).toBe('APROVADO');
+      expect(gateway.processarPagamentoCartao).not.toHaveBeenCalled();
+    });
+
+    it('cartao recusado no gateway sai de pendente', async () => {
+      gateway.consultarCobranca.mockResolvedValue({ status: 'RECUSADO', valor: 60 });
+      await service.sincronizarComGateway('mp-antigo', 'reconciliacao');
+      expect(prisma.pagamento.updateMany).toHaveBeenCalledWith({
+        where: { gatewayPaymentId: 'mp-antigo', status: 'PENDENTE' },
+        data: { status: 'RECUSADO' },
+      });
     });
   });
 });

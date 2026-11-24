@@ -234,7 +234,11 @@ async function processarPagamentoCartao(dados: DadosCartaoTokenizado) {
   processandoCartao.value = true
 
   try {
-    await pagarInscricao(inscricaoAtualPagamento.value.id, 'CREDITO', dados)
+    const res = await pagarInscricao(inscricaoAtualPagamento.value.id, 'CREDITO', dados)
+    if (res.status !== 'APROVADO') {
+      erroPixModal.value = 'Seu pagamento no cartão está em análise. A inscrição será confirmada assim que for aprovado. Não é preciso pagar de novo.'
+      return
+    }
     sucessoCartao.value = true
     await fetchMinhas()
     setTimeout(() => {

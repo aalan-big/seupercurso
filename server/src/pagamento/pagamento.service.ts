@@ -23,10 +23,13 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificacaoAdminService } from '../admin/notificacao-admin.service';
 import { dividirComissao, TarifaService } from './tarifa.service';
 import { GATEWAY_PAGAMENTO, type GatewayPagamento } from './gateway.port';
+import {
+  HORAS_PRAZO_PAGAMENTO,
+  lerModoExpiracao,
+  prazoPagamento,
+  validadePix,
+} from './prazo-pagamento';
 import { MercadoPagoOAuthService } from './mercadopago/mercadopago-oauth.service';
-
-/** Cobranças PIX vencem em 24h. */
-const HORAS_VALIDADE_PIX = 24;
 
 /** Tolerância (em reais) na conferência do valor pago vs. valor cobrado. */
 const TOLERANCIA_VALOR = 0.05;
@@ -180,6 +183,17 @@ export class PagamentoService {
       throw new ConflictException('As inscrições deste pedido já estão confirmadas.');
     }
 
+    // Inscricao cancelada ou expirada ja devolveu a vaga: cobrar dela furaria o
+    // limite do evento. Quem quiser voltar se inscreve de novo.
+    const pendente = inscricoes.find(
+      (i) => i.status === StatusInscricao.PENDENTE_PAGAMENTO,
+    );
+    if (!pendente) {
+      throw new BadRequestException(
+        'Esta inscrição foi cancelada ou expirou. Faça uma nova inscrição na página do evento, se ainda houver vagas.',
+      );
+    }
+
     const primeiraInscricao = inscricoes[0];
     const evento = primeiraInscricao.categoria.modalidade.evento;
 
@@ -210,6 +224,53 @@ export class PagamentoService {
       (pagamentoExistente.pixCopiaECola || pagamentoExistente.pixQrCodeUrl)
     ) {
       return pagamentoExistente;
+    }
+
+    // A tentativa anterior pode ter sido paga sem o aviso chegar. Cobrar de novo
+    // sem perguntar gravava por cima dela e podia cobrar duas vezes.
+    const emAberto = await this.prisma.pagamento.findMany({
+      where: {
+        // A primeira cobranca e do pedido; a refeita em "Minhas inscricoes", da
+        // inscricao. Sem olhar as duas, uma nao enxergava a outra.
+        OR: [
+          { inscricaoId: { in: inscricoes.map((i) => i.id) } },
+          ...(pendente.pedidoId ? [{ pedidoId: pendente.pedidoId }] : []),
+        ],
+        status: StatusPagamento.PENDENTE,
+        gateway: this.gateway.nome,
+        gatewayPaymentId: { not: null },
+      },
+    });
+    for (const anterior of emAberto) {
+      try {
+        await this.sincronizarComGateway(anterior.gatewayPaymentId!, 'reconciliacao');
+      } catch (err) {
+        // A conferencia e uma protecao a mais: se ela falhar, a venda segue.
+        this.logger.error(
+          `Falha ao conferir a cobrança anterior ${anterior.gatewayPaymentId}: ${err}`,
+        );
+        continue;
+      }
+      const atual = await this.prisma.pagamento.findUnique({
+        where: { id: anterior.id },
+      });
+      if (atual?.status === StatusPagamento.APROVADO) return atual;
+      if (
+        atual?.status === StatusPagamento.PENDENTE &&
+        atual.metodo === MetodoPagamento.CARTAO_CREDITO
+      ) {
+        throw new ConflictException(
+          'Seu pagamento no cartão está em análise. Aguarde a confirmação antes de tentar de novo, para não ser cobrado duas vezes.',
+        );
+      }
+    }
+
+    const expiracaoAtiva =
+      lerModoExpiracao(this.configService.get('EXPIRACAO_INSCRICOES')) === 'ativo';
+    if (expiracaoAtiva && prazoPagamento(pendente.dataInscricao) <= new Date()) {
+      throw new BadRequestException(
+        'O prazo de 24 horas para pagar esta inscrição terminou. Aguarde alguns minutos e faça uma nova inscrição, se ainda houver vagas.',
+      );
     }
 
     let valorBaseTotal = 0;
@@ -352,7 +413,9 @@ export class PagamentoService {
 
     const expiraEm =
       dto.metodo === MetodoPagamento.PIX
-        ? new Date(Date.now() + HORAS_VALIDADE_PIX * 60 * 60 * 1000)
+        ? expiracaoAtiva
+          ? validadePix(pendente.dataInscricao)
+          : new Date(Date.now() + HORAS_PRAZO_PAGAMENTO * 60 * 60 * 1000)
         : null;
 
     const resultado =
@@ -535,7 +598,7 @@ export class PagamentoService {
     gatewayPaymentId: string,
     origem: 'webhook' | 'reconciliacao',
   ) {
-    const remoto = await this.gateway.consultarCobranca(gatewayPaymentId);
+    const remoto = await this.consultarNoGateway(gatewayPaymentId);
 
     if (!remoto) {
       this.logger.warn(
@@ -559,6 +622,15 @@ export class PagamentoService {
       return { estornado: true };
     }
 
+    // Recusado fica registrado: senao o cartao parecia "em analise" para sempre.
+    if (remoto.status === 'RECUSADO') {
+      await this.prisma.pagamento.updateMany({
+        where: { gatewayPaymentId, status: StatusPagamento.PENDENTE },
+        data: { status: StatusPagamento.RECUSADO },
+      });
+      return { recusado: true };
+    }
+
     // Segue pendente: só expira depois da validade do PIX.
     await this.prisma.pagamento.updateMany({
       where: {
@@ -572,6 +644,31 @@ export class PagamentoService {
     return { pendente: true };
   }
 
+  /** Consulta pela plataforma e, se ela nao enxergar, pela conta do organizador. */
+  private async consultarNoGateway(gatewayPaymentId: string) {
+    const remoto = await this.gateway.consultarCobranca(gatewayPaymentId);
+    if (remoto) return remoto;
+
+    const comEvento = {
+      include: {
+        categoria: { include: { modalidade: { include: { evento: true } } } },
+      },
+    } as const;
+    const local = await this.prisma.pagamento.findUnique({
+      where: { gatewayPaymentId },
+      include: {
+        inscricao: comEvento,
+        pedido: { include: { inscricoes: { ...comEvento, take: 1 } } },
+      },
+    });
+    const organizadorId = (local?.inscricao ?? local?.pedido?.inscricoes?.[0])
+      ?.categoria?.modalidade?.evento?.organizadorId;
+    const token = organizadorId
+      ? await this.mpOAuthService.obterTokenValido(organizadorId)
+      : null;
+    return token ? this.gateway.consultarCobranca(gatewayPaymentId, token) : null;
+  }
+
   /**
    * Confirma a cobrança: marca o pagamento, confirma as inscrições e dispara os
    * vouchers. Idempotente — reenvios do gateway não reprocessam nem reenviam
@@ -582,6 +679,8 @@ export class PagamentoService {
     referenciaExterna?: string | null;
     valorPago?: number;
     valorLiquido?: number | null;
+    /** Usado so quando a cobranca nao tem registro local. */
+    metodo?: MetodoPagamento;
     origem: 'webhook' | 'reconciliacao';
   }) {
     const { gatewayPaymentId, referenciaExterna, valorPago, valorLiquido, origem } =
@@ -656,6 +755,17 @@ export class PagamentoService {
       return { ignorado: true };
     }
 
+    const filtroInscricoes = pedidoId ? { pedidoId } : { id: inscricaoId! };
+    // Pagou depois de a vaga ser liberada: confirma mesmo assim (o dinheiro
+    // entrou), mas o admin precisa saber que pode ter passado do limite.
+    const foraDoPrazo = await this.prisma.inscricao.findMany({
+      where: {
+        ...filtroInscricoes,
+        status: { in: [StatusInscricao.EXPIRADA, StatusInscricao.CANCELADA] },
+      },
+      select: { id: true },
+    });
+
     const pagamentoId = await this.prisma.$transaction(async (tx) => {
       if (pagamentoExistente) {
         await tx.pagamento.update({
@@ -687,7 +797,7 @@ export class PagamentoService {
       }
 
       await tx.inscricao.updateMany({
-        where: pedidoId ? { pedidoId } : { id: inscricaoId! },
+        where: filtroInscricoes,
         data: { status: StatusInscricao.CONFIRMADA },
       });
 
@@ -703,7 +813,7 @@ export class PagamentoService {
           valorLiquido: liquido,
           taxaGateway:
             liquido && valorPago ? Number((valorPago - liquido).toFixed(2)) : null,
-          metodo: MetodoPagamento.PIX,
+          metodo: params.metodo ?? MetodoPagamento.PIX,
           status: StatusPagamento.APROVADO,
           gateway: this.gateway.nome,
           codigoTransacao: gatewayPaymentId,
@@ -713,6 +823,15 @@ export class PagamentoService {
       });
       return criado.id;
     });
+
+    if (foraDoPrazo.length > 0) {
+      this.auditLogService.log({
+        categoria: CategoriaAuditLog.FINANCEIRO,
+        nivel: NivelAuditLog.WARN,
+        mensagem: `Pagamento recebido depois de a inscrição expirar ou ser cancelada; ${foraDoPrazo.length} inscrição(ões) confirmada(s). Confira o limite de vagas.`,
+        detalhes: { pagamentoId, inscricoes: foraDoPrazo.map((i) => i.id) },
+      });
+    }
 
     await this.notificarConfirmacao(pagamentoId);
 

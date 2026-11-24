@@ -73,7 +73,7 @@ async function carregar() {
   carregando.value = true
   try {
     const [lista, detalhe] = await Promise.all([
-      buscarInscritos({ eventoId: id }),
+      buscarInscritos({ eventoId: id, status: 'ATIVAS' }),
       // Serve só pra mostrar as categorias vazias: sem ele a lista ainda funciona.
       fetchEvento(id).catch(() => null)
     ])

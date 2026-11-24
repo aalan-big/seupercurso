@@ -22,6 +22,13 @@ export const envValidationSchema = Joi.object({
   // guardada no OAuth. Por isso e opcional.
   MP_PUBLIC_KEY: Joi.string().allow('').optional(),
 
+  // Expira inscricao nao paga em 24h. "simulacao" so lista no log; sem a
+  // variavel fica desligado.
+  EXPIRACAO_INSCRICOES: Joi.string()
+    .valid('desligado', 'simulacao', 'ativo')
+    .allow('')
+    .optional(),
+
   // Cifra as credenciais dos organizadores guardadas no banco.
   CREDENTIALS_SECRET: Joi.string().min(32).optional(),
 

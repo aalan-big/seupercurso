@@ -478,6 +478,52 @@ export class EmailService {
     return this.enviarMail(params.email, textos.assunto, html);
   }
 
+  /** Inscricao feita e ainda nao paga: avisa o prazo antes de a vaga ser liberada. */
+  async enviarLembretePagamento(params: {
+    email: string;
+    nome: string;
+    nomeEvento: string;
+    atletas: string[];
+    prazo: Date;
+  }) {
+    const evento = this.escapeHtml(params.nomeEvento);
+    const prazo = params.prazo.toLocaleString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      dateStyle: 'short',
+      timeStyle: 'short',
+    });
+    const atletas = params.atletas
+      .map((a) => `<li>${this.escapeHtml(a)}</li>`)
+      .join('');
+
+    const conteudoHtml = `
+      <p style="font-size: 16px; font-weight: 700; color: #0f172a; margin-top: 0;">Olá, ${this.escapeHtml(params.nome)}!</p>
+      <p style="color: #475569;">Sua inscrição em <strong>${evento}</strong> está reservada, mas o pagamento ainda não foi feito.</p>
+      <div class="card">
+        <p style="margin: 0 0 6px;"><strong>Atleta(s):</strong></p>
+        <ul style="margin: 0 0 12px; padding-left: 20px;">${atletas}</ul>
+        <p style="margin: 0;"><strong>Pague até:</strong> ${prazo} (horário de Brasília)</p>
+      </div>
+      <p style="color: #475569;">Depois desse prazo a vaga é liberada para outra pessoa e será preciso fazer uma nova inscrição, se ainda houver vagas.</p>
+      <p style="text-align: center; margin: 28px 0 8px;">
+        <a href="${this.getAppUrl().replace(/\/$/, '')}/meus-eventos" class="btn-primary">Pagar inscrição</a>
+      </p>
+      <p style="font-size: 12px; color: #94a3b8;">Se você já pagou, desconsidere: a confirmação pode levar alguns minutos.</p>
+    `;
+
+    const html = this.renderBaseTemplate({
+      tituloHeader: 'Pagamento pendente',
+      subtituloHeader: evento,
+      conteudoHtml,
+    });
+
+    return this.enviarMail(
+      params.email,
+      `[${params.nomeEvento}] Falta o pagamento da sua inscrição`,
+      html,
+    );
+  }
+
   private escapeHtml(valor: string): string {
     return valor
       .replace(/&/g, '&amp;')

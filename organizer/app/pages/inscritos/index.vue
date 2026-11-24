@@ -44,8 +44,7 @@ const modeloSelecionadoNoModal = computed(() => {
 })
 
 const statusOpcoes = [
-  { valor: '', label: 'Inscrições Ativas (Exclui canceladas)' },
-  { valor: 'CONFIRMADA', label: 'Confirmada' },
+  { valor: '', label: 'Confirmados (pagos)' },
   { valor: 'PENDENTE_PAGAMENTO', label: 'Pagamento pendente' },
   { valor: 'CANCELADA', label: 'Cancelada' },
   { valor: 'EXPIRADA', label: 'Expirada' }

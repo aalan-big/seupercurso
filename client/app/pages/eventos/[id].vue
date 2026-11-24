@@ -1349,7 +1349,9 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
     }
     limparEstadoCheckout()
 
-    if (metodoPagamentoSelecionado.value === 'PIX' && inscricaoCriada.value.pagamentoId) {
+    // Cartao em analise tambem e acompanhado, nao so o PIX.
+    statusPagamento.value = (pagamentoRes as any)?.status === 'APROVADO' ? 'APROVADO' : 'PENDENTE'
+    if (inscricaoCriada.value.pagamentoId && statusPagamento.value === 'PENDENTE') {
       acompanharPagamento(inscricaoCriada.value.pagamentoId)
     }
   } catch (e: any) {
@@ -1500,6 +1502,15 @@ async function onInscrever(dadosCartao?: DadosCartaoTokenizado) {
               <span class="w-3 h-3 border-2 border-orange-500 border-t-transparent rounded-full animate-spin shrink-0"></span>
               <span>Aguardando o pagamento… a confirmação aparece aqui automaticamente.</span>
             </div>
+          </div>
+
+          <div
+            v-else-if="inscricaoCriada.metodo === 'CREDITO' && statusPagamento !== 'APROVADO'"
+            class="p-4 bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold rounded-2xl"
+          >
+            {{ statusPagamento === 'PENDENTE'
+              ? 'Seu pagamento no cartão está em análise. Assim que for aprovado, a inscrição é confirmada e o voucher chega por e-mail. Não é preciso pagar de novo.'
+              : 'O pagamento no cartão não foi aprovado. Tente novamente em "Minhas Inscrições".' }}
           </div>
 
           <div v-else class="p-4 bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold rounded-2xl">
