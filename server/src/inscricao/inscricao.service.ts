@@ -1153,7 +1153,7 @@ export class InscricaoService {
 
     const usuarioDestino = await this.prisma.usuario.findUnique({
       where: { email: emailDestino.toLowerCase().trim() },
-      include: { cliente: true },
+      include: { cliente: { include: { pf: true } } },
     });
 
     if (!usuarioDestino || !usuarioDestino.cliente) {
@@ -1166,11 +1166,65 @@ export class InscricaoService {
       throw new BadRequestException('Você não pode transferir a inscrição para você mesmo.');
     }
 
+    // Quem recebe passa a ser quem corre: os dados do atleta saem do perfil
+    // dele. Sem perfil completo nao ha nome/CPF/nascimento para gravar.
+    const pfDestino = usuarioDestino.cliente.pf;
+    if (!pfDestino) {
+      throw new BadRequestException(
+        `O atleta com e-mail "${emailDestino}" ainda não completou o cadastro (nome, CPF e data de nascimento). Peça para ele completar o perfil antes da transferência.`,
+      );
+    }
+
+    try {
+      this.validarElegibilidadeCategoria(
+        inscricao.categoria,
+        pfDestino,
+        eventoTransf.dataInicio,
+      );
+    } catch (e) {
+      if (e instanceof BadRequestException) {
+        throw new BadRequestException(
+          `${pfDestino.nomeCompleto} não pode receber esta vaga: ${e.message} Troque a categoria antes de transferir, se o evento permitir.`,
+        );
+      }
+      throw e;
+    }
+
+    const jaInscrito = await this.prisma.inscricao.findFirst({
+      where: {
+        id: { not: inscricaoId },
+        status: StatusInscricao.CONFIRMADA,
+        categoria: { modalidade: { eventoId: eventoTransf.id } },
+        OR: [
+          { atletaCpf: pfDestino.cpf },
+          { dependente: { cpf: pfDestino.cpf } },
+          {
+            atletaCpf: null,
+            dependenteId: null,
+            cliente: { pf: { cpf: pfDestino.cpf } },
+          },
+        ],
+      },
+    });
+    if (jaInscrito) {
+      throw new ConflictException(
+        `${pfDestino.nomeCompleto} já possui uma inscrição confirmada neste evento.`,
+      );
+    }
+
     return this.prisma.inscricao.update({
       where: { id: inscricaoId },
       data: {
         clienteId: usuarioDestino.cliente.id,
         numeroPeito: null, // reseta o número de peito para reassociação
+        // Antes ficavam os dados de quem repassou: a conta nova, a lista do
+        // organizador, o check-in e a cronometragem mostravam o nome antigo.
+        dependenteId: null,
+        atletaNome: pfDestino.nomeCompleto,
+        atletaCpf: pfDestino.cpf,
+        atletaDataNascimento: pfDestino.dataNascimento,
+        atletaGenero: pfDestino.genero,
+        atletaPcd: pfDestino.pcd,
       },
     });
   }

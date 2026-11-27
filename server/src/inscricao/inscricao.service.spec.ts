@@ -166,6 +166,98 @@ describe('InscricaoService', () => {
     });
   });
 
+  describe('transferirInscricao', () => {
+    const pfDestino = {
+      nomeCompleto: 'Maria Nova',
+      cpf: '22233344455',
+      dataNascimento: new Date('1995-05-05'),
+      genero: 'FEMININO',
+      pcd: false,
+    };
+
+    beforeEach(() => {
+      prisma.inscricao.findUnique = jest.fn().mockResolvedValue({
+        id: 'inscricao-1',
+        clienteId,
+        status: StatusInscricao.CONFIRMADA,
+        kitEntregueEm: null,
+        isFuncionario: false,
+        importacaoId: null,
+        dependenteId: null,
+        atletaNome: 'Ana Antiga',
+        atletaCpf: '11122233344',
+        categoria: {
+          ...categoriaPadrao,
+          modalidade: {
+            ...categoriaPadrao.modalidade,
+            evento: {
+              id: eventoId,
+              dataInicio: dataEvento,
+              permiteTransferencia: true,
+              camisasBloqueadas: false,
+              limiteTrocaCamisaAté: null,
+            },
+          },
+        },
+      });
+      prisma.usuario.findUnique.mockResolvedValue({
+        id: 'usuario-2',
+        cliente: { id: 'cliente-2', pf: pfDestino },
+      });
+      prisma.inscricao.update.mockResolvedValue({ id: 'inscricao-1' });
+    });
+
+    it('grava os dados de quem recebe, nao os de quem repassou', async () => {
+      await service.transferirInscricao(usuarioId, 'inscricao-1', 'maria@exemplo.com');
+
+      expect(prisma.inscricao.update).toHaveBeenCalledWith({
+        where: { id: 'inscricao-1' },
+        data: {
+          clienteId: 'cliente-2',
+          numeroPeito: null,
+          dependenteId: null,
+          atletaNome: 'Maria Nova',
+          atletaCpf: '22233344455',
+          atletaDataNascimento: pfDestino.dataNascimento,
+          atletaGenero: 'FEMININO',
+          atletaPcd: false,
+        },
+      });
+    });
+
+    it('recusa quem recebe sem perfil completo', async () => {
+      prisma.usuario.findUnique.mockResolvedValue({
+        id: 'usuario-2',
+        cliente: { id: 'cliente-2', pf: null },
+      });
+      await expect(
+        service.transferirInscricao(usuarioId, 'inscricao-1', 'maria@exemplo.com'),
+      ).rejects.toThrow('completar o perfil');
+      expect(prisma.inscricao.update).not.toHaveBeenCalled();
+    });
+
+    it('recusa quem nao cabe na categoria', async () => {
+      const atual = await prisma.inscricao.findUnique();
+      atual.categoria.genero = 'MASCULINO';
+      prisma.inscricao.findUnique.mockResolvedValue(atual);
+      await expect(
+        service.transferirInscricao(usuarioId, 'inscricao-1', 'maria@exemplo.com'),
+      ).rejects.toThrow('não pode receber esta vaga');
+      expect(prisma.inscricao.update).not.toHaveBeenCalled();
+    });
+
+    it('recusa quem ja esta inscrito no evento', async () => {
+      prisma.inscricao.findFirst.mockResolvedValue({ id: 'outra' });
+      await expect(
+        service.transferirInscricao(usuarioId, 'inscricao-1', 'maria@exemplo.com'),
+      ).rejects.toThrow(ConflictException);
+      expect(prisma.inscricao.findFirst.mock.calls[0][0].where.id).toEqual({
+        not: 'inscricao-1',
+      });
+      expect(prisma.inscricao.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe('create', () => {
     it('inscreve mesmo com e-mail ainda nao confirmado', async () => {
       // A trava barrava metade das compras; o e-mail agora e conferido na
