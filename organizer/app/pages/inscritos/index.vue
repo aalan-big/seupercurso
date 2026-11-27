@@ -174,6 +174,7 @@ async function abrirModal360(inscrito: (typeof inscritos.value)[number]) {
   mostrarRecusaIdoso.value = false
   motivoRecusaIdoso.value = ''
   fotoModalAmpliada.value = null
+  erro.value = ''
   modalAberto.value = true
   carregandoCategorias.value = true
 
@@ -201,6 +202,7 @@ async function abrirModal360(inscrito: (typeof inscritos.value)[number]) {
 async function salvarEdicao360() {
   if (!atletaSelecionado.value) return
   salvandoModal.value = true
+  erro.value = ''
   sucessoModal.value = ''
   try {
     await atualizarInscricao(atletaSelecionado.value.id, {
@@ -574,6 +576,9 @@ function formatarData(iso: string) {
           <!-- Conteúdo Rolável -->
           <div class="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5">
             <!-- Alerta de Sucesso -->
+            <p v-if="erro" role="alert" class="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-700 flex items-center gap-2">
+              <AlertTriangle :size="14" class="text-red-600 shrink-0" /> {{ erro }}
+            </p>
             <p v-if="sucessoModal" class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-800 flex items-center gap-2">
               <CheckCircle :size="14" class="text-emerald-600 shrink-0" /> {{ sucessoModal }}
             </p>

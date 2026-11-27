@@ -1235,6 +1235,8 @@ export class OrganizadorService {
         categoria: {
           include: { modalidade: { include: { evento: true } } },
         },
+        dependente: { select: { cpf: true, nomeCompleto: true } },
+        cliente: { select: { pf: { select: { cpf: true, nomeCompleto: true } } } },
       },
     });
 
@@ -1278,6 +1280,11 @@ export class OrganizadorService {
       }
     }
 
+    const mudouStatus = dto.status !== undefined && dto.status !== inscricao.status;
+    if (mudouStatus && dto.status === StatusInscricao.CONFIRMADA) {
+      await this.garantirAtletaNaoConfirmado(inscricao, eventoId);
+    }
+
     const res = await this.prisma.inscricao.update({
       where: { id: inscricaoId },
       data: {
@@ -1301,11 +1308,85 @@ export class OrganizadorService {
       },
     });
 
+    if (mudouStatus) {
+      const atleta =
+        inscricao.atletaNome ??
+        inscricao.dependente?.nomeCompleto ??
+        inscricao.cliente?.pf?.nomeCompleto ??
+        'atleta';
+      this.auditLogService.log({
+        categoria: CategoriaAuditLog.OPERACIONAL,
+        nivel: NivelAuditLog.INFO,
+        mensagem: `Organizador mudou o status da inscrição de ${atleta}: ${inscricao.status} → ${dto.status}`,
+        detalhes: {
+          inscricaoId,
+          eventoId,
+          organizadorId: organizador.id,
+          numeroPeito: inscricao.numeroPeito,
+          statusAnterior: inscricao.status,
+          statusNovo: dto.status,
+        },
+        usuarioId,
+      });
+    }
+
     if (res.categoria?.modalidade?.eventoId) {
       await this.autoAtribuirNumerosPeito(res.categoria.modalidade.eventoId);
     }
 
     return res;
+  }
+
+  /**
+   * Confirmar a mao uma tentativa nao paga de quem ja pagou por outra deixava o
+   * mesmo CPF duas vezes na lista de largada. Mesma regra de "quem corre" do
+   * checkout: o CPF do comprador so vale se a inscricao nao diz quem e o atleta.
+   */
+  private async garantirAtletaNaoConfirmado(
+    inscricao: {
+      id: string;
+      atletaCpf: string | null;
+      dependenteId: string | null;
+      dependente: { cpf: string } | null;
+      cliente: { pf: { cpf: string } | null };
+    },
+    eventoId: string,
+  ) {
+    const cpf = (
+      inscricao.atletaCpf ||
+      inscricao.dependente?.cpf ||
+      (inscricao.dependenteId ? null : inscricao.cliente?.pf?.cpf) ||
+      ''
+    ).replace(/\D/g, '');
+    // Importada sem CPF: nao ha como comparar.
+    if (!cpf) return;
+
+    // Cadastros antigos podem ter o CPF com pontuacao.
+    const cpfs = [cpf, cpf.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4')];
+    const outra = await this.prisma.inscricao.findFirst({
+      where: {
+        id: { not: inscricao.id },
+        status: StatusInscricao.CONFIRMADA,
+        categoria: { modalidade: { eventoId } },
+        OR: [
+          { atletaCpf: { in: cpfs } },
+          { dependente: { cpf: { in: cpfs } } },
+          {
+            atletaCpf: null,
+            dependenteId: null,
+            cliente: { pf: { cpf: { in: cpfs } } },
+          },
+        ],
+      },
+      select: { numeroPeito: true },
+    });
+    if (outra) {
+      throw new ConflictException(
+        `Este atleta já tem ${
+          outra.numeroPeito ? `a inscrição nº ${outra.numeroPeito}` : 'outra inscrição'
+        } confirmada neste evento. Esta é uma tentativa repetida: não confirme, para o CPF não sair duas vezes na lista.`,
+      );
+    }
   }
 
   /**

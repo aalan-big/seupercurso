@@ -11,6 +11,7 @@ import { Prisma } from '../generated/prisma/client';
 describe('OrganizadorService', () => {
   let service: OrganizadorService;
   let prisma: any;
+  let auditLog: { log: jest.Mock };
 
   const usuarioId = 'usuario-1';
   const organizadorId = 'organizador-1';
@@ -38,16 +39,18 @@ describe('OrganizadorService', () => {
       inscricao: {
         count: jest.fn().mockResolvedValue(0),
         findUnique: jest.fn(),
+        findFirst: jest.fn().mockResolvedValue(null),
         findMany: jest.fn(),
         update: jest.fn().mockResolvedValue({}),
       },
     };
 
+    auditLog = { log: jest.fn() };
     const moduleRef = await Test.createTestingModule({
       providers: [
         OrganizadorService,
         { provide: PrismaService, useValue: prisma },
-        { provide: AuditLogService, useValue: { log: jest.fn() } },
+        { provide: AuditLogService, useValue: auditLog },
         { provide: MercadoPagoOAuthService, useValue: {} },
         { provide: EmailService, useValue: {} },
       ],
@@ -230,6 +233,98 @@ describe('OrganizadorService', () => {
         }),
       ).rejects.toThrow(BadRequestException);
       expect(prisma.inscricao.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('atualizarInscricao: mudanca de status', () => {
+    const inscricao = (extra = {}) => ({
+      id: 'inscricao-1',
+      categoriaId: 'categoria-1',
+      status: 'PENDENTE_PAGAMENTO',
+      numeroPeito: null,
+      atletaNome: 'Atleta Teste',
+      atletaCpf: '11122233344',
+      dependenteId: null,
+      dependente: null,
+      cliente: { pf: { cpf: '99988877766', nomeCompleto: 'Comprador' } },
+      categoria: {
+        modalidade: { eventoId, evento: { organizadorId, possuiCamisa: true } },
+      },
+      ...extra,
+    });
+    const mudar = (status: any) =>
+      service.atualizarInscricao(usuarioId, 'inscricao-1', { status });
+
+    it('recusa confirmar atleta que ja esta confirmado no evento', async () => {
+      prisma.inscricao.findUnique.mockResolvedValue(inscricao());
+      prisma.inscricao.findFirst.mockResolvedValue({ numeroPeito: '161' });
+
+      await expect(mudar('CONFIRMADA')).rejects.toThrow(/inscrição nº 161 confirmada/);
+      expect(prisma.inscricao.update).not.toHaveBeenCalled();
+      expect(auditLog.log).not.toHaveBeenCalled();
+
+      const { where } = prisma.inscricao.findFirst.mock.calls[0][0];
+      expect(where.id).toEqual({ not: 'inscricao-1' });
+      expect(where.status).toBe('CONFIRMADA');
+      expect(where.categoria).toEqual({ modalidade: { eventoId } });
+      expect(where.OR[0]).toEqual({
+        atletaCpf: { in: ['11122233344', '111.222.333-44'] },
+      });
+    });
+
+    it('confirma e registra quem mudou quando nao ha outra', async () => {
+      prisma.inscricao.findUnique.mockResolvedValue(inscricao());
+      await mudar('CONFIRMADA');
+
+      expect(prisma.inscricao.update).toHaveBeenCalled();
+      expect(auditLog.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          usuarioId,
+          detalhes: expect.objectContaining({
+            inscricaoId: 'inscricao-1',
+            statusAnterior: 'PENDENTE_PAGAMENTO',
+            statusNovo: 'CONFIRMADA',
+          }),
+        }),
+      );
+    });
+
+    it('usa o CPF do dependente, nao o de quem comprou', async () => {
+      prisma.inscricao.findUnique.mockResolvedValue(
+        inscricao({ atletaCpf: null, dependenteId: 'dep-1', dependente: { cpf: '55566677788' } }),
+      );
+      await mudar('CONFIRMADA');
+
+      const { where } = prisma.inscricao.findFirst.mock.calls[0][0];
+      expect(where.OR[0].atletaCpf.in[0]).toBe('55566677788');
+    });
+
+    it('sem CPF nao compara e deixa confirmar', async () => {
+      prisma.inscricao.findUnique.mockResolvedValue(
+        inscricao({ atletaCpf: null, cliente: { pf: null } }),
+      );
+      await mudar('CONFIRMADA');
+
+      expect(prisma.inscricao.findFirst).not.toHaveBeenCalled();
+      expect(prisma.inscricao.update).toHaveBeenCalled();
+    });
+
+    it('cancelar a repetida nao e barrado e fica registrado', async () => {
+      prisma.inscricao.findUnique.mockResolvedValue(inscricao({ status: 'CONFIRMADA' }));
+      prisma.inscricao.findFirst.mockResolvedValue({ numeroPeito: '161' });
+      await mudar('CANCELADA');
+
+      expect(prisma.inscricao.update).toHaveBeenCalled();
+      expect(auditLog.log).toHaveBeenCalledTimes(1);
+    });
+
+    it('salvar outros dados sem mudar o status nao confere nem registra', async () => {
+      prisma.inscricao.findUnique.mockResolvedValue(inscricao({ status: 'CONFIRMADA' }));
+      prisma.inscricao.findFirst.mockResolvedValue({ numeroPeito: '161' });
+      await mudar('CONFIRMADA');
+
+      expect(prisma.inscricao.update).toHaveBeenCalled();
+      expect(auditLog.log).not.toHaveBeenCalled();
     });
   });
 
