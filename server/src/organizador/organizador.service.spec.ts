@@ -328,6 +328,105 @@ describe('OrganizadorService', () => {
     });
   });
 
+  describe('obterRelatorioFinanceiroEvento', () => {
+    const insc = (nome: string, evento = eventoId) => ({
+      atletaNome: nome,
+      dependente: null,
+      cliente: { pf: { nomeCompleto: 'Comprador' } },
+      categoria: { nome: 'Geral', modalidade: { nome: '5 km', eventoId: evento } },
+    });
+
+    beforeEach(() => {
+      prisma.cliente.findUnique
+        .mockResolvedValueOnce({
+          organizador: {
+            id: organizadorId,
+            clienteId: 'cliente-org',
+            comissaoPercentual: 10,
+            status: StatusOrganizador.APROVADO,
+          },
+        })
+        .mockResolvedValueOnce({ pf: null, pj: { razaoSocial: 'Org LTDA', nomeFantasia: 'Corre Mais' } });
+      prisma.evento.findUnique.mockResolvedValue({
+        id: eventoId,
+        organizadorId,
+        nome: 'Corrida Teste',
+        dataInicio: new Date('2026-12-01'),
+        local: 'Praça',
+        cidade: 'Iguatu',
+        estado: 'CE',
+      });
+      prisma.inscricao.findMany.mockResolvedValue([
+        { importacaoId: null, categoria: { modalidade: { nome: '5 km' } } },
+        { importacaoId: 'imp-1', categoria: { modalidade: { nome: '5 km' } } },
+      ]);
+      prisma.pagamento = {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'pg-1',
+            valor: 110,
+            valorLiquido: 95,
+            taxaGateway: null,
+            comissaoPlataforma: 10,
+            gateway: 'mercadopago',
+            metodo: 'PIX',
+            dataPagamento: new Date('2026-11-01'),
+            createdAt: new Date('2026-11-01'),
+            inscricao: null,
+            pedido: {
+              cliente: { pf: { nomeCompleto: 'Comprador' } },
+              inscricoes: [insc('Ana'), insc('Bia')],
+            },
+          },
+          {
+            // Pedido de outro evento que tambem tem inscricao neste: fica fora,
+            // como na tabela do financeiro.
+            id: 'pg-2',
+            valor: 50,
+            valorLiquido: 45,
+            taxaGateway: null,
+            comissaoPlataforma: 5,
+            gateway: 'mercadopago',
+            metodo: 'CARTAO_CREDITO',
+            dataPagamento: new Date('2026-11-02'),
+            createdAt: new Date('2026-11-02'),
+            inscricao: null,
+            pedido: {
+              cliente: { pf: { nomeCompleto: 'Outro' } },
+              inscricoes: [insc('Caio', 'evento-2'), insc('Duda')],
+            },
+          },
+        ]),
+      };
+    });
+
+    it('soma so os pagamentos do evento e bate tarifa, comissao e liquido', async () => {
+      const r = await service.obterRelatorioFinanceiroEvento(usuarioId, eventoId);
+
+      expect(r.organizador).toBe('Corre Mais');
+      expect(r.resumo).toEqual({
+        quantidadePagamentos: 1,
+        totalArrecadado: 110,
+        taxaGateway: 5,
+        comissaoPlataforma: 10,
+        repasse: 95,
+        inscricoesConfirmadas: 2,
+      });
+      expect(r.porForma).toEqual([
+        { metodo: 'PIX', quantidade: 1, totalArrecadado: 110, repasse: 95 },
+      ]);
+      expect(r.porModalidade).toEqual([{ modalidade: '5 km', confirmadas: 2, importadas: 1 }]);
+      expect(r.pagamentos[0].atletas).toEqual(['Ana', 'Bia']);
+    });
+
+    it('evento de outro organizador nao abre', async () => {
+      prisma.evento.findUnique.mockResolvedValue({ id: eventoId, organizadorId: 'outro' });
+      await expect(
+        service.obterRelatorioFinanceiroEvento(usuarioId, eventoId),
+      ).rejects.toThrow('Evento não encontrado');
+    });
+  });
+
   describe('obterKits', () => {
     it('quem ficou sem camisa nao entra na grade de tamanhos a produzir', async () => {
       prisma.inscricao.findMany.mockResolvedValue([

@@ -51,11 +51,13 @@ onUnmounted(() => {
     <span class="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-primary"></span>
   </div>
 
-  <div v-else class="flex h-screen overflow-hidden bg-slate-50 w-full max-w-full">
-    <AppSidebar :aberto="menuAberto" @fechar="menuAberto = false" />
+  <div v-else class="flex h-screen overflow-hidden bg-slate-50 w-full max-w-full print:block print:h-auto print:overflow-visible print:bg-white">
+    <div class="contents print:hidden">
+      <AppSidebar :aberto="menuAberto" @fechar="menuAberto = false" />
+    </div>
 
-    <div class="flex min-h-0 flex-1 flex-col min-w-0 max-w-full overflow-x-hidden">
-      <div class="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 shrink-0">
+    <div class="flex min-h-0 flex-1 flex-col min-w-0 max-w-full overflow-x-hidden print:block print:overflow-visible">
+      <div class="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 shrink-0 print:hidden">
         <div class="flex items-center gap-3 md:hidden">
           <button type="button" class="rounded-lg p-1 text-slate-600 hover:bg-slate-100 transition" @click="menuAberto = true">
             <AppIcon name="menu" size="22" class="text-slate-700" />
@@ -69,7 +71,7 @@ onUnmounted(() => {
       <!-- Banner de Alerta KYC se o Organizador não estiver aprovado (oculto na página de verificação) -->
       <div
         v-if="mostrarBanner"
-        class="bg-amber-500 text-amber-950 px-4 py-3 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs font-bold shrink-0"
+        class="print:hidden bg-amber-500 text-amber-950 px-4 py-3 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs font-bold shrink-0"
       >
         <div class="flex items-center gap-2">
           <AppIcon name="warning" size="18" class="text-amber-950 shrink-0" />
@@ -91,7 +93,7 @@ onUnmounted(() => {
         </NuxtLink>
       </div>
 
-      <main class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-8 w-full max-w-full">
+      <main class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-8 w-full max-w-full print:block print:overflow-visible print:p-0">
         <slot />
       </main>
     </div>

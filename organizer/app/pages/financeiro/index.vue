@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BarChart2, CheckCircle, Settings, AlertTriangle, DollarSign, Tag, Banknote, Ticket, Circle, CreditCard, Zap } from 'lucide-vue-next'
+import { BarChart2, CheckCircle, Settings, AlertTriangle, DollarSign, Tag, Banknote, Ticket, Circle, CreditCard, Zap, Printer } from 'lucide-vue-next'
 import type { FinanceiroOrganizador } from '../../composables/useFinanceiroOrganizador'
 
 const { buscar } = useFinanceiroOrganizador()
@@ -256,6 +256,7 @@ function exportarRelatorioCSV() {
                 <th class="px-5 py-3.5">Taxa Plataforma</th>
                 <th class="px-5 py-3.5">Líquido a Receber</th>
                 <th class="px-5 py-3.5 text-center">Status Repasse</th>
+                <th class="px-5 py-3.5 text-center">Relatório</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
@@ -281,6 +282,14 @@ function exportarRelatorioCSV() {
                   <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-bold text-emerald-800">
                     <Circle :size="10" class="fill-emerald-500 text-emerald-500" /> D+0 PIX / D+30 Cartão
                   </span>
+                </td>
+                <td class="px-5 py-4 text-center">
+                  <NuxtLink
+                    :to="`/financeiro/${evento.eventoId}`"
+                    class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-[11px] font-bold text-slate-700 hover:border-primary hover:text-primary transition whitespace-nowrap"
+                  >
+                    <Printer :size="13" /> Imprimir
+                  </NuxtLink>
                 </td>
               </tr>
             </tbody>

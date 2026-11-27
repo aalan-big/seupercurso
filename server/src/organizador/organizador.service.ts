@@ -285,20 +285,7 @@ export class OrganizadorService {
     let totalTaxaGateway = 0;
 
     for (const pagamento of pagamentos) {
-      const valor = Number(pagamento.valor);
-      // A tarifa do gateway ja esta embutida no valor pago pelo atleta. Sem a
-      // comissao: no Mercado Pago a taxaGateway gravada a incluia, e o repasse
-      // descontava a comissao duas vezes.
-      const taxa = tarifaGatewayDoPagamento(pagamento);
-      // Comissao retida de verdade, gravada na cobranca. O calculo so cobre
-      // linha antiga sem o dado: quando o atleta paga a comissao, o liquido ja
-      // a contem, e aplicar o percentual sobre ele cobrava percentual sobre
-      // percentual (R$ 2,20 onde o extrato dizia R$ 2,00).
-      const comissao =
-        pagamento.comissaoPlataforma !== null &&
-        pagamento.comissaoPlataforma !== undefined
-          ? Number(pagamento.comissaoPlataforma)
-          : Math.max(0, valor - taxa) * (percentual / 100);
+      const { valor, taxa, comissao } = this.valoresDoPagamento(pagamento, percentual);
       totalArrecadado += valor;
       comissaoPlataforma += comissao;
       totalTaxaGateway += taxa;
@@ -343,6 +330,224 @@ export class OrganizadorService {
       porEvento: Array.from(porEvento.values()).map((e) => ({
         ...e,
         repasse: e.totalArrecadado - e.taxaGateway - e.comissaoPlataforma,
+      })),
+    };
+  }
+
+  /**
+   * Valor, tarifa do gateway, comissao e liquido de um pagamento aprovado. A
+   * tabela do financeiro e o relatorio impresso usam a mesma conta, para os
+   * dois baterem.
+   */
+  private valoresDoPagamento(
+    pagamento: {
+      valor: Prisma.Decimal | number;
+      valorLiquido: Prisma.Decimal | null;
+      taxaGateway: Prisma.Decimal | null;
+      comissaoPlataforma: Prisma.Decimal | null;
+      gateway: string | null;
+    },
+    percentual: number,
+  ) {
+    const valor = Number(pagamento.valor);
+    // A tarifa do gateway ja esta embutida no valor pago pelo atleta. Sem a
+    // comissao: no Mercado Pago a taxaGateway gravada a incluia, e o repasse
+    // descontava a comissao duas vezes.
+    const taxa = tarifaGatewayDoPagamento(pagamento);
+    // Comissao retida de verdade, gravada na cobranca. O calculo so cobre
+    // linha antiga sem o dado: quando o atleta paga a comissao, o liquido ja
+    // a contem, e aplicar o percentual sobre ele cobrava percentual sobre
+    // percentual (R$ 2,20 onde o extrato dizia R$ 2,00).
+    const comissao =
+      pagamento.comissaoPlataforma !== null &&
+      pagamento.comissaoPlataforma !== undefined
+        ? Number(pagamento.comissaoPlataforma)
+        : Math.max(0, valor - taxa) * (percentual / 100);
+    return { valor, taxa, comissao, liquido: valor - taxa - comissao };
+  }
+
+  /**
+   * Relatorio financeiro de um evento para imprimir: resumo, totais por forma
+   * de pagamento, inscricoes por modalidade e a lista de pagamentos. Um pedido
+   * conta para o evento da primeira inscricao, como na tabela do financeiro.
+   */
+  async obterRelatorioFinanceiroEvento(usuarioId: string, eventoId: string) {
+    const organizador = await this.getOrganizadorOuFalhar(usuarioId);
+    const evento = await this.getEventoDoOrganizadorOuFalhar(organizador.id, eventoId);
+    const percentual = Number(organizador.comissaoPercentual);
+
+    const doEvento = { categoria: { modalidade: { eventoId } } };
+    const inscricaoSelect = {
+      atletaNome: true,
+      dependente: { select: { nomeCompleto: true } },
+      cliente: { select: { pf: { select: { nomeCompleto: true } } } },
+      categoria: {
+        select: {
+          nome: true,
+          modalidade: { select: { nome: true, eventoId: true } },
+        },
+      },
+    } as const;
+
+    const [pagamentos, inscricoes, donoConta] = await Promise.all([
+      this.prisma.pagamento.findMany({
+        where: {
+          status: StatusPagamento.APROVADO,
+          OR: [
+            { inscricao: doEvento },
+            { pedido: { inscricoes: { some: doEvento } } },
+          ],
+        },
+        orderBy: [{ dataPagamento: 'asc' }, { createdAt: 'asc' }],
+        select: {
+          id: true,
+          valor: true,
+          valorLiquido: true,
+          taxaGateway: true,
+          comissaoPlataforma: true,
+          gateway: true,
+          metodo: true,
+          dataPagamento: true,
+          createdAt: true,
+          inscricao: { select: inscricaoSelect },
+          pedido: {
+            select: {
+              cliente: { select: { pf: { select: { nomeCompleto: true } } } },
+              inscricoes: {
+                orderBy: { dataInscricao: 'asc' },
+                select: inscricaoSelect,
+              },
+            },
+          },
+        },
+      }),
+      this.prisma.inscricao.findMany({
+        where: { status: StatusInscricao.CONFIRMADA, ...doEvento },
+        select: {
+          importacaoId: true,
+          categoria: { select: { modalidade: { select: { nome: true } } } },
+        },
+      }),
+      this.prisma.cliente.findUnique({
+        where: { id: organizador.clienteId },
+        select: {
+          pf: { select: { nomeCompleto: true } },
+          pj: { select: { razaoSocial: true, nomeFantasia: true } },
+        },
+      }),
+    ]);
+
+    const nomeAtleta = (i: {
+      atletaNome: string | null;
+      dependente: { nomeCompleto: string } | null;
+      cliente: { pf: { nomeCompleto: string } | null };
+    }) => i.atletaNome || i.dependente?.nomeCompleto || i.cliente.pf?.nomeCompleto || 'Atleta';
+
+    const resumo = {
+      quantidadePagamentos: 0,
+      totalArrecadado: 0,
+      taxaGateway: 0,
+      comissaoPlataforma: 0,
+      repasse: 0,
+    };
+    const porForma = new Map<string, { metodo: string; quantidade: number; totalArrecadado: number; repasse: number }>();
+    const linhas: Array<{
+      id: string;
+      data: Date;
+      comprador: string;
+      atletas: string[];
+      modalidades: string[];
+      metodo: string;
+      valor: number;
+      taxaGateway: number;
+      comissaoPlataforma: number;
+      repasse: number;
+    }> = [];
+
+    for (const p of pagamentos) {
+      const inscricoesDoPagamento = p.inscricao ? [p.inscricao] : (p.pedido?.inscricoes ?? []);
+      // Mesma atribuicao da tabela: o pedido e do evento da primeira inscricao.
+      if (inscricoesDoPagamento[0]?.categoria.modalidade.eventoId !== eventoId) continue;
+
+      const v = this.valoresDoPagamento(p, percentual);
+      resumo.quantidadePagamentos += 1;
+      resumo.totalArrecadado += v.valor;
+      resumo.taxaGateway += v.taxa;
+      resumo.comissaoPlataforma += v.comissao;
+      resumo.repasse += v.liquido;
+
+      const forma = porForma.get(p.metodo) ?? { metodo: p.metodo, quantidade: 0, totalArrecadado: 0, repasse: 0 };
+      forma.quantidade += 1;
+      forma.totalArrecadado += v.valor;
+      forma.repasse += v.liquido;
+      porForma.set(p.metodo, forma);
+
+      const doEventoNoPagamento = inscricoesDoPagamento.filter(
+        (i) => i.categoria.modalidade.eventoId === eventoId,
+      );
+      linhas.push({
+        id: p.id,
+        data: p.dataPagamento ?? p.createdAt,
+        comprador:
+          p.pedido?.cliente.pf?.nomeCompleto ??
+          p.inscricao?.cliente.pf?.nomeCompleto ??
+          '—',
+        atletas: doEventoNoPagamento.map(nomeAtleta),
+        modalidades: [...new Set(doEventoNoPagamento.map((i) => `${i.categoria.modalidade.nome} · ${i.categoria.nome}`))],
+        metodo: p.metodo,
+        valor: v.valor,
+        taxaGateway: v.taxa,
+        comissaoPlataforma: v.comissao,
+        repasse: v.liquido,
+      });
+    }
+
+    const porModalidade = new Map<string, { modalidade: string; confirmadas: number; importadas: number }>();
+    for (const i of inscricoes) {
+      const nome = i.categoria.modalidade.nome;
+      const atual = porModalidade.get(nome) ?? { modalidade: nome, confirmadas: 0, importadas: 0 };
+      atual.confirmadas += 1;
+      if (i.importacaoId) atual.importadas += 1;
+      porModalidade.set(nome, atual);
+    }
+
+    const r2 = (n: number) => Number(n.toFixed(2));
+    return {
+      geradoEm: new Date(),
+      organizador:
+        donoConta?.pj?.nomeFantasia ||
+        donoConta?.pj?.razaoSocial ||
+        donoConta?.pf?.nomeCompleto ||
+        '',
+      comissaoPercentual: percentual,
+      evento: {
+        id: evento.id,
+        nome: evento.nome,
+        dataInicio: evento.dataInicio,
+        local: evento.local,
+        cidade: evento.cidade,
+        estado: evento.estado,
+      },
+      resumo: {
+        quantidadePagamentos: resumo.quantidadePagamentos,
+        totalArrecadado: r2(resumo.totalArrecadado),
+        taxaGateway: r2(resumo.taxaGateway),
+        comissaoPlataforma: r2(resumo.comissaoPlataforma),
+        repasse: r2(resumo.repasse),
+        inscricoesConfirmadas: inscricoes.length,
+      },
+      porForma: [...porForma.values()].map((f) => ({
+        ...f,
+        totalArrecadado: r2(f.totalArrecadado),
+        repasse: r2(f.repasse),
+      })),
+      porModalidade: [...porModalidade.values()].sort((a, b) => a.modalidade.localeCompare(b.modalidade)),
+      pagamentos: linhas.map((l) => ({
+        ...l,
+        valor: r2(l.valor),
+        taxaGateway: r2(l.taxaGateway),
+        comissaoPlataforma: r2(l.comissaoPlataforma),
+        repasse: r2(l.repasse),
       })),
     };
   }

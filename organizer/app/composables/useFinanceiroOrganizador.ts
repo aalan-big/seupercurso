@@ -24,6 +24,42 @@ export interface FinanceiroOrganizador {
   porEvento: ResumoEventoFinanceiro[]
 }
 
+export interface RelatorioFinanceiroEvento {
+  geradoEm: string
+  organizador: string
+  comissaoPercentual: number
+  evento: {
+    id: string
+    nome: string
+    dataInicio: string
+    local: string
+    cidade: string
+    estado: string
+  }
+  resumo: {
+    quantidadePagamentos: number
+    totalArrecadado: number
+    taxaGateway: number
+    comissaoPlataforma: number
+    repasse: number
+    inscricoesConfirmadas: number
+  }
+  porForma: Array<{ metodo: string; quantidade: number; totalArrecadado: number; repasse: number }>
+  porModalidade: Array<{ modalidade: string; confirmadas: number; importadas: number }>
+  pagamentos: Array<{
+    id: string
+    data: string
+    comprador: string
+    atletas: string[]
+    modalidades: string[]
+    metodo: string
+    valor: number
+    taxaGateway: number
+    comissaoPlataforma: number
+    repasse: number
+  }>
+}
+
 export function useFinanceiroOrganizador() {
   const api = useApi()
 
@@ -31,5 +67,11 @@ export function useFinanceiroOrganizador() {
     return api<FinanceiroOrganizador>('/organizadores/me/financeiro')
   }
 
-  return { buscar }
+  async function relatorioEvento(eventoId: string) {
+    return api<RelatorioFinanceiroEvento>(
+      `/organizadores/me/financeiro/eventos/${eventoId}/relatorio`,
+    )
+  }
+
+  return { buscar, relatorioEvento }
 }

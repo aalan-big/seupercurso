@@ -78,6 +78,14 @@ export class OrganizadorController {
     return this.organizadorService.obterFinanceiro(user.userId);
   }
 
+  @Get('financeiro/eventos/:eventoId/relatorio')
+  obterRelatorioFinanceiroEvento(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('eventoId', new ParseUUIDPipe()) eventoId: string,
+  ) {
+    return this.organizadorService.obterRelatorioFinanceiroEvento(user.userId, eventoId);
+  }
+
   /** URL de autorizacao; o organizador conclui no site do Mercado Pago. */
   @Get('mercadopago/conexao')
   obterUrlConexaoMercadoPago(@CurrentUser() user: AuthenticatedUser) {
